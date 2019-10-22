@@ -305,7 +305,7 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
                     inputs[feature_name][0].append(track_feature)
                     inputs[feature_name][1].append(frame_feature)
 
-        print('Got features in {}s'.format(timeit.default_timer() - t))
+        # print('Got features in {}s'.format(timeit.default_timer() - t))
 
         if input_pairs == []:
             # if the frame is empty
@@ -343,6 +343,9 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
         death_matrix = death_matrix - np.eye(number_of_tracks)
 
         # Compute mordor matrix
+        # The mordor matrix must sastify shape constraints and allow for
+        # auxillary assignments - therefore it should be the transpose of the
+        # assignment matrix
         mordor_matrix = assignment_matrix.T
 
         # Assemble full cost matrix
@@ -456,7 +459,6 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
 
     def _get_parent(self, frame, cell, predictions):
         """Searches the tracks for the parent of a given cell.
-
         Returns:
             The parent cell's id or None if no parent exists.
         """
@@ -683,8 +685,8 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
         neighborhoods = np.zeros(neighborhood_shape, dtype=K.floatx())
         future_areas = np.zeros(future_area_shape, dtype=K.floatx())
         for counter, (frame, cell_label) in enumerate(zip(frames, labels)):
-            print('Start _get_features for frame {} and label {}'.format(
-                frame, cell_label))
+            # print('Start _get_features for frame {} and label {}'.format(
+            #     frame, cell_label))
             t = timeit.default_timer()
             # Get the bounding box
             X_frame = X[frame] if self.data_format == 'channels_last' else X[:, frame]
@@ -780,7 +782,6 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
     def dataframe(self, **kwargs):
         """Returns a dataframe of the tracked cells with lineage.
         Uses only the cell labels not the ids.
-
         _track_cells must be called first!
         """
         # possible kwargs are extra_columns
@@ -964,8 +965,8 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
             D[node] = {
                 'false positive': node,
                 'neighbors': list(G.neighbors(node)),
-                'connected lineages': set([int(n.split('_')[0])
-                                          for n in nx.node_connected_component(G, n)])
+                'connected lineages': set([int(node.split('_')[0])
+                                          for node in nx.node_connected_component(G, node)])
             }
 
         return D
