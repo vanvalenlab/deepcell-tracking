@@ -7,10 +7,10 @@ git:
 language: python
 
 python:
-  - 2.7
-  - 3.5
+  # - 2.7
+  # - 3.5
   - 3.6
-  - 3.7
+  # - 3.7
 
 cache: pip
 
@@ -31,5 +31,5 @@ jobs:
       password: $PYPI_PASSWORD
       edge: true  # opt in to dpl v2
 
-after_success:
-  - coveralls
+# after_success:
+#   - coveralls
