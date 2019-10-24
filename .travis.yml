@@ -1,0 +1,25 @@
+sudo: true
+dist: xenial
+
+git:
+  depth: false
+
+language: python
+
+python:
+  - 2.7
+  - 3.5
+  - 3.6
+  - 3.7
+
+cache: pip
+
+install:
+  - pip install -r requirements.txt
+  - pip install pytest pytest-cov==2.5.1 pytest-pep8 coveralls
+
+script:
+  - pytest --cov=deepcell_tracking --pep8
+
+after_success:
+  - coveralls
