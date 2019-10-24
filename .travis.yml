@@ -25,12 +25,13 @@ script:
 jobs:
   include:
     - stage: deploy
-      # if: tag IS present
+    # if: tag IS present
       if: branch = "willgraf/deploy"
-      provider: pypi
-      username: $PYPI_USERNAME
-      password: $PYPI_PASSWORD
-      edge: true  # opt in to dpl v2
+      deploy:
+        provider: pypi
+        username: $PYPI_USERNAME
+        password: $PYPI_PASSWORD
+        edge: true  # opt in to dpl v2
 
 # after_success:
 #   - coveralls
