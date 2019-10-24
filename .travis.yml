@@ -26,7 +26,6 @@ jobs:
   include:
     - stage: deploy
     # if: tag IS present
-      if: branch = willgraf/deploy
       deploy:
         provider: pypi
         username: $PYPI_USERNAME
