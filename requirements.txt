@@ -4,4 +4,4 @@ networkx
 scipy
 scikit-image
 opencv-python
-
+pathlib
