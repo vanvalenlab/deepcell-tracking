@@ -21,7 +21,6 @@ install:
 script:
   - pytest --cov=deepcell_tracking --pep8
 
-
 jobs:
   include:
     - stage: deploy
