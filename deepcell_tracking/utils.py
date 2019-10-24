@@ -29,14 +29,14 @@ from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
 
-import os
 import json
+import os
+import re
 import tarfile
 import tempfile
 from io import BytesIO
 
 import numpy as np
-from tensorflow.python.keras import backend as K
 
 
 def sorted_nicely(l):
@@ -53,7 +53,7 @@ def sorted_nicely(l):
     return sorted(l, key=alphanum_key)
 
 
-def count_pairs(y, same_probability=0.5, data_format=None):
+def count_pairs(y, same_probability=0.5, data_format='channels_last'):
     """Compute number of training samples needed to observe all cell pairs.
 
     Args:
@@ -63,9 +63,6 @@ def count_pairs(y, same_probability=0.5, data_format=None):
     Returns:
         int: the total pairs needed to sample to see all possible pairings
     """
-    if data_format is None:
-        data_format = K.image_data_format()
-
     total_pairs = 0
     zaxis = 2 if data_format == 'channels_first' else 1
     for b in range(y.shape[0]):
@@ -124,7 +121,7 @@ def load_trks(filename):
         array_file.close()
 
         # trks.extractfile opens a file in bytes mode, json can't use bytes.
-        __, file_extension = os.path.splitext(filename)
+        _, file_extension = os.path.splitext(filename)
 
         if file_extension == '.trks':
             trk_data = trks.getmember('lineages.json')

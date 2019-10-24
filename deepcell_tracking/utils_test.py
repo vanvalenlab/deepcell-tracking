@@ -31,7 +31,7 @@ from __future__ import print_function
 import numpy as np
 from tensorflow.python.platform import test
 
-from tracking import utils
+from deepcell_tracking import utils
 
 
 def _get_image(img_h=300, img_w=300):
@@ -47,11 +47,11 @@ class TrackingUtilsTests(test.TestCase):
         # test image file sorting
         expected = ['test_001_dapi', 'test_002_dapi', 'test_003_dapi']
         unsorted = ['test_003_dapi', 'test_001_dapi', 'test_002_dapi']
-        self.assertListEqual(expected, misc_utils.sorted_nicely(unsorted))
+        self.assertListEqual(expected, utils.sorted_nicely(unsorted))
         # test montage folder sorting
         expected = ['test_0_0', 'test_1_0', 'test_1_1']
         unsorted = ['test_1_1', 'test_0_0', 'test_1_0']
-        self.assertListEqual(expected, misc_utils.sorted_nicely(unsorted))
+        self.assertListEqual(expected, utils.sorted_nicely(unsorted))
 
     def test_count_pairs(self):
         batches = 1

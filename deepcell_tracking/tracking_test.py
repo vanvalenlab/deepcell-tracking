@@ -38,7 +38,7 @@ import skimage as sk
 from tensorflow.python import keras
 from tensorflow.python.platform import test
 
-from tracking import tracking
+from deepcell_tracking import tracking
 
 
 def _get_dummy_tracking_data(length=128, frames=3,
