@@ -5,3 +5,4 @@ scipy
 scikit-image
 opencv-python
 pathlib
+tensorflow
