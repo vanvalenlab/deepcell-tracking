@@ -38,7 +38,19 @@ from io import BytesIO
 import numpy as np
 from tensorflow.python.keras import backend as K
 
-from deepcell.utils.misc_utils import sorted_nicely
+
+def sorted_nicely(l):
+    """Sort a list of strings by the numerical order of all substrings
+
+    Args:
+        l (list): List of strings to sort
+
+    Returns:
+        list: a sorted list
+    """
+    convert = lambda text: int(text) if text.isdigit() else text
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+    return sorted(l, key=alphanum_key)
 
 
 def count_pairs(y, same_probability=0.5, data_format=None):
