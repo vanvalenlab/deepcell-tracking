@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.com/vanvalenlab/deepcell-tracking.svg?branch=master)](https://travis-ci.com/vanvalenlab/deepcell-tracking)
 [![Coverage Status](https://coveralls.io/repos/github/vanvalenlab/deepcell-tracking/badge.svg?branch=master)](https://coveralls.io/github/vanvalenlab/deepcell-tracking?branch=master)
 
-Deepcell-Tracking uses deep learning models from [deepcell-tf](https://github.com/vanvalenlab/deepcell-tf) and a linear assignment matrix to [track cells through time-lapse sequences](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2747604/) and build cell lineages.
+Deepcell-Tracking uses deep learning models from [deepcell-tf](https://github.com/vanvalenlab/deepcell-tf) within an assignment problem framework to [track cells through time-lapse sequences](https://www.biorxiv.org/content/10.1101/803205v2.article-metrics) and build cell lineages. The assignment problem is solved using the [Hungarian algorithm.](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2747604/)
 
 ## Getting Started
 
@@ -29,11 +29,11 @@ pip install -r requirements.txt
 ```python
 from deepcell_tracking import cell_tracker
 
-# X and y are the time-sequence data and labels, respectively.
+# X and y are the time-sequence data and their corresponding segmentations (labels), respectively.
 # model is a deepcell-tf tracking model.
 tracker = cell_tracker(X, y, model)
 
-tracker.track_cells()  # runs in place, builds tracks
+tracker._track_cells()  # runs in place, builds tracks
 
 # Save all tracked data and lineage files to a .trk file
 tracker.dump('./results.trk')
