@@ -32,9 +32,9 @@ jobs:
         user: $PYPI_USERNAME
         password: $PYPI_PASSWORD
         on:
-          tags: false  # switch this for later
+          tags: false
           all_branches: true
-          condition: $TRAVIS_BRANCH = willgraf/deploy  # master branch usually
+          condition: $TRAVIS_BRANCH = willgraf/deploy
 
 # after_success:
 #   - coveralls
