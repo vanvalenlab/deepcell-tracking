@@ -104,6 +104,10 @@ class TrackingTests(test.TestCase, parameterized.TestCase):
         with self.assertRaises(ValueError):
             tracking.cell_tracker(x, y, model=model, features=None)
 
+        # test bad features
+        with self.assertRaises(ValueError):
+            tracking.cell_tracker(x, y, model=model, data_format='invalid')
+
     def test__track_cells(self):
         length = 128
         frames = 5

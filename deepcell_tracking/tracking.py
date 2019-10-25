@@ -62,7 +62,7 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
                  track_length=7,
                  neighborhood_scale_size=30,
                  neighborhood_true_size=100,
-                 data_format=None):
+                 data_format='channels_last'):
 
         if not len(movie.shape) == 4 or not len(annotation.shape) == 4:
             raise ValueError('Input data and labels but be rank 4 '
@@ -74,11 +74,13 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
                              ' except for the channel dimension.  Got {} and '
                              '{}'.format(movie.shape, annotation.shape))
 
-        if data_format is None:
-            data_format = K.image_data_format()
-
         if not features:
             raise ValueError('cell_tracking: No features specified.')
+
+        if data_format not in {'channels_first', 'channels_last'}:
+            raise ValueError('The `data_format` argument must be one of '
+                             '"channels_first", "channels_last". Received: ' +
+                             str(data_format))
 
         self.x = copy.copy(movie)
         self.y = copy.copy(annotation)
