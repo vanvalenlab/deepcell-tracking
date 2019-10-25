@@ -103,7 +103,7 @@ class TestTracking(parameterized.TestCase):
         with pytest.raises(ValueError):
             tracking.cell_tracker(x, y, model=model, features=None)
 
-        # test bad features
+        # test bad data_format
         with pytest.raises(ValueError):
             tracking.cell_tracker(x, y, model=model, data_format='invalid')
 
