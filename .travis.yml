@@ -32,8 +32,9 @@ jobs:
         user: $PYPI_USERNAME
         password: $PYPI_PASSWORD
         on:
-          repo: $TRAVIS_REPO_SLUG
+          tags: false  # switch this for later
           all_branches: true
+          condition: $TRAVIS_BRANCH = willgraf/deploy  # master branch usually
 
 # after_success:
 #   - coveralls
