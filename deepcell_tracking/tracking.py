@@ -75,7 +75,9 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
                              '{}'.format(movie.shape, annotation.shape))
 
         if not features:
-            raise ValueError('cell_tracking: No features specified.')
+            raise ValueError('`features` is empty but should be a list with any'
+                             ' or all of the following values: "appearance", '
+                             '"distance", "neighborhood" or "regionprop".')
 
         if data_format not in {'channels_first', 'channels_last'}:
             raise ValueError('The `data_format` argument must be one of '
