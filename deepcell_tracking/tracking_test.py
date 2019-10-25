@@ -100,10 +100,6 @@ class TrackingTests(test.TestCase, parameterized.TestCase):
                 np.random.randint(num_objects, size=(2, 32, 32, 1)),
                 model=model)
 
-        # test that NOT including features throws error
-        with self.assertRaises(ValueError):
-            tracking.cell_tracker(x, y, model=model)
-
     def test__track_cells(self):
         length = 128
         frames = 5
