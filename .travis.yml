@@ -1,4 +1,3 @@
-sudo: true
 dist: xenial
 
 git:
@@ -20,6 +19,17 @@ install:
 
 script:
   - pytest --cov=deepcell_tracking --pep8
+
+jobs:
+  include:
+    - stage: deploy
+      if: tag IS present
+      deploy:
+        provider: pypi
+        user: $PYPI_USERNAME
+        password: $PYPI_PASSWORD
+        on:
+          tags: true
 
 after_success:
   - coveralls
