@@ -6,21 +6,19 @@ git:
 language: python
 
 python:
-  # - 2.7
-  # - 3.5
+  - 2.7
+  - 3.5
   - 3.6
-  # - 3.7
+  - 3.7
 
 cache: pip
 
 install:
-  # - travis_retry pip install -r requirements.txt
-  # - travis_retry pip install pytest pytest-cov==2.5.1 pytest-pep8 coveralls
-  - echo "Dummy Install"
+  - travis_retry pip install -r requirements.txt
+  - travis_retry pip install pytest pytest-cov==2.5.1 pytest-pep8 coveralls
 
 script:
-  # - pytest --cov=deepcell_tracking --pep8
-  - echo "Dummy Test"
+  - pytest --cov=deepcell_tracking --pep8
 
 jobs:
   include:
@@ -31,9 +29,7 @@ jobs:
         user: $PYPI_USERNAME
         password: $PYPI_PASSWORD
         on:
-          tags: false
-          all_branches: true
-          condition: $TRAVIS_BRANCH = willgraf/deploy
+          tags: true
 
-# after_success:
-#   - coveralls
+after_success:
+  - coveralls
