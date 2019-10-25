@@ -41,7 +41,6 @@ import networkx as nx
 
 import cv2
 import numpy as np
-from tensorflow.python.keras import backend as K
 from scipy.optimize import linear_sum_assignment
 from skimage.measure import regionprops
 from skimage.transform import resize
@@ -62,7 +61,8 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
                  track_length=7,
                  neighborhood_scale_size=30,
                  neighborhood_true_size=100,
-                 data_format=None):
+                 dtype='float32',
+                 data_format='channels_last'):
 
         if not len(movie.shape) == 4 or not len(annotation.shape) == 4:
             raise ValueError('Input data and labels but be rank 4 '
@@ -74,11 +74,15 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
                              ' except for the channel dimension.  Got {} and '
                              '{}'.format(movie.shape, annotation.shape))
 
-        if data_format is None:
-            data_format = K.image_data_format()
+        if not features:
+            raise ValueError('`features` is empty but should be a list with any'
+                             ' or all of the following values: "appearance", '
+                             '"distance", "neighborhood" or "regionprop".')
 
-        if features is None:  # TODO: why default to None?
-            raise ValueError('cell_tracking: No features specified.')
+        if data_format not in {'channels_first', 'channels_last'}:
+            raise ValueError('The `data_format` argument must be one of '
+                             '"channels_first", "channels_last". Received: ' +
+                             str(data_format))
 
         self.x = copy.copy(movie)
         self.y = copy.copy(annotation)
@@ -91,6 +95,7 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
         self.max_distance = max_distance
         self.neighborhood_scale_size = neighborhood_scale_size
         self.neighborhood_true_size = neighborhood_true_size
+        self.dtype = dtype
         self.data_format = data_format
         self.track_length = track_length
         self.channel_axis = 0 if data_format == 'channels_first' else -1
@@ -186,7 +191,7 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
         if feature_name == 'distance':
             centroids = np.concatenate([track_feature, np.array([frame_feature])], axis=0)
             distances = np.diff(centroids, axis=0)
-            zero_pad = np.zeros((1, 2), dtype=K.floatx())
+            zero_pad = np.zeros((1, 2), dtype=self.dtype)
             distances = np.concatenate([zero_pad, distances], axis=0)
 
             ok = True
@@ -220,13 +225,13 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
         number_of_cells = len(cells_in_frame)
 
         total_cells = number_of_tracks + number_of_cells
-        cost_matrix = np.zeros((total_cells, total_cells), dtype=K.floatx())
-        assignment_matrix = np.zeros((number_of_tracks, number_of_cells), dtype=K.floatx())
-        birth_matrix = np.zeros((number_of_cells, number_of_cells), dtype=K.floatx())
-        death_matrix = np.zeros((number_of_tracks, number_of_tracks), dtype=K.floatx())
+        cost_matrix = np.zeros((total_cells, total_cells), dtype=self.dtype)
+        assignment_matrix = np.zeros((number_of_tracks, number_of_cells), dtype=self.dtype)
+        birth_matrix = np.zeros((number_of_cells, number_of_cells), dtype=self.dtype)
+        death_matrix = np.zeros((number_of_tracks, number_of_tracks), dtype=self.dtype)
 
         # Bottom right matrix
-        mordor_matrix = np.zeros((number_of_cells, number_of_tracks), dtype=K.floatx())
+        mordor_matrix = np.zeros((number_of_cells, number_of_tracks), dtype=self.dtype)
 
         # Grab the features for the entire track
         track_features = {f: self._fetch_track_feature(f) for f in self.features}
@@ -239,7 +244,7 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
             # TODO(enricozb): why are there extra (1,)'s in the image shapes
             additional = (1,) if feature_name in {'appearance', 'neighborhood'} else ()
             shape = tuple([number_of_cells] + list(additional) + list(feature_shape))
-            frame_features[feature_name] = np.zeros(shape, dtype=K.floatx())
+            frame_features[feature_name] = np.zeros(shape, dtype=self.dtype)
         # Fill frame_features with the proper values
         for cell_idx, cell_id in enumerate(cells_in_frame):
             cell_features = self._get_features(self.x, self.y, [frame], [cell_id])
@@ -510,7 +515,7 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
                  self.crop_dim,
                  self.crop_dim,
                  self.x.shape[self.channel_axis])
-        track_appearances = np.zeros(shape, dtype=K.floatx())
+        track_appearances = np.zeros(shape, dtype=self.dtype)
 
         for track_id, track in self.tracks.items():
             app = track['appearance']
@@ -537,7 +542,7 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
         the centroids from the first frame.
         """
         shape = (len(self.tracks.keys()), self.track_length, 3)
-        track_regionprops = np.zeros(shape, dtype=K.floatx())
+        track_regionprops = np.zeros(shape, dtype=self.dtype)
 
         for track_id, track in self.tracks.items():
             regionprop = track['regionprop']
@@ -564,7 +569,7 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
         the centroids from the first frame.
         """
         shape = (len(self.tracks.keys()), self.track_length, 2)
-        track_centroids = np.zeros(shape, dtype=K.floatx())
+        track_centroids = np.zeros(shape, dtype=self.dtype)
 
         for track_id, track in self.tracks.items():
             centroids = track['distance']
@@ -595,7 +600,7 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
                  2 * self.neighborhood_scale_size + 1,
                  2 * self.neighborhood_scale_size + 1,
                  1)
-        track_neighborhoods = np.zeros(shape, dtype=K.floatx())
+        track_neighborhoods = np.zeros(shape, dtype=self.dtype)
 
         for track_id, track in self.tracks.items():
             neighborhoods = track['neighborhood']
@@ -679,11 +684,11 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
                              2 * self.neighborhood_scale_size + 1, 1)
 
         # Initialize storage for appearances and centroids
-        appearances = np.zeros(appearance_shape, dtype=K.floatx())
-        centroids = np.zeros(centroid_shape, dtype=K.floatx())
-        rprops = np.zeros(regionprop_shape, dtype=K.floatx())
-        neighborhoods = np.zeros(neighborhood_shape, dtype=K.floatx())
-        future_areas = np.zeros(future_area_shape, dtype=K.floatx())
+        appearances = np.zeros(appearance_shape, dtype=self.dtype)
+        centroids = np.zeros(centroid_shape, dtype=self.dtype)
+        rprops = np.zeros(regionprop_shape, dtype=self.dtype)
+        neighborhoods = np.zeros(neighborhood_shape, dtype=self.dtype)
+        future_areas = np.zeros(future_area_shape, dtype=self.dtype)
         for counter, (frame, cell_label) in enumerate(zip(frames, labels)):
             # print('Start _get_features for frame {} and label {}'.format(
             #     frame, cell_label))

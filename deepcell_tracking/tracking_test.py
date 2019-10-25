@@ -35,8 +35,7 @@ import numpy as np
 import pandas as pd
 import skimage as sk
 
-from tensorflow.python import keras
-from tensorflow.python.platform import test
+import pytest
 
 from deepcell_tracking import tracking
 
@@ -75,7 +74,7 @@ class DummyModel(object):  # pylint: disable=useless-object-inheritance
         return np.random.random((batches, 3))
 
 
-class TrackingTests(test.TestCase, parameterized.TestCase):
+class TestTracking(parameterized.TestCase):
 
     def test_simple(self):
         length = 128
@@ -84,21 +83,29 @@ class TrackingTests(test.TestCase, parameterized.TestCase):
         num_objects = len(np.unique(y)) - 1
         model = DummyModel()
 
-        tracker = tracking.cell_tracker(x, y, model=model, features=[])
+        _ = tracking.cell_tracker(x, y, model=model)
 
         # test data with bad rank
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             tracking.cell_tracker(
                 np.random.random((32, 32, 1)),
                 np.random.randint(num_objects, size=(32, 32, 1)),
                 model=model)
 
         # test mismatched x and y shape
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             tracking.cell_tracker(
                 np.random.random((3, 32, 32, 1)),
                 np.random.randint(num_objects, size=(2, 32, 32, 1)),
                 model=model)
+
+        # test bad features
+        with pytest.raises(ValueError):
+            tracking.cell_tracker(x, y, model=model, features=None)
+
+        # test bad data_format
+        with pytest.raises(ValueError):
+            tracking.cell_tracker(x, y, model=model, data_format='invalid')
 
     def test__track_cells(self):
         length = 128
@@ -128,7 +135,7 @@ class TrackingTests(test.TestCase, parameterized.TestCase):
             assert 'cell_type' in df.columns
 
             # test incorrect values in tracker.dataframe
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 tracker.dataframe(bad_value=-1)
 
     @parameterized.named_parameters([
@@ -168,7 +175,7 @@ class TrackingTests(test.TestCase, parameterized.TestCase):
                 tracker._track_cells()
 
         # test bad value
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             tracker._fetch_track_feature('invalid-feature')
 
     def test__sub_area(self):
@@ -182,8 +189,7 @@ class TrackingTests(test.TestCase, parameterized.TestCase):
                 length, frames=frames, data_format=data_format)
 
             tracker = tracking.cell_tracker(
-                x, y, model=model, features=[],
-                data_format=data_format)
+                x, y, model=model, data_format=data_format)
 
             for f in range(frames):
                 if data_format == 'channels_first':
