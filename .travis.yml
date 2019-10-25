@@ -26,7 +26,7 @@ script:
 jobs:
   include:
     - stage: deploy
-      # if: branch IS present
+      if: tag IS present
       deploy:
         provider: pypi
         user: $PYPI_USERNAME
