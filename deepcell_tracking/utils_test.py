@@ -29,7 +29,6 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
-from tensorflow.python.platform import test
 
 from deepcell_tracking import utils
 
@@ -41,17 +40,17 @@ def _get_image(img_h=300, img_w=300):
     return img
 
 
-class TrackingUtilsTests(test.TestCase):
+class TestTrackingUtils(object):
 
     def test_sorted_nicely(self):
         # test image file sorting
         expected = ['test_001_dapi', 'test_002_dapi', 'test_003_dapi']
         unsorted = ['test_003_dapi', 'test_001_dapi', 'test_002_dapi']
-        self.assertListEqual(expected, utils.sorted_nicely(unsorted))
+        np.testing.assert_array_equal(expected, utils.sorted_nicely(unsorted))
         # test montage folder sorting
         expected = ['test_0_0', 'test_1_0', 'test_1_1']
         unsorted = ['test_1_1', 'test_0_0', 'test_1_0']
-        self.assertListEqual(expected, utils.sorted_nicely(unsorted))
+        np.testing.assert_array_equal(expected, utils.sorted_nicely(unsorted))
 
     def test_count_pairs(self):
         batches = 1
@@ -64,11 +63,11 @@ class TrackingUtilsTests(test.TestCase):
         y = np.random.randint(low=0, high=classes + 1,
                               size=(batches, frames, 30, 30, 1))
         pairs = utils.count_pairs(y, same_probability=prob)
-        self.assertEqual(pairs, expected)
+        assert pairs == expected
 
         # channels_first
         y = np.random.randint(low=0, high=classes + 1,
                               size=(batches, 1, frames, 30, 30))
         pairs = utils.count_pairs(
             y, same_probability=prob, data_format='channels_first')
-        self.assertEqual(pairs, expected)
+        assert pairs == expected
