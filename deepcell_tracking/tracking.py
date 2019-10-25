@@ -77,7 +77,7 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
         if data_format is None:
             data_format = K.image_data_format()
 
-        if features is None:  # TODO: why default to None?
+        if not features:
             raise ValueError('cell_tracking: No features specified.')
 
         self.x = copy.copy(movie)

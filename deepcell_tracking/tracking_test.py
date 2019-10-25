@@ -84,7 +84,7 @@ class TrackingTests(test.TestCase, parameterized.TestCase):
         num_objects = len(np.unique(y)) - 1
         model = DummyModel()
 
-        tracker = tracking.cell_tracker(x, y, model=model, features=[])
+        _ = tracking.cell_tracker(x, y, model=model)
 
         # test data with bad rank
         with self.assertRaises(ValueError):
@@ -99,6 +99,10 @@ class TrackingTests(test.TestCase, parameterized.TestCase):
                 np.random.random((3, 32, 32, 1)),
                 np.random.randint(num_objects, size=(2, 32, 32, 1)),
                 model=model)
+
+        # test bad features
+        with self.assertRaises(ValueError):
+            tracking.cell_tracker(x, y, model=model, features=None)
 
     def test__track_cells(self):
         length = 128
@@ -182,8 +186,7 @@ class TrackingTests(test.TestCase, parameterized.TestCase):
                 length, frames=frames, data_format=data_format)
 
             tracker = tracking.cell_tracker(
-                x, y, model=model, features=[],
-                data_format=data_format)
+                x, y, model=model, data_format=data_format)
 
             for f in range(frames):
                 if data_format == 'channels_first':
