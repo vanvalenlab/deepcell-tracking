@@ -22,9 +22,8 @@ script:
 
 jobs:
   include:
-    if: tag IS present
     - stage: deploy
-      python: 3.6
+      # if: tag IS present
       deploy:
         provider: pypi
         user: $PYPI_USERNAME
