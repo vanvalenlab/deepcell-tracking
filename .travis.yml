@@ -33,9 +33,7 @@ jobs:
         password: $PYPI_PASSWORD
         on:
           repo: $TRAVIS_REPO_SLUG
-          branches:
-            only:
-              - willgraf/deploy
+          all_branches: true
 
 # after_success:
 #   - coveralls
