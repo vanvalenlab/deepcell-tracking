@@ -34,6 +34,9 @@ jobs:
         edge: true  # opt in to dpl v2
         on:
           repo: $TRAVIS_REPO_SLUG
+          branches:
+            only:
+              - willgraf/deploy
 
 # after_success:
 #   - coveralls
