@@ -1,6 +1,6 @@
 numpy
 pandas
-networkx
+networkx<=2.3
 scipy
 scikit-image
 opencv-python
