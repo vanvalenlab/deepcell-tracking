@@ -360,10 +360,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         cost_matrix[0:number_of_tracks, number_of_cells:] = death_matrix
         cost_matrix[number_of_tracks:, number_of_cells:] = mordor_matrix
 
-        predictions_map = {pair: prediction
-                           for pair, prediction in zip(input_pairs, predictions)}
-
-        return cost_matrix, predictions_map
+        return cost_matrix, dict(zip(input_pairs, predictions))
 
     def _run_lap(self, cost_matrix):
         """Runs the linear assignment function on a cost matrix.
