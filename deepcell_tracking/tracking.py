@@ -154,7 +154,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.tracks[new_track]['frame_div'] = None
         self.tracks[new_track]['parent'] = None
 
-        self.tracks[new_track].update(self._get_features(self.x, self.y, [frame], [old_label]))
+        cell_features = self._get_features(self.x, self.y, [frame], [old_label])
+        self.tracks[new_track].update(cell_features)
 
         if frame > 0 and np.any(self.y[frame] == new_label):
             raise Exception('new_label already in annotated frame and frame > 0')
