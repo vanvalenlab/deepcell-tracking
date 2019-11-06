@@ -620,7 +620,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         X_padded = np.pad(X_frame, pads, mode='constant', constant_values=0)
         y_padded = np.pad(y_frame, pads, mode='constant', constant_values=0)
 
-        props = regionprops(np.squeeze(np.int32(y_padded == cell_label)))
+        roi = (y_padded == cell_label).astype('int32')
+        props = regionprops(np.squeeze(roi), coordinates='rc')
 
         center_x, center_y = props[0].centroid
         center_x, center_y = np.int(center_x), np.int(center_y)
@@ -686,7 +687,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             # Get the bounding box
             X_frame = X[frame] if self.data_format == 'channels_last' else X[:, frame]
             y_frame = y[frame] if self.data_format == 'channels_last' else y[:, frame]
-            props = regionprops(np.squeeze(np.int32(y_frame == cell_label)))
+
+            roi = (y_frame == cell_label).astype('int32')
+            props = regionprops(np.squeeze(roi), coordinates='rc')
 
             minr, minc, maxr, maxc = props[0].bbox
             centroids[counter] = props[0].centroid
