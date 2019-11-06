@@ -362,14 +362,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         return cost_matrix, dict(zip(input_pairs, predictions))
 
-    def _run_lap(self, cost_matrix):
-        """Runs the linear assignment function on a cost matrix.
-        """
-        row_ind, col_ind = linear_sum_assignment(cost_matrix)
-        assignments = np.stack([row_ind, col_ind], axis=1)
-
-        return assignments
-
     def _update_tracks(self, assignments, frame, predictions):
         """Update the tracks if given the assignment matrix
         and the frame that was tracked.
@@ -757,7 +749,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
             cost_matrix, predictions = self._get_cost_matrix(frame)
 
-            assignments = self._run_lap(cost_matrix)
+            row_ind, col_ind = linear_sum_assignment(cost_matrix)
+            assignments = np.stack([row_ind, col_ind], axis=1)
 
             self._update_tracks(assignments, frame, predictions)
             print('Tracked frame {} in {} seconds.'.format(
