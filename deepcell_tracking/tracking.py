@@ -612,9 +612,21 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         return track_neighborhoods
 
     def _sub_area(self, X_frame, y_frame, cell_label, num_channels):
-        true_size = self.neighborhood_true_size
-        pads = ((true_size, true_size),
-                (true_size, true_size),
+        """Fetch a neighborhood surrounding the cell in the given frame.
+
+        Slices out a neighborhood_true_size square region around the center of
+        the provided cell, and reshapes it to neighborhood_scale_size square.
+
+        Args:
+            X_frame (np.array): 2D numpy array, a frame of raw data.
+            y_frame (np.array): 2D numpy array, a frame of annotated data.
+            cell_label (int): The label of the cell to slice out.
+
+        Returns:
+            numpy.array: the resized region of X_frame around cell_label.
+        """
+        pads = ((self.neighborhood_true_size, self.neighborhood_true_size),
+                (self.neighborhood_true_size, self.neighborhood_true_size),
                 (0, 0))
 
         X_padded = np.pad(X_frame, pads, mode='constant', constant_values=0)
@@ -626,8 +638,13 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         center_x, center_y = props[0].centroid
         center_x, center_y = np.int(center_x), np.int(center_y)
 
-        X_reduced = X_padded[center_x - true_size:center_x + true_size,
-                             center_y - true_size:center_y + true_size]
+        x1 = center_x - self.neighborhood_true_size
+        x2 = center_x + self.neighborhood_true_size
+
+        y1 = center_y - self.neighborhood_true_size
+        y2 = center_y + self.neighborhood_true_size
+
+        X_reduced = X_padded[x1:x2, y1:y2]
 
         # resize to neighborhood_scale_size with skimage
         # resize_shape = (2 * self.neighborhood_scale_size + 1,
