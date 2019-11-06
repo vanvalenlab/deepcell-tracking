@@ -28,7 +28,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from deepcell_tracking.tracking import cell_tracker
+from deepcell_tracking.tracking import CellTracker
+from deepcell_tracking.tracking import CellTracker as cell_tracker
 from deepcell_tracking import utils
 
 del absolute_import
