@@ -437,7 +437,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Assemble full cost matrix
         cost_matrix = self._build_cost_matrix(assignment_matrix)
-
+        print('Built cost matrix for frame {} in {} s.'.format(
+            frame, timeit.default_timer() - t))
         return cost_matrix, dict(zip(input_pairs, predictions))
 
     def _update_tracks(self, assignments, frame, predictions):
