@@ -170,7 +170,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Remove background that has value 0
         unique_cells = np.delete(unique_cells, np.where(unique_cells == 0))
-
+        self.frame_features = self.get_frame_features(0)
         for track_counter, label in enumerate(unique_cells):
             self._create_new_track(0, label)
 
@@ -213,6 +213,35 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         raise ValueError('_fetch_track_feature: '
                          'Unknown feature `{}`'.format(feature_name))
 
+    def get_frame_features(self, frame):
+        """Get all features for each cell in the given frame.
+
+        Arguments:
+            frame (int): the frame number to calculate features.
+
+        Returns:
+            dict: dictionary of feature names to feature data
+                for each cell in the frame.
+        """
+        t = timeit.default_timer()
+        cells_in_frame = np.unique(self.y[frame])
+        cells_in_frame = np.delete(cells_in_frame, np.where(cells_in_frame == 0))
+        frame_features = {}
+        for feature_name in self.features:
+            feature_shape = self.feature_shape[feature_name]
+            # TODO(enricozb): why are there extra (1,)'s in the image shapes
+            additional = (1,) if feature_name in {'appearance', 'neighborhood'} else ()
+            shape = tuple([len(cells_in_frame)] + list(additional) + list(feature_shape))
+            frame_features[feature_name] = np.zeros(shape, dtype=self.dtype)
+        # Fill frame_features with the proper values
+        for cell_idx, cell_id in enumerate(cells_in_frame):
+            cell_features = self._get_features(self.x, self.y, [frame], [cell_id])
+            for feature_name in self.features:
+                frame_features[feature_name][cell_idx] = cell_features[feature_name]
+        print('Got all features for {} cells in frame {} in {} s.'.format(
+            len(cells_in_frame), frame, timeit.default_timer() - t))
+        return frame_features
+
     def _get_cost_matrix(self, frame):
         """Uses the model to create the cost matrix for
         assigning the cells in frame to existing tracks.
@@ -238,19 +267,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         track_features = {f: self._fetch_track_feature(f) for f in self.features}
 
         # Grab the features for this frame
-        # Fill frame_features with zero matrices
-        frame_features = {}
-        for feature_name in self.features:
-            feature_shape = self.feature_shape[feature_name]
-            # TODO(enricozb): why are there extra (1,)'s in the image shapes
-            additional = (1,) if feature_name in {'appearance', 'neighborhood'} else ()
-            shape = tuple([number_of_cells] + list(additional) + list(feature_shape))
-            frame_features[feature_name] = np.zeros(shape, dtype=self.dtype)
-        # Fill frame_features with the proper values
-        for cell_idx, cell_id in enumerate(cells_in_frame):
-            cell_features = self._get_features(self.x, self.y, [frame], [cell_id])
-            for feature_name in self.features:
-                frame_features[feature_name][cell_idx] = cell_features[feature_name]
+        self.frame_features = self.get_frame_features(frame)
 
         # Call model.predict only on inputs that are near each other
         inputs = {feature_name: ([], []) for feature_name in self.features}
@@ -279,7 +296,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                     _, _, is_cell_in_range = self._compute_feature(
                         'distance',
                         track_features['distance'][track],
-                        frame_features['distance'][cell])
+                        self.frame_features['distance'][cell])
                 else:
                     # not worried about distance, just calculate features
                     is_cell_in_range = True
@@ -296,7 +313,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                     track_feature, frame_feature, _ = self._compute_feature(
                         feature_name,
                         track_features[feature_name][track],
-                        frame_features[feature_name][cell])
+                        self.frame_features[feature_name][cell])
 
                     # this condition changes `frame_feature`
                     if feature_name == 'neighborhood':
@@ -386,6 +403,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             if track < number_of_tracks and cell < number_of_cells:
                 self.tracks[track]['frames'].append(frame)
                 cell_features = self._get_features(self.x, self.y, [frame], [cell_id])
+                # cell_features = {f: self.frame_features[f][[cell]]
+                #                  for f in self.features}
                 for feature_name, cell_feature in cell_features.items():
                     self.tracks[track][feature_name] = np.concatenate([
                         self.tracks[track][feature_name], cell_feature], axis=0)
