@@ -429,8 +429,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                     frame_feature = self.frame_features['distance'][cell]
 
                     track_feature, frame_feature, is_cell_in_range = \
-                        self._compute_feature('distance', track_feature,
-                                              frame_feature)
+                        self._compute_feature(
+                            'distance', track_feature, frame_feature)
                     # Set the distance feature
                     feature_vals['distance'] = (track_feature, frame_feature)
                 else:
@@ -462,6 +462,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 for feature_name, (track_feature, frame_feature) in feature_vals.items():
                     inputs[feature_name][0].append(track_feature)
                     inputs[feature_name][1].append(frame_feature)
+
         print('Got {} input pairs for frame {} in {} s.'.format(
             len(input_pairs), frame, timeit.default_timer() - t))
         return input_pairs, inputs, invalid_pairs
@@ -559,37 +560,40 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         and the frame that was tracked.
         """
         t = timeit.default_timer()
-        number_of_tracks = len(self.tracks)
         cells_in_frame = self.get_cells_in_frame(frame)
+
         # Number of lables present in the current frame (needed to build cost matrix)
-        number_of_cells = len(cells_in_frame)
-        y_tracked_update = np.zeros((1, self.y.shape[1], self.y.shape[2], 1), dtype='int32')
+        y_tracked_update = np.zeros((1, self.y.shape[1], self.y.shape[2], 1),
+                                    dtype='int32')
 
         for a in range(assignments.shape[0]):
             track, cell = assignments[a]
-            track_id = track + 1  # Labels and indices differ by 1
 
-            # This is a mapping of the column index provided by the lap
-            # assignment to the cell label in the frame
-            if cell < number_of_cells:
-                cell_id = cells_in_frame[cell]  # This is the new mapping
+            # map the index from the LAP assignment to the cell label
+            try:
+                cell_id = cells_in_frame[cell]
+            except IndexError:
+                # cell has "died" or is a shadow assignment
+                # no assignment should be made
+                continue
 
-            # Take care of everything if cells are tracked
-            if track < number_of_tracks and cell < number_of_cells:
+            if track in self.tracks:  # Add cell and frame to track
                 self.tracks[track]['frames'].append(frame)
                 cell_features = self._get_features(self.x, self.y, frame, cell_id)
                 # cell_features = {f: self.frame_features[f][[cell]]
                 #                  for f in self.features}
-                for feature_name, cell_feature in cell_features.items():
+                for feature_name in cell_features:
                     self.tracks[track][feature_name] = np.concatenate([
-                        self.tracks[track][feature_name], cell_feature], axis=0)
+                        self.tracks[track][feature_name],
+                        cell_features[feature_name],
+                    ], axis=0)
 
-                y_tracked_update[self.y[[frame]] == cell_id] = track_id
-                self.y[frame][self.y[frame] == cell_id] = track_id
+                # Labels and indices differ by 1
+                y_tracked_update[self.y[[frame]] == cell_id] = track + 1
+                self.y[frame][self.y[frame] == cell_id] = track + 1
 
-            # Create a new track if there was a birth
-            elif track > number_of_tracks - 1 and cell < number_of_cells:
-                new_track_id = len(self.tracks.keys())
+            else:  # Create a new track if there was a birth
+                new_track_id = len(self.tracks)
                 self._create_new_track(frame, cell_id)
                 new_label = new_track_id + 1
 
@@ -605,10 +609,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 y_tracked_update[self.y[[frame]] == new_label] = new_track_id + 1
                 self.y[frame][self.y[frame] == new_label] = new_track_id + 1
 
-            # Dont touch anything if there was a cell that "died"
-            elif track < number_of_tracks and cell > number_of_cells - 1:
-                continue
-
         # Check and make sure cells that divided did not get assigned to the same cell
         for track in range(len(self.tracks)):
             if not self.tracks[track]['daughters']:
@@ -623,10 +623,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 continue  # Filter out tracks that are not in the frame
 
             # Create new track
-            old_label = self.tracks[track]['label']
             new_track_id = len(self.tracks)
             new_label = new_track_id + 1
-            self._create_new_track(frame, old_label)
+            self._create_new_track(frame, self.tracks[track]['label'])
 
             for feature_name in self.features:
                 fname = self.tracks[track][feature_name][[-1]]
