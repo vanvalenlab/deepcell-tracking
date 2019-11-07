@@ -210,25 +210,26 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         cell_features = self._get_features(self.x, self.y, [frame], [old_label])
         self.tracks[new_track].update(cell_features)
 
-        if frame > 0 and np.any(self.y[frame] == new_label):
+        if frame > 0 and np.any(self._get_frame(self.y, frame) == new_label):
             raise Exception('new_label already in annotated frame and frame > 0')
 
-        self.y[frame][self.y[frame] == old_label] = new_label
+        if self.data_format == 'channels_first':
+            self.y[:, frame][self.y[:, frame] == old_label] = new_label
+        else:
+            self.y[frame][self.y[frame] == old_label] = new_label
 
     def _initialize_tracks(self):
         """Intialize the tracks. Tracks are stored in a dictionary.
         """
         self.tracks = {}
-        unique_cells = np.unique(self.y[0])
-
-        # Remove background that has value 0
-        unique_cells = np.delete(unique_cells, np.where(unique_cells == 0))
-        self.frame_features = self.get_frame_features(0)
-        for track_counter, label in enumerate(unique_cells):
-            self._create_new_track(0, label)
+        frame = 0  # initial frame
+        self.frame_features = self.get_frame_features(frame)
+        unique_cells = self.get_cells_in_frame(frame)
+        for track_counter, cell_label in enumerate(unique_cells):
+            self._create_new_track(frame, cell_label)
 
         # Start a tracked label array
-        self.y_tracked = self.y[[0]].astype('int32')
+        self.y_tracked = self.y[[frame]].astype('int32')
 
     def _compute_feature(self, feature_name, track_feature, frame_feature):
         """
@@ -269,7 +270,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
     def get_frame_features(self, frame):
         """Get all features for each cell in the given frame.
 
-        Arguments:
+        Args:
             frame (int): the frame number to calculate features.
 
         Returns:
@@ -277,8 +278,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 for each cell in the frame.
         """
         t = timeit.default_timer()
-        cells_in_frame = np.unique(self.y[frame])
-        cells_in_frame = np.delete(cells_in_frame, np.where(cells_in_frame == 0))
+        cells_in_frame = self.get_cells_in_frame(frame)
         frame_features = {}
         for feature_name in self.features:
             feature_shape = self.feature_shape[feature_name]
@@ -334,7 +334,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         """
         t = timeit.default_timer()
         # Initialize matrices
-        number_of_tracks = np.int(len(self.tracks.keys()))
+        number_of_tracks = np.int(len(self.tracks))
 
         cells_in_frame = np.unique(self.y[frame])
         cells_in_frame = list(np.delete(cells_in_frame, np.where(cells_in_frame == 0)))
@@ -444,11 +444,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         """Update the tracks if given the assignment matrix
         and the frame that was tracked.
         """
-        number_of_tracks = len(self.tracks.keys())
-        cells_in_frame = np.unique(self.y[frame])
-        cells_in_frame = np.delete(cells_in_frame, np.where(cells_in_frame == 0))
+        number_of_tracks = len(self.tracks)
+        cells_in_frame = self.get_cells_in_frame(frame)
         # Number of lables present in the current frame (needed to build cost matrix)
-        number_of_cells = len(list(cells_in_frame))
+        number_of_cells = len(cells_in_frame)
         y_tracked_update = np.zeros((1, self.y.shape[1], self.y.shape[2], 1), dtype='int32')
 
         for a in range(assignments.shape[0]):
@@ -496,19 +495,18 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 continue
 
         # Cap the tracks of cells that divided
-        number_of_tracks = len(self.tracks.keys())
-        for track in range(number_of_tracks):
+        for track in self.tracks:
             if self.tracks[track]['daughters'] and not self.tracks[track]['capped']:
                 self.tracks[track]['frame_div'] = int(frame)
                 self.tracks[track]['capped'] = True
 
         # Check and make sure cells that divided did not get assigned to the same cell
-        for track in range(number_of_tracks):
+        for track in self.tracks:
             if self.tracks[track]['daughters']:
                 if frame in self.tracks[track]['frames']:
                     # Create new track
                     old_label = self.tracks[track]['label']
-                    new_track_id = len(self.tracks.keys())
+                    new_track_id = len(self.tracks)
                     new_label = new_track_id + 1
                     self._create_new_track(frame, old_label)
 
