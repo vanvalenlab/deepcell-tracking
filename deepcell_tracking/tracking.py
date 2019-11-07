@@ -359,7 +359,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Compute assignment matrix - Initialize and get model inputs
         # Fill the input matrices
         for track in range(number_of_tracks):
-
             # we need to get the future frame for the track we are comparing to
             try:
                 track_label = self.tracks[track]['label']
@@ -410,8 +409,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 for feature_name, (track_feature, frame_feature) in feature_vals.items():
                     inputs[feature_name][0].append(track_feature)
                     inputs[feature_name][1].append(frame_feature)
-
-        # print('Got features in {}s'.format(timeit.default_timer() - t))
 
         if input_pairs == []:
             # if the frame is empty
