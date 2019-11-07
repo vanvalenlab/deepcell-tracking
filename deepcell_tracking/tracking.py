@@ -225,7 +225,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         frame = 0  # initial frame
         self.frame_features = self.get_frame_features(frame)
         unique_cells = self.get_cells_in_frame(frame)
-        for track_counter, cell_label in enumerate(unique_cells):
+        for cell_label in unique_cells:
             self._create_new_track(frame, cell_label)
 
         # Start a tracked label array
