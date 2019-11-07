@@ -255,40 +255,34 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Start a tracked label array
         self.y_tracked = self.y[[frame]].astype('int32')
 
-    def _compute_feature(self, feature_name, track_feature, frame_feature):
+    def compute_distance(self, track_centroids, frame_centroids):
+        """Computes the distance between two centroids.
+
+        Args:
+            track_centroids (tuple): x and y centroid for the given track.
+            frame_centroids (tuple): x and y centroid for the given frame.
+
+        Returns:
+            tuple: the distances for tracks and frames,
+                and a boolean indicating whether the distance is valid.
         """
-        Given a track and frame feature, compute the resulting track and frame features.
-        This also returns True or False as the third element of the tuple indicating if these
-        features should be used at all. False indicates that this pair of track & cell features
-        should result in a maximum cost assignment.
-        This is usually for some preprocessing in case it is desired. For example, the
-        distance feature normalizes distances.
-        """
-        if feature_name == 'appearance':
-            return track_feature, frame_feature, True
+        centroids = np.concatenate([
+            track_centroids,
+            np.array([frame_centroids])
+        ], axis=0)
 
-        if feature_name == 'distance':
-            centroids = np.concatenate([track_feature, np.array([frame_feature])], axis=0)
-            distances = np.diff(centroids, axis=0)
-            zero_pad = np.zeros((1, 2), dtype=self.dtype)
-            distances = np.concatenate([zero_pad, distances], axis=0)
+        distances = np.concatenate([
+            np.zeros((1, 2), dtype=self.dtype),
+            np.diff(centroids, axis=0)
+        ], axis=0)
 
-            ok = True
-            # Make sure the distances are all less than max distance
-            for j in range(distances.shape[0]):
-                if np.linalg.norm(distances[j, :]) > self.max_distance:
-                    ok = False
-                    break
-            return distances[0:-1, :], distances[-1, :], ok
-
-        if feature_name == 'neighborhood':
-            return track_feature, frame_feature, True
-
-        if feature_name == 'regionprop':
-            return track_feature, frame_feature, True
-
-        raise ValueError('_fetch_track_feature: '
-                         'Unknown feature `{}`'.format(feature_name))
+        is_cell_in_range = True
+        # Make sure the distances are all less than max distance
+        for j in range(distances.shape[0]):  # pylint: disable=E1136
+            if np.linalg.norm(distances[j, :]) > self.max_distance:
+                is_cell_in_range = False
+                break
+        return distances[0:-1, :], distances[-1, :], is_cell_in_range
 
     def _fetch_tracked_feature(self, tracks_with_frames, feature):
         """Get feature data from each tracked frame less than before_frame.
@@ -427,8 +421,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                     frame_feature = self.frame_features['distance'][cell]
 
                     track_feature, frame_feature, is_cell_in_range = \
-                        self._compute_feature(
-                            'distance', track_feature, frame_feature)
+                        self.compute_distance(track_feature, frame_feature)
+
                     # Set the distance feature
                     feature_vals['distance'] = (track_feature, frame_feature)
                 else:
