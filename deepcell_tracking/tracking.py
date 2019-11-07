@@ -137,6 +137,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Clean up annotations
         self._clean_up_annotations()
 
+        self._track_cells = self.track_cells  # backwards compatibility
+
         # Initialize tracks
         self._initialize_tracks()
 
@@ -801,7 +803,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             '~future area': np.expand_dims(future_area, axis=0)
         }
 
-    def _track_cells(self):
+    def track_cells(self):
         """Tracks all of the cells in every frame.
         """
         for frame in range(1, self.x.shape[0]):
