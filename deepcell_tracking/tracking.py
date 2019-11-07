@@ -194,21 +194,21 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         """
         This function creates new tracks
         """
-
         new_track = len(self.tracks.keys())
         new_label = new_track + 1
-
-        self.tracks[new_track] = {}
-        self.tracks[new_track]['label'] = new_label
-
-        self.tracks[new_track]['frames'] = [frame]
-        self.tracks[new_track]['daughters'] = []
-        self.tracks[new_track]['capped'] = False
-        self.tracks[new_track]['frame_div'] = None
-        self.tracks[new_track]['parent'] = None
+        new_track_data = {
+            'label': new_label,
+            'frames': [frame],
+            'daughters': [],
+            'capped': False,
+            'frame_div': None,
+            'parent': None,
+        }
 
         cell_features = self._get_features(self.x, self.y, frame, old_label)
-        self.tracks[new_track].update(cell_features)
+        new_track_data.update(cell_features)
+
+        self.tracks[new_track] = new_track_data
 
         if frame > 0 and np.any(self._get_frame(self.y, frame) == new_label):
             raise Exception('new_label already in annotated frame and frame > 0')
