@@ -83,29 +83,29 @@ class TestTracking(parameterized.TestCase):
         num_objects = len(np.unique(y)) - 1
         model = DummyModel()
 
-        _ = tracking.cell_tracker(x, y, model=model)
+        _ = tracking.CellTracker(x, y, model=model)
 
         # test data with bad rank
         with pytest.raises(ValueError):
-            tracking.cell_tracker(
+            tracking.CellTracker(
                 np.random.random((32, 32, 1)),
                 np.random.randint(num_objects, size=(32, 32, 1)),
                 model=model)
 
         # test mismatched x and y shape
         with pytest.raises(ValueError):
-            tracking.cell_tracker(
+            tracking.CellTracker(
                 np.random.random((3, 32, 32, 1)),
                 np.random.randint(num_objects, size=(2, 32, 32, 1)),
                 model=model)
 
         # test bad features
         with pytest.raises(ValueError):
-            tracking.cell_tracker(x, y, model=model, features=None)
+            tracking.CellTracker(x, y, model=model, features=None)
 
         # test bad data_format
         with pytest.raises(ValueError):
-            tracking.cell_tracker(x, y, model=model, data_format='invalid')
+            tracking.CellTracker(x, y, model=model, data_format='invalid')
 
     def test__track_cells(self):
         length = 128
@@ -120,7 +120,7 @@ class TestTracking(parameterized.TestCase):
             x, y = _get_dummy_tracking_data(
                 length, frames=frames, data_format=data_format)
 
-            tracker = tracking.cell_tracker(
+            tracker = tracking.CellTracker(
                 x, y,
                 model=DummyModel(),
                 track_length=track_length,
@@ -155,7 +155,7 @@ class TestTracking(parameterized.TestCase):
                 length, frames=frames, data_format=data_format)
 
             for track_length in (1, frames // 2 + 1, frames + 1):
-                tracker = tracking.cell_tracker(
+                tracker = tracking.CellTracker(
                     x, y,
                     model=DummyModel(),
                     track_length=track_length,
@@ -188,7 +188,7 @@ class TestTracking(parameterized.TestCase):
             x, y = _get_dummy_tracking_data(
                 length, frames=frames, data_format=data_format)
 
-            tracker = tracking.cell_tracker(
+            tracker = tracking.CellTracker(
                 x, y, model=model, data_format=data_format)
 
             for f in range(frames):
@@ -199,7 +199,6 @@ class TestTracking(parameterized.TestCase):
                     xf = x[f]
                     yf = y[f]
 
-                    sub = tracker._sub_area(
-                        xf, yf, 1, x.shape[tracker.channel_axis])
+                    sub = tracker._sub_area(xf, yf, 1)
 
                     assert sub.shape == tracker.feature_shape['neighborhood']
