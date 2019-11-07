@@ -47,6 +47,30 @@ from deepcell_tracking.utils import resize
 
 
 class CellTracker(object):  # pylint: disable=useless-object-inheritance
+    """Solves the linear assingment problem to build a cell lineage graph.
+
+    Args:
+        movie (np.array): raw time series movie of cells.
+        annotation (np.array): the labeled cell movie.
+        model (keras.Model): tracking model to determine if two cells are the
+            same, different, or parent/daughter.
+        features (list): list of strings for the features to use.
+        crop_dim (int): crop size for the appearance feature.
+        death (float): paramter used to fill the death matrix in the LAP,
+            (top right of the cost matrix).
+        birth (float): paramter used to fill the birth matrix in the LAP,
+            (bottom left of the cost matrix).
+        division (float): probability threshold for assigning daughter cells.
+        max_distance (int): maximum distance to compare cells with the model.
+        track_length (int): the track length used for the model.
+        neighborhood_scale_size (int): neighborhood feature size to pass to the
+            model.
+        neighborhood_true_size (int): original size of the neighborhood feature
+            which will be scaled down to neighborhood_scale_size.
+        dtype (str): data type for features, can be 'float32', 'float16', etc.
+        data_format (str): determines the order of the channel axis,
+            one of 'channels_first' and 'channels_last'.
+    """
 
     def __init__(self,
                  movie,
