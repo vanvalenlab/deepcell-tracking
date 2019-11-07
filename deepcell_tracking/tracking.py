@@ -1171,3 +1171,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             print('Error: More than 2 neighbor nodes')
 
         return lineage, tracked
+
+
+cell_tracker = CellTracker  # allow backwards compatibility imports
