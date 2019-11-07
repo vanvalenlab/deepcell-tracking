@@ -329,8 +329,13 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         return cost_matrix
 
     def _get_cost_matrix(self, frame):
-        """Uses the model to create the cost matrix for
-        assigning the cells in frame to existing tracks.
+        """Use the model predictions to build an assignment matrix to be solved.
+
+        Args:
+            frame (int): The frame with cells to assign.
+
+        Returns:
+            tuple: the assignment matrix and the predictions used to build it.
         """
         t = timeit.default_timer()
         # Initialize matrices
