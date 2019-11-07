@@ -123,6 +123,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.data_format = data_format
         self.track_length = track_length
         self.channel_axis = 0 if data_format == 'channels_first' else -1
+        self.time_axis = 1 if data_format == 'channels_first' else 0
 
         self.features = sorted(features)
         self.feature_shape = {
@@ -160,6 +161,35 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                     uid += 1
             y[frame] = y_frame_new
         self.y = y.astype('int32')
+
+    def _get_frame(self, tensor, frame):
+        """Helper function for fetching a frame of a tensor.
+
+        Useful for avoiding duplication of the data_format conditional.
+
+        Args:
+            tensor (np.array): The 3D tensor to slice.
+            frame (int): The frame to slice out of the tensor.
+
+        Returns:
+            np.array: the 2D slice of the 3D tensor.
+        """
+        if self.data_format == 'channels_first':
+            return tensor[:, frame]
+        return tensor[frame]
+
+    def get_cells_in_frame(self, frame):
+        """Count the number of cells in the given frame.
+
+        Args:
+            frame (int): counts cells in this frame.
+
+        Returns:
+            list: All cell labels in the frame.
+        """
+        cells = np.unique(self._get_frame(self.y, frame))
+        cells = np.delete(cells, np.where(cells == 0))  # remove the background
+        return list(cells)
 
     def _create_new_track(self, frame, old_label):
         """
