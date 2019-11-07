@@ -381,6 +381,91 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             len(cells_in_frame), frame, timeit.default_timer() - t))
         return frame_features
 
+    def _get_input_pairs(self, frame):
+        """Get all input pairs, inputs, and invalid pairs.
+
+        Args:
+            frame (int): Returns input pairs for only the given frame.
+
+        Returns:
+            list: input_pairs, list of tuples of frame and cell to use as input.
+            dict: inputs for the given input pairs.
+            list: invalid pairs of tracks and cells to ignore in assignment.
+        """
+        cells_in_frame = self.get_cells_in_frame(frame)
+
+        # Get the features for previously tracked data
+        track_features = self.fetch_tracked_features()
+
+        # Get the features for the current frame
+        self.frame_features = self.get_frame_features(frame)
+
+        t = timeit.default_timer()  # don't time the other functions
+        # Call model.predict only on inputs that are near each other
+        inputs = {feature: ([], []) for feature in self.features}
+        input_pairs = []
+        invalid_pairs = []
+
+        # Fill the input matrices
+        for track in range(len(self.tracks)):
+            # we need to get the future frame for the track we are comparing to
+            try:
+                # TODO: fetch features from a track in self.tracks
+                track_label = self.tracks[track]['label']
+                track_frame_features = self._get_features(
+                    self.x, self.y_tracked, frame - 1, track_label)
+            except:  # pylint: disable=bare-except
+                # `track_label` might not exist in `frame - 1`
+                # if this happens, default to the cell's neighborhood
+                track_frame_features = dict()
+
+            for cell, _ in enumerate(cells_in_frame):
+                feature_vals = {}
+
+                # If distance is a feature it is used to exclude
+                # impossible pairings from the get_feature call
+                if 'distance' in self.features:
+                    track_feature = track_features['distance'][track]
+                    frame_feature = self.frame_features['distance'][cell]
+
+                    track_feature, frame_feature, is_cell_in_range = \
+                        self._compute_feature('distance', track_feature,
+                                              frame_feature)
+                    # Set the distance feature
+                    feature_vals['distance'] = (track_feature, frame_feature)
+                else:
+                    # not worried about distance, just calculate features
+                    is_cell_in_range = True
+
+                if not is_cell_in_range:
+                    # Cell is outside of range, set cost to max and move on
+                    invalid_pairs.append((track, cell))
+                    continue
+
+                # The cell is within range so we should add
+                # all the information for all features
+                for feature_name in self.features:
+                    if feature_name == 'distance':
+                        continue  # already calculated distance feature
+
+                    track_feature = track_features[feature_name][track]
+                    frame_feature = self.frame_features[feature_name][cell]
+
+                    # this condition changes `frame_feature`
+                    if feature_name == 'neighborhood':
+                        if '~future area' in track_frame_features:
+                            frame_feature = track_frame_features['~future area']
+
+                    feature_vals[feature_name] = (track_feature, frame_feature)
+
+                input_pairs.append((track, cell))
+                for feature_name, (track_feature, frame_feature) in feature_vals.items():
+                    inputs[feature_name][0].append(track_feature)
+                    inputs[feature_name][1].append(frame_feature)
+        print('Got {} input pairs for frame {} in {} s.'.format(
+            len(input_pairs), frame, timeit.default_timer() - t))
+        return input_pairs, inputs, invalid_pairs
+
     def _build_cost_matrix(self, assignment_matrix):
         """Build the full cost matrix based on the assignment_matrix.
 
@@ -423,7 +508,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         Returns:
             tuple: the assignment matrix and the predictions used to build it.
         """
-        t = timeit.default_timer()
         # Initialize matrices
         number_of_tracks = np.int(len(self.tracks))
 
@@ -432,71 +516,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         assignment_matrix = np.zeros((number_of_tracks, number_of_cells), dtype=self.dtype)
 
-        # Get the features for previously tracked data
-        track_features = self.fetch_tracked_features()
+        input_pairs, inputs, invalid_pairs = self._get_input_pairs(frame)
 
-        # Grab the features for this frame
-        self.frame_features = self.get_frame_features(frame)
-
-        # Call model.predict only on inputs that are near each other
-        inputs = {feature_name: ([], []) for feature_name in self.features}
-        input_pairs = []
-
-        # Compute assignment matrix - Initialize and get model inputs
-        # Fill the input matrices
-        for track in range(number_of_tracks):
-            # we need to get the future frame for the track we are comparing to
-            try:
-                track_label = self.tracks[track]['label']
-                track_frame_features = self._get_features(
-                    self.x, self.y_tracked, frame - 1, track_label)
-            except:  # pylint: disable=bare-except
-                # `track_label` might not exist in `frame - 1`
-                # if this happens, default to the cell's neighborhood
-                track_frame_features = dict()
-
-            for cell in range(number_of_cells):
-                feature_vals = {}
-
-                # If distance is a feature it is used to exclude
-                # impossible pairings from the get_feature call
-                if 'distance' in self.features:
-                    _, _, is_cell_in_range = self._compute_feature(
-                        'distance',
-                        track_features['distance'][track],
-                        self.frame_features['distance'][cell])
-                else:
-                    # not worried about distance, just calculate features
-                    is_cell_in_range = True
-
-                if not is_cell_in_range:
-                    # Cell is outside of range, set cost to max and move on
-                    assignment_matrix[track, cell] = 1
-                    continue
-
-                # The cell is within range so we should add
-                # all the information for all features
-                for feature_name in self.features:
-
-                    track_feature, frame_feature, _ = self._compute_feature(
-                        feature_name,
-                        track_features[feature_name][track],
-                        self.frame_features[feature_name][cell])
-
-                    # this condition changes `frame_feature`
-                    if feature_name == 'neighborhood':
-                        # This segment of the loop should not be run
-                        # if the disance check fails
-                        frame_feature = track_frame_features.get('~future area', frame_feature)
-
-                    feature_vals[feature_name] = (track_feature, frame_feature)
-
-                input_pairs.append((track, cell))
-                for feature_name, (track_feature, frame_feature) in feature_vals.items():
-                    inputs[feature_name][0].append(track_feature)
-                    inputs[feature_name][1].append(frame_feature)
-
-        if input_pairs == []:
+        t = timeit.default_timer()
+        if not input_pairs:
             # if the frame is empty
             assignment_matrix[:, :] = 1
             predictions = []
@@ -517,6 +540,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             for i, (track, cell) in enumerate(input_pairs):
                 assignment_matrix[track, cell] = 1 - predictions[i, 1]
 
+        for bad_track, bad_cell in invalid_pairs:
+            assignment_matrix[bad_track, bad_cell] = 1
+
         # Make sure capped tracks are not allowed to have assignments
         for track in range(number_of_tracks):
             if self.tracks[track]['capped']:
@@ -532,6 +558,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         """Update the tracks if given the assignment matrix
         and the frame that was tracked.
         """
+        t = timeit.default_timer()
         number_of_tracks = len(self.tracks)
         cells_in_frame = self.get_cells_in_frame(frame)
         # Number of lables present in the current frame (needed to build cost matrix)
@@ -621,6 +648,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Update the tracked label array
         self.y_tracked = np.concatenate([self.y_tracked, y_tracked_update], axis=0)
+        print('Updated tracks for frame {} in {} s.'.format(
+            frame, timeit.default_timer() - t))
 
     def _get_parent(self, frame, cell, predictions):
         """Searches the tracks for the parent of a given cell.
