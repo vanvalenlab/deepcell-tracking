@@ -495,13 +495,14 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 continue
 
         # Cap the tracks of cells that divided
-        for track in self.tracks:
+        number_of_tracks = len(self.tracks)
+        for track in range(number_of_tracks):
             if self.tracks[track]['daughters'] and not self.tracks[track]['capped']:
                 self.tracks[track]['frame_div'] = int(frame)
                 self.tracks[track]['capped'] = True
 
         # Check and make sure cells that divided did not get assigned to the same cell
-        for track in self.tracks:
+        for track in range(number_of_tracks):
             if self.tracks[track]['daughters']:
                 if frame in self.tracks[track]['frames']:
                     # Create new track
