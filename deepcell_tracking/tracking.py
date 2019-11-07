@@ -698,9 +698,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         neighborhoods = np.zeros(neighborhood_shape, dtype=self.dtype)
         future_areas = np.zeros(future_area_shape, dtype=self.dtype)
         for counter, (frame, cell_label) in enumerate(zip(frames, labels)):
-            # print('Start _get_features for frame {} and label {}'.format(
-            #     frame, cell_label))
-            t = timeit.default_timer()
             # Get the bounding box
             X_frame = X[frame] if self.data_format == 'channels_last' else X[:, frame]
             y_frame = y[frame] if self.data_format == 'channels_last' else y[:, frame]
@@ -725,7 +722,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 resize_shape = (self.crop_dim, self.crop_dim, X.shape[channel_axis])
 
             # Resize images from bounding box
-            t = timeit.default_timer()
             # appearance = resize(appearance, resize_shape, mode="constant", preserve_range=True)
             resize_shape = (self.crop_dim, self.crop_dim)
             appearance = cv2.resize(np.squeeze(appearance), resize_shape)
