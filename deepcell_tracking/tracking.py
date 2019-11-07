@@ -533,8 +533,15 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
     def _get_parent(self, frame, cell, predictions):
         """Searches the tracks for the parent of a given cell.
+
+        Args:
+            frame (int): the frame the cell appears in.
+            cell (int): the label of the cell in the frame.
+            predictions (dict): dictionary of trackID-cellID combination,
+                and the probability they are the same cell.
+
         Returns:
-            The parent cell's id or None if no parent exists.
+            int: The parent cell's id or None if no parent exists.
         """
         # are track_ids 0-something or 1-something??
         # 0-something because of the `for track_id, p in enumerate(...)` below
