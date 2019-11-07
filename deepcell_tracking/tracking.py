@@ -266,6 +266,39 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             len(cells_in_frame), frame, timeit.default_timer() - t))
         return frame_features
 
+    def _build_cost_matrix(self, assignment_matrix):
+        """Build the full cost matrix based on the assignment_matrix.
+
+        Args:
+            assignment_matrix (np.array): assignment_matrix.
+
+        Returns:
+            numpy.array: cost matrix.
+        """
+        # Initialize cost matrix
+        num_tracks, num_cells = assignment_matrix.shape
+        cost_matrix = np.zeros((num_tracks + num_cells,) * 2, dtype=self.dtype)
+
+        # assignment matrix - top left
+        cost_matrix[0:num_tracks, 0:num_cells] = assignment_matrix
+
+        # birth matrix - bottom left
+        birth_diagonal = np.array([self.birth] * num_cells)
+        birth_matrix = np.zeros((num_cells, num_cells), dtype=self.dtype)
+        birth_matrix = np.diag(birth_diagonal) + np.ones(birth_matrix.shape)
+        birth_matrix = birth_matrix - np.eye(num_cells)
+        cost_matrix[num_tracks:, 0:num_cells] = birth_matrix
+
+        # death matrix - top right
+        death_matrix = np.ones((num_tracks, num_tracks), dtype=self.dtype)
+        death_matrix = self.death * np.eye(num_tracks) + death_matrix
+        death_matrix = death_matrix - np.eye(num_tracks)
+        cost_matrix[0:num_tracks, num_cells:] = death_matrix
+
+        # mordor matrix - bottom right
+        cost_matrix[num_tracks:, num_cells:] = assignment_matrix.T
+        return cost_matrix
+
     def _get_cost_matrix(self, frame):
         """Uses the model to create the cost matrix for
         assigning the cells in frame to existing tracks.
@@ -278,14 +311,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         cells_in_frame = list(np.delete(cells_in_frame, np.where(cells_in_frame == 0)))
         number_of_cells = len(cells_in_frame)
 
-        total_cells = number_of_tracks + number_of_cells
-        cost_matrix = np.zeros((total_cells, total_cells), dtype=self.dtype)
         assignment_matrix = np.zeros((number_of_tracks, number_of_cells), dtype=self.dtype)
-        birth_matrix = np.zeros((number_of_cells, number_of_cells), dtype=self.dtype)
-        death_matrix = np.zeros((number_of_tracks, number_of_tracks), dtype=self.dtype)
-
-        # Bottom right matrix
-        mordor_matrix = np.zeros((number_of_cells, number_of_tracks), dtype=self.dtype)
 
         # Grab the features for the entire track
         track_features = {f: self._fetch_track_feature(f) for f in self.features}
@@ -380,26 +406,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             if self.tracks[track]['capped']:
                 assignment_matrix[track, 0:number_of_cells] = 1
 
-        # Compute birth matrix
-        birth_diagonal = np.array([self.birth] * number_of_cells)
-        birth_matrix = np.diag(birth_diagonal) + np.ones(birth_matrix.shape)
-        birth_matrix = birth_matrix - np.eye(number_of_cells)
-
-        # Compute death matrix
-        death_matrix = self.death * np.eye(number_of_tracks) + np.ones(death_matrix.shape)
-        death_matrix = death_matrix - np.eye(number_of_tracks)
-
-        # Compute mordor matrix
-        # The mordor matrix must sastify shape constraints and allow for
-        # auxillary assignments - therefore it should be the transpose of the
-        # assignment matrix
-        mordor_matrix = assignment_matrix.T
-
         # Assemble full cost matrix
-        cost_matrix[0:number_of_tracks, 0:number_of_cells] = assignment_matrix
-        cost_matrix[number_of_tracks:, 0:number_of_cells] = birth_matrix
-        cost_matrix[0:number_of_tracks, number_of_cells:] = death_matrix
-        cost_matrix[number_of_tracks:, number_of_cells:] = mordor_matrix
+        cost_matrix = self._build_cost_matrix(assignment_matrix)
 
         return cost_matrix, dict(zip(input_pairs, predictions))
 
