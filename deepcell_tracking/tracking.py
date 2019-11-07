@@ -452,7 +452,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                     # this condition changes `frame_feature`
                     if feature == 'neighborhood':
                         if '~future area' in track_frame_features:
-                            frame_feature = track_frame_features['~future area']
+                            frame_feature = self._get_frame(
+                                track_frame_features['~future area'], 0)
 
                     feature_vals[feature] = (track_feature, frame_feature)
 
