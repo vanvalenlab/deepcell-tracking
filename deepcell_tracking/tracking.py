@@ -252,10 +252,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             ok = True
             # Make sure the distances are all less than max distance
             for j in range(distances.shape[0]):
-                dist = distances[j, :]
-                # TODO(enricozb): Finish the distance-based optimizations
-                if np.linalg.norm(dist) > self.max_distance:
+                if np.linalg.norm(distances[j, :]) > self.max_distance:
                     ok = False
+                    break
             return distances[0:-1, :], distances[-1, :], ok
 
         if feature_name == 'neighborhood':
