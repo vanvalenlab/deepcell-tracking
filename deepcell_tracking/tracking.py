@@ -144,23 +144,22 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         """Relabels every frame in the label matrix.
         Cells will be relabeled 1 to N
         """
-        y = self.y
-        number_of_frames = self.y.shape[0]
+        num_frames = self.y.shape[self.time_axis]
+        all_uniques = [self.get_cells_in_frame(f) for f in range(num_frames)]
 
         # The annotations need to be unique across all frames
-        # TODO: Resolve the starting unique ID issue
-        uid = 1000
-        for frame in range(number_of_frames):
-            unique_cells = np.unique(y[frame])
-            y_frame_new = np.zeros(y[frame].shape)
-            for _, old_label in enumerate(list(unique_cells)):
-                if old_label == 0:
-                    y_frame_new[y[frame] == old_label] = 0
-                else:
-                    y_frame_new[y[frame] == old_label] = uid
-                    uid += 1
-            y[frame] = y_frame_new
-        self.y = y.astype('int32')
+        uid = sum(len(x) for x in all_uniques) + 1
+        for frame, unique_cells in zip(range(num_frames), all_uniques):
+            y_frame = self._get_frame(self.y, frame)
+            y_frame_new = np.zeros(y_frame.shape)
+            for cell_label in unique_cells:
+                y_frame_new[y_frame == cell_label] = uid
+                uid += 1
+            if self.data_format == 'channels_first':
+                self.y[:, frame] = y_frame_new
+            else:
+                self.y[frame] = y_frame_new
+        self.y = self.y.astype('int32')
 
     def _get_frame(self, tensor, frame):
         """Helper function for fetching a frame of a tensor.
