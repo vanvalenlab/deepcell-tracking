@@ -110,6 +110,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         self.x = copy.copy(movie)
         self.y = copy.copy(annotation)
+        self.tracks = {}
         # TODO: Use a model that is served by tf-serving, not one on a local machine
         self.model = model
         self.crop_dim = crop_dim
@@ -125,6 +126,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.channel_axis = 0 if data_format == 'channels_first' else -1
         self.time_axis = 1 if data_format == 'channels_first' else 0
 
+        self._track_cells = self.track_cells  # backwards compatibility
+
         self.features = sorted(features)
         self.feature_shape = {
             'appearance': (crop_dim, crop_dim, self.x.shape[self.channel_axis]),
@@ -136,11 +139,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Clean up annotations
         self._clean_up_annotations()
-
-        self._track_cells = self.track_cells  # backwards compatibility
-
-        # Initialize tracks
-        self._initialize_tracks()
 
     def _clean_up_annotations(self):
         """Relabels every frame in the label matrix.
@@ -223,7 +221,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
     def _initialize_tracks(self):
         """Intialize the tracks. Tracks are stored in a dictionary.
         """
-        self.tracks = {}
         frame = 0  # initial frame
         self.frame_features = self.get_frame_features(frame)
         unique_cells = self.get_cells_in_frame(frame)
@@ -806,7 +803,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
     def track_cells(self):
         """Tracks all of the cells in every frame.
         """
-        for frame in range(1, self.x.shape[0]):
+        start = timeit.default_timer()
+        self._initialize_tracks()
+
+        for frame in range(1, self.x.shape[self.time_axis]):
             t = timeit.default_timer()
             print('Tracking frame ' + str(frame))
 
@@ -818,6 +818,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             self._update_tracks(assignments, frame, predictions)
             print('Tracked frame {} in {} seconds.'.format(
                 frame, timeit.default_timer() - t))
+        print('Tracked all {} frames in {} seconds.'.format(
+            self.x.shape[self.time_axis], timeit.default_timer() - start))
 
     def _track_review_dict(self):
         def process(key, track_item):
