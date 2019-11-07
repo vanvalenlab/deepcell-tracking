@@ -818,7 +818,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                            for _, track in self.tracks.items()},
                 'X': self.x,
                 'y': self.y,
-                'y_tracked': self.y}
+                'y_tracked': self.y_tracked}
 
     def dataframe(self, **kwargs):
         """Returns a dataframe of the tracked cells with lineage.
