@@ -39,11 +39,11 @@ import timeit
 import pandas as pd
 import networkx as nx
 
-import cv2
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 from skimage.measure import regionprops
-from skimage.transform import resize
+
+from deepcell_tracking.utils import resize
 
 
 class CellTracker(object):  # pylint: disable=useless-object-inheritance
@@ -665,19 +665,12 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         X_reduced = X_padded[x1:x2, y1:y2]
 
-        # resize to neighborhood_scale_size with skimage
-        # resize_shape = (2 * self.neighborhood_scale_size + 1,
-        #                 2 * self.neighborhood_scale_size + 1,
-        #                 num_channels)
-        # X_reduced = resize(X_reduced, resize_shape, mode='constant', preserve_range=True)
-
-        # resize to neighborhood_scale_size with cv2
+        # resize to neighborhood_scale_size
         resize_shape = (2 * self.neighborhood_scale_size + 1,
                         2 * self.neighborhood_scale_size + 1)
-        X_reduced = cv2.resize(np.squeeze(X_reduced), resize_shape)
+        X_reduced = resize(X_reduced, resize_shape,
+                           data_format=self.data_format)
 
-        # X_reduced /= np.amax(X_reduced)
-        X_reduced = np.expand_dims(X_reduced, axis=self.channel_axis)
         return X_reduced
 
     def _get_features(self, X, y, frames, labels):
@@ -735,17 +728,12 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             # Extract images from bounding boxes
             if self.data_format == 'channels_first':
                 appearance = np.copy(X[:, frame, minr:maxr, minc:maxc])
-                resize_shape = (X.shape[channel_axis], self.crop_dim, self.crop_dim)
             else:
                 appearance = np.copy(X[frame, minr:maxr, minc:maxc, :])
-                resize_shape = (self.crop_dim, self.crop_dim, X.shape[channel_axis])
 
             # Resize images from bounding box
-            # appearance = resize(appearance, resize_shape, mode="constant", preserve_range=True)
-            resize_shape = (self.crop_dim, self.crop_dim)
-            appearance = cv2.resize(np.squeeze(appearance), resize_shape)
-            # appearance /= np.amax(appearance)
-            appearance = np.expand_dims(appearance, axis=self.channel_axis)
+            appearance = resize(appearance, (self.crop_dim, self.crop_dim),
+                                data_format=self.data_format)
 
             if self.data_format == 'channels_first':
                 appearances[:, counter] = appearance
