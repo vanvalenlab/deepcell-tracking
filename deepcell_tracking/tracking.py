@@ -341,8 +341,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Initialize matrices
         number_of_tracks = np.int(len(self.tracks))
 
-        cells_in_frame = np.unique(self.y[frame])
-        cells_in_frame = list(np.delete(cells_in_frame, np.where(cells_in_frame == 0)))
+        cells_in_frame = self.get_cells_in_frame(frame)
         number_of_cells = len(cells_in_frame)
 
         assignment_matrix = np.zeros((number_of_tracks, number_of_cells), dtype=self.dtype)
