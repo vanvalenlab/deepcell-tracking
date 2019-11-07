@@ -689,7 +689,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         return track_neighborhoods
 
-    def _sub_area(self, X_frame, y_frame, cell_label, num_channels):
+    def _sub_area(self, X_frame, y_frame, cell_label):
         """Fetch a neighborhood surrounding the cell in the given frame.
 
         Slices out a neighborhood_true_size square region around the center of
