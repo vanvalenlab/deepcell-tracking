@@ -290,6 +290,69 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         raise ValueError('_fetch_track_feature: '
                          'Unknown feature `{}`'.format(feature_name))
 
+    def _fetch_tracked_feature(self, tracks_with_frames, feature):
+        """Get feature data from each tracked frame less than before_frame.
+
+        Args:
+            tracks_with_frames (list): List of tuples,
+                nodes and tracks to fetch.
+            feature (str): Name of feature to fetch from tracked data.
+
+        Returns:
+            dict: dictionary of feature name to np.array of feature data.
+        """
+        feature_shape = self.get_feature_shape(feature)
+        batches = len(tracks_with_frames)
+        if self.data_format == 'channels_first':
+            shape = tuple([batches, feature_shape[0], self.track_length] +
+                          list(feature_shape)[1:])
+        else:
+            shape = tuple([batches, self.track_length] + list(feature_shape))
+
+        tracked_feature = np.zeros(shape, dtype=self.dtype)
+        for i, (n, valid_frames) in enumerate(tracks_with_frames):
+            frame_dict = {frame: i for i, frame in enumerate(valid_frames)}
+            frames = valid_frames[-self.track_length:]
+
+            if len(frames) != self.track_length:
+                # Pad the the frames with the last frame if not enough
+                num_missing = self.track_length - len(frames)
+                frames = frames + [frames[-1]] * num_missing
+
+            # Get the feature data from the identified frames
+            # TODO: do this without a list comprehension?
+            fetched = self.tracks[n][feature][[frame_dict[f] for f in frames]]
+            tracked_feature[i] = fetched
+        return tracked_feature
+
+    def fetch_tracked_features(self, before_frame=None):
+        """Get all feature data from each tracked frame less than before_frame.
+
+        Args:
+            before_frame (int, optional): The maximum frame to from which to
+                fetch feature data.
+
+        Returns:
+            dict: dictionary of feature name to np.array of feature data.
+        """
+        t = timeit.default_timer()
+
+        if before_frame is None:
+            before_frame = self.x.shape[self.time_axis] + 1  # all frames
+
+        track_valid_frames = ((n, d['frames'][:before_frame])
+                              for n, d in self.tracks.items())
+        tracks_with_frames = [(n, f) for n, f in track_valid_frames if f]
+
+        tracked_features = {}
+        for feature in self.features:
+            fetched = self._fetch_tracked_feature(tracks_with_frames, feature)
+            tracked_features[feature] = fetched
+
+        print('Fetched tracked features in {} seconds.'.format(
+            timeit.default_timer() - t))
+        return tracked_features
+
     def get_frame_features(self, frame):
         """Get all features for each cell in the given frame.
 
@@ -369,8 +432,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         assignment_matrix = np.zeros((number_of_tracks, number_of_cells), dtype=self.dtype)
 
-        # Grab the features for the entire track
-        track_features = {f: self._fetch_track_feature(f) for f in self.features}
+        # Get the features for previously tracked data
+        track_features = self.fetch_tracked_features()
 
         # Grab the features for this frame
         self.frame_features = self.get_frame_features(frame)
@@ -591,139 +654,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             if p > max_prob:
                 parent_id, max_prob = track_id, p
         return parent_id
-
-    def _fetch_track_feature(self, feature, before_frame=None):
-        if before_frame is None:
-            before_frame = float('inf')
-
-        if feature == 'appearance':
-            return self._fetch_track_appearances(before_frame)
-        if feature == 'distance':
-            return self._fetch_track_centroids(before_frame)
-        if feature == 'regionprop':
-            return self._fetch_track_regionprops(before_frame)
-        if feature == 'neighborhood':
-            return self._fetch_track_neighborhoods(before_frame)
-
-        raise ValueError('_fetch_track_feature: '
-                         'Unknown feature `{}`'.format(feature))
-
-    def _fetch_track_appearances(self, before_frame):
-        """
-        This function fetches the appearances for all of the existing tracks.
-        If tracks are shorter than the track length, they are filled in with
-        the first frame.
-        """
-        shape = (len(self.tracks.keys()),
-                 self.track_length,
-                 self.crop_dim,
-                 self.crop_dim,
-                 self.x.shape[self.channel_axis])
-        track_appearances = np.zeros(shape, dtype=self.dtype)
-
-        for track_id, track in self.tracks.items():
-            app = track['appearance']
-            allowed_frames = [f for f in track['frames'] if f < before_frame]
-            frame_dict = {frame: idx for idx, frame in enumerate(allowed_frames)}
-
-            if not allowed_frames:
-                continue
-
-            if len(allowed_frames) >= self.track_length:
-                frames = allowed_frames[-self.track_length:]
-            else:
-                num_missing = self.track_length - len(allowed_frames)
-                last_frame = allowed_frames[-1]
-                frames = allowed_frames + [last_frame] * num_missing
-
-            track_appearances[track_id] = app[[frame_dict[f] for f in frames]]
-
-        return track_appearances
-
-    def _fetch_track_regionprops(self, before_frame):
-        """Fetches the regionprops for all of the existing tracks.
-        If tracks are shorter than the track length they are filled in with
-        the centroids from the first frame.
-        """
-        shape = (len(self.tracks.keys()), self.track_length, 3)
-        track_regionprops = np.zeros(shape, dtype=self.dtype)
-
-        for track_id, track in self.tracks.items():
-            regionprop = track['regionprop']
-            allowed_frames = list(filter(lambda f: f < before_frame, track['frames']))
-            frame_dict = {frame: idx for idx, frame in enumerate(allowed_frames)}
-
-            if not allowed_frames:
-                continue
-
-            if len(allowed_frames) >= self.track_length:
-                frames = allowed_frames[-self.track_length:]
-            else:
-                num_missing = self.track_length - len(allowed_frames)
-                last_frame = allowed_frames[-1]
-                frames = allowed_frames + [last_frame] * num_missing
-
-            track_regionprops[track_id] = regionprop[[frame_dict[f] for f in frames]]
-
-        return track_regionprops
-
-    def _fetch_track_centroids(self, before_frame):
-        """Fetches the centroids for all of the existing tracks.
-        If tracks are shorter than the track length they are filled in with
-        the centroids from the first frame.
-        """
-        shape = (len(self.tracks.keys()), self.track_length, 2)
-        track_centroids = np.zeros(shape, dtype=self.dtype)
-
-        for track_id, track in self.tracks.items():
-            centroids = track['distance']
-            allowed_frames = list(filter(lambda f: f < before_frame, track['frames']))
-            frame_dict = {frame: idx for idx, frame in enumerate(allowed_frames)}
-
-            if len(allowed_frames) == 0:
-                continue
-
-            if len(allowed_frames) >= self.track_length:
-                frames = allowed_frames[-self.track_length:]
-            else:
-                num_missing = self.track_length - len(allowed_frames)
-                last_frame = allowed_frames[-1]
-                frames = allowed_frames + [last_frame] * num_missing
-
-            track_centroids[track_id] = centroids[[frame_dict[f] for f in frames]]
-
-        return track_centroids
-
-    def _fetch_track_neighborhoods(self, before_frame):
-        """Gets the neighborhoods for all of the existing tracks.
-        If tracks are shorter than the track length they are filled in with the
-        neighborhoods from the first frame.
-        """
-        shape = (len(self.tracks.keys()),
-                 self.track_length,
-                 2 * self.neighborhood_scale_size + 1,
-                 2 * self.neighborhood_scale_size + 1,
-                 1)
-        track_neighborhoods = np.zeros(shape, dtype=self.dtype)
-
-        for track_id, track in self.tracks.items():
-            neighborhoods = track['neighborhood']
-            allowed_frames = list(filter(lambda f: f < before_frame, track['frames']))
-            frame_dict = {frame: idx for idx, frame in enumerate(allowed_frames)}
-
-            if len(allowed_frames) == 0:
-                continue
-
-            if len(allowed_frames) >= self.track_length:
-                frames = allowed_frames[-self.track_length:]
-            else:
-                num_missing = self.track_length - len(allowed_frames)
-                last_frame = allowed_frames[-1]
-                frames = allowed_frames + [last_frame] * num_missing
-
-            track_neighborhoods[track_id] = neighborhoods[[frame_dict[f] for f in frames]]
-
-        return track_neighborhoods
 
     def _sub_area(self, X_frame, y_frame, cell_label):
         """Fetch a neighborhood surrounding the cell in the given frame.
