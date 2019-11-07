@@ -503,30 +503,33 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Check and make sure cells that divided did not get assigned to the same cell
         for track in range(number_of_tracks):
-            if self.tracks[track]['daughters']:
-                if frame in self.tracks[track]['frames']:
-                    # Create new track
-                    old_label = self.tracks[track]['label']
-                    new_track_id = len(self.tracks)
-                    new_label = new_track_id + 1
-                    self._create_new_track(frame, old_label)
+            if not self.tracks[track]['daughters']:
+                continue
+            if frame not in self.tracks[track]['frames']:
+                continue
 
-                    for feature_name in self.features:
-                        fname = self.tracks[track][feature_name][[-1]]
-                        self.tracks[new_track_id][feature_name] = fname
+            # Create new track
+            old_label = self.tracks[track]['label']
+            new_track_id = len(self.tracks)
+            new_label = new_track_id + 1
+            self._create_new_track(frame, old_label)
 
-                    self.tracks[new_track_id]['parent'] = track
+            for feature_name in self.features:
+                fname = self.tracks[track][feature_name][[-1]]
+                self.tracks[new_track_id][feature_name] = fname
 
-                    # Remove frame from old track
-                    self.tracks[track]['frames'].remove(frame)
-                    for feature_name in self.features:
-                        fname = self.tracks[track][feature_name][0:-1]
-                        self.tracks[track][feature_name] = fname
-                    self.tracks[track]['daughters'].append(new_track_id)
+            self.tracks[new_track_id]['parent'] = track
 
-                    # Change y_tracked_update
-                    y_tracked_update[self.y[[frame]] == new_label] = new_track_id + 1
-                    self.y[frame][self.y[frame] == new_label] = new_track_id + 1
+            # Remove frame from old track
+            self.tracks[track]['frames'].remove(frame)
+            for feature_name in self.features:
+                fname = self.tracks[track][feature_name][0:-1]
+                self.tracks[track][feature_name] = fname
+            self.tracks[track]['daughters'].append(new_track_id)
+
+            # Change y_tracked_update
+            y_tracked_update[self.y[[frame]] == new_label] = new_track_id + 1
+            self.y[frame][self.y[frame] == new_label] = new_track_id + 1
 
         # Update the tracked label array
         self.y_tracked = np.concatenate([self.y_tracked, y_tracked_update], axis=0)
