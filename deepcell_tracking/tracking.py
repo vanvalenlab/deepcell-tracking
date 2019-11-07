@@ -129,13 +129,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self._track_cells = self.track_cells  # backwards compatibility
 
         self.features = sorted(features)
-        self.feature_shape = {
-            'appearance': (crop_dim, crop_dim, self.x.shape[self.channel_axis]),
-            'neighborhood': (2 * neighborhood_scale_size + 1,
-                             2 * neighborhood_scale_size + 1, 1),
-            'regionprop': (3,),
-            'distance': (2,),
-        }
 
         # Clean up annotations
         self._clean_up_annotations()
@@ -189,6 +182,38 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         cells = np.unique(self._get_frame(self.y, frame))
         cells = np.delete(cells, np.where(cells == 0))  # remove the background
         return list(cells)
+
+    def get_feature_shape(self, feature_name):
+        """Return the shape of the requested feature.
+
+        Args:
+            feature_name (str): The name of the feature.
+
+        Returns:
+            tuple: The shape of the feature.
+
+        Raises:
+            ValueError: feature_name is invalid.
+        """
+        channels = self.x.shape[self.channel_axis]
+        shape_dict = {
+            'appearance': (self.crop_dim, self.crop_dim, channels),
+            'neighborhood': (2 * self.neighborhood_scale_size + 1,
+                             2 * self.neighborhood_scale_size + 1,
+                             channels),
+            'regionprop': (3,),
+            'distance': (2,),
+        }
+        try:
+            shape = shape_dict[feature_name]
+        except KeyError:
+            raise ValueError('{} is an invalid feature name. '
+                             'Use one of {}'.format(
+                                 feature_name, shape_dict.keys()))
+        # shift the channel axis (it is channels_last by default)
+        if len(shape) > 1 and self.data_format == 'channels_first':
+            shape = tuple([shape[-1]] + list(shape[:-1]))
+        return shape
 
     def _create_new_track(self, frame, old_label):
         """
@@ -279,7 +304,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         cells_in_frame = self.get_cells_in_frame(frame)
         frame_features = {}
         for feature_name in self.features:
-            feature_shape = self.feature_shape[feature_name]
+            feature_shape = self.get_feature_shape(feature_name)
             # TODO(enricozb): why are there extra (1,)'s in the image shapes
             additional = (1,) if feature_name in {'appearance', 'neighborhood'} else ()
             shape = tuple([len(cells_in_frame)] + list(additional) + list(feature_shape))
@@ -416,7 +441,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             model_input = []
             for feature_name in self.features:
                 in_1, in_2 = inputs[feature_name]
-                feature_shape = self.feature_shape[feature_name]
+                feature_shape = self.get_feature_shape(feature_name)
                 in_1 = np.reshape(np.stack(in_1),
                                   tuple([len(input_pairs), self.track_length] +
                                         list(feature_shape)))

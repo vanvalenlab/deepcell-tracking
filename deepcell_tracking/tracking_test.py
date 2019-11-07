@@ -163,7 +163,7 @@ class TestTracking(parameterized.TestCase):
                     features=[feature_name])
 
                 axis = tracker.channel_axis
-                feature_shape = tracker.feature_shape[feature_name]
+                feature_shape = tracker.get_feature_shape(feature_name)
 
                 feature = tracker._fetch_track_feature(feature_name)
                 assert feature.shape[axis] == feature_shape[axis]
@@ -200,5 +200,5 @@ class TestTracking(parameterized.TestCase):
                     yf = y[f]
 
                     sub = tracker._sub_area(xf, yf, 1)
-
-                    assert sub.shape == tracker.feature_shape['neighborhood']
+                    expected_shape = tracker.get_feature_shape('neighborhood')
+                    assert sub.shape == expected_shape
