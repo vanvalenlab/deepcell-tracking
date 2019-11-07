@@ -207,7 +207,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.tracks[new_track]['frame_div'] = None
         self.tracks[new_track]['parent'] = None
 
-        cell_features = self._get_features(self.x, self.y, [frame], [old_label])
+        cell_features = self._get_features(self.x, self.y, frame, old_label)
         self.tracks[new_track].update(cell_features)
 
         if frame > 0 and np.any(self._get_frame(self.y, frame) == new_label):
@@ -288,7 +288,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             frame_features[feature_name] = np.zeros(shape, dtype=self.dtype)
         # Fill frame_features with the proper values
         for cell_idx, cell_id in enumerate(cells_in_frame):
-            cell_features = self._get_features(self.x, self.y, [frame], [cell_id])
+            cell_features = self._get_features(self.x, self.y, frame, cell_id)
             for feature_name in self.features:
                 frame_features[feature_name][cell_idx] = cell_features[feature_name]
         print('Got all features for {} cells in frame {} in {} s.'.format(
@@ -360,7 +360,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             try:
                 track_label = self.tracks[track]['label']
                 track_frame_features = self._get_features(
-                    self.x, self.y_tracked, [frame - 1], [track_label])
+                    self.x, self.y_tracked, frame - 1, track_label)
             except:  # pylint: disable=bare-except
                 # `track_label` might not exist in `frame - 1`
                 # if this happens, default to the cell's neighborhood
@@ -462,7 +462,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             # Take care of everything if cells are tracked
             if track < number_of_tracks and cell < number_of_cells:
                 self.tracks[track]['frames'].append(frame)
-                cell_features = self._get_features(self.x, self.y, [frame], [cell_id])
+                cell_features = self._get_features(self.x, self.y, frame, cell_id)
                 # cell_features = {f: self.frame_features[f][[cell]]
                 #                  for f in self.features}
                 for feature_name, cell_feature in cell_features.items():
@@ -733,95 +733,62 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         return X_reduced
 
-    def _get_features(self, X, y, frames, labels):
-        """Gets the features of a list of cells.
-        Cells are defined by lists of frames and labels. The i'th element of
-        frames and labels is the frame and label of the i'th cell being grabbed.
-        Returns a dictionary with keys as the feature names.
+    def _get_features(self, X, y, frame, cell_label):
+        """Gets the features of the cell in the frame.
+
+        Args:
+            X (np.array): raw data to get features from.
+            y (np.array): labeled data used to find location of features.
+            frame (int): frame from which to get cell features.
+            cell_label (int): label of the cell.
+
+        Returns:
+            dict: a dictionary with keys as the feature names.
         """
-        channel_axis = self.channel_axis
+        # Get the bounding box
+        X_frame = self._get_frame(X, frame)
+        y_frame = self._get_frame(y, frame)
+
+        roi = (y_frame == cell_label).astype('int32')
+        props = regionprops(np.squeeze(roi), coordinates='rc')[0]
+
+        centroid = props.centroid
+        rprop = np.array([
+            props.area,
+            props.perimeter,
+            props.eccentricity
+        ])
+
+        # Extract images from bounding boxes
+        minr, minc, maxr, maxc = props.bbox
         if self.data_format == 'channels_first':
-            appearance_shape = (X.shape[channel_axis],
-                                len(frames),
-                                self.crop_dim,
-                                self.crop_dim)
+            appearance = np.copy(X[:, frame, minr:maxr, minc:maxc])
         else:
-            appearance_shape = (len(frames),
-                                self.crop_dim,
-                                self.crop_dim,
-                                X.shape[channel_axis])
+            appearance = np.copy(X[frame, minr:maxr, minc:maxc, :])
 
-        centroid_shape = (len(frames), 2)
-        regionprop_shape = (len(frames), 3)
+        # Resize images from bounding box
+        appearance = resize(appearance, (self.crop_dim, self.crop_dim),
+                            data_format=self.data_format)
 
-        neighborhood_shape = (len(frames),
-                              2 * self.neighborhood_scale_size + 1,
-                              2 * self.neighborhood_scale_size + 1, 1)
+        # Get the neighborhood
+        neighborhood = self._sub_area(X_frame, y_frame, cell_label)
 
-        # look-ahead neighborhoods
-        future_area_shape = (len(frames),
-                             2 * self.neighborhood_scale_size + 1,
-                             2 * self.neighborhood_scale_size + 1, 1)
-
-        # Initialize storage for appearances and centroids
-        appearances = np.zeros(appearance_shape, dtype=self.dtype)
-        centroids = np.zeros(centroid_shape, dtype=self.dtype)
-        rprops = np.zeros(regionprop_shape, dtype=self.dtype)
-        neighborhoods = np.zeros(neighborhood_shape, dtype=self.dtype)
-        future_areas = np.zeros(future_area_shape, dtype=self.dtype)
-        for counter, (frame, cell_label) in enumerate(zip(frames, labels)):
-            # Get the bounding box
-            X_frame = X[frame] if self.data_format == 'channels_last' else X[:, frame]
-            y_frame = y[frame] if self.data_format == 'channels_last' else y[:, frame]
-
-            roi = (y_frame == cell_label).astype('int32')
-            props = regionprops(np.squeeze(roi), coordinates='rc')
-
-            minr, minc, maxr, maxc = props[0].bbox
-            centroids[counter] = props[0].centroid
-            rprops[counter] = np.array([
-                props[0].area,
-                props[0].perimeter,
-                props[0].eccentricity
-            ])
-
-            # Extract images from bounding boxes
-            if self.data_format == 'channels_first':
-                appearance = np.copy(X[:, frame, minr:maxr, minc:maxc])
-            else:
-                appearance = np.copy(X[frame, minr:maxr, minc:maxc, :])
-
-            # Resize images from bounding box
-            appearance = resize(appearance, (self.crop_dim, self.crop_dim),
-                                data_format=self.data_format)
-
-            if self.data_format == 'channels_first':
-                appearances[:, counter] = appearance
-            else:
-                appearances[counter] = appearance
-
-            # Get the neighborhood
-            neighborhoods[counter] = self._sub_area(
-                X_frame, y_frame, cell_label, X.shape[channel_axis])
-
-            # Try to assign future areas if future frame is available
-            # TODO: We shouldn't grab a future frame if the frame is dark (was padded)
-            try:
-                if self.data_format == 'channels_first':
-                    X_future_frame = X[:, frame + 1]
-                else:
-                    X_future_frame = X[frame + 1]
-                future_areas[counter] = self._sub_area(
-                    X_future_frame, y_frame, cell_label, X.shape[channel_axis])
-            except IndexError:
-                future_areas[counter] = neighborhoods[counter]
+        # Try to assign future areas if future frame is available
+        # TODO: We shouldn't grab a future frame if the frame is dark (was padded)
+        try:
+            X_future_frame = self._get_frame(X, frame + 1)
+            future_area = self._sub_area(X_future_frame, y_frame, cell_label)
+        except IndexError:
+            future_area = neighborhood
 
         # future areas are not a feature instead a part of the neighborhood feature
-        return {'appearance': appearances,
-                'distance': centroids,
-                'neighborhood': neighborhoods,
-                'regionprop': rprops,
-                '~future area': future_areas}
+        return {
+            'appearance': np.expand_dims(appearance, axis=0),
+            'distance': np.expand_dims(centroid, axis=0),
+            'neighborhood': np.expand_dims(neighborhood, axis=0),
+            'regionprop': np.expand_dims(rprop, axis=0),
+            '~future area': np.expand_dims(future_area, axis=0)
+        }
 
     def _track_cells(self):
         """Tracks all of the cells in every frame.
