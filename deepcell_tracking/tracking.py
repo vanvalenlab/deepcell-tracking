@@ -406,15 +406,14 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         t = timeit.default_timer()  # don't time the other functions
         # Call model.predict only on inputs that are near each other
         inputs = {feature: ([], []) for feature in self.features}
-        input_pairs = []
-        invalid_pairs = []
+        input_pairs, invalid_pairs = [], []
 
         # Fill the input matrices
         for track in range(len(self.tracks)):
             # capped tracks are not allowed to have assignments
             if self.tracks[track]['capped']:
-                invalid_pairs.extend([(track, c)
-                                      for c in range(len(cells_in_frame))])
+                bad_pairs = [(track, c) for c in range(len(cells_in_frame))]
+                invalid_pairs.extend(bad_pairs)
                 continue
 
             # we need to get the future frame for the track we are comparing to
