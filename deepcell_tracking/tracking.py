@@ -623,7 +623,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 self.tracks[track]['frame_div'] = int(frame)
                 self.tracks[track]['capped'] = True
 
-            if frame not in self.tracks[track]['frames']:
+            try:
+                frame_idx = self.tracks[track]['frames'].index(frame)
+            except ValueError:
                 continue  # Filter out tracks that are not in the frame
 
             # Create new track
@@ -631,17 +633,17 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             new_label = new_track_id + 1
             self._create_new_track(frame, self.tracks[track]['label'])
 
-            for feature in self.frame_features:
-                f = self.tracks[track][feature][[-1]]
-                self.tracks[new_track_id][feature] = f
+            # TODO: create_new_track does the features too...
+            for f in self.frame_features:
+                self.tracks[new_track_id][f] = self.tracks[track][f][[frame_idx]]
 
             self.tracks[new_track_id]['parent'] = track
 
-            # Remove frame from old track
-            self.tracks[track]['frames'].remove(frame)
-            for feature in self.frame_features:
-                f = self.tracks[track][feature][0:-1]
-                self.tracks[track][feature] = f
+            # Remove features and frame from old track
+            del self.tracks[track]['frames'][frame_idx]
+            for f in self.frame_features:
+                self.tracks[track][f] = np.delete(
+                    self.tracks[track][f], frame_idx, axis=0)
             self.tracks[track]['daughters'].append(new_track_id)
 
             # Change y_tracked_update
