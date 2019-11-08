@@ -196,6 +196,11 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             ValueError: feature_name is invalid.
         """
         channels = self.x.shape[self.channel_axis]
+
+        # future area is just a neighborhood of a different frame.
+        if feature_name == '~future area':
+            feature_name = 'neighborhood'
+
         shape_dict = {
             'appearance': (self.crop_dim, self.crop_dim, channels),
             'neighborhood': (2 * self.neighborhood_scale_size + 1,
@@ -230,6 +235,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             'parent': None,
         }
 
+        # cell_idx = self.get_cells_in_frame(frame).index(old_label)
+        # cell_features = {f: self.frame_features[f][[cell_idx]]
+        #                  for f in self.frame_features}
         cell_features = self._get_features(self.x, self.y, frame, old_label)
         new_track_data.update(cell_features)
 
@@ -360,14 +368,17 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         """
         t = timeit.default_timer()
         frame_features = {}
-        for feature in self.features:
+        all_features = list(self.features)
+        if 'neighborhood' in self.features:
+            all_features.append('~future area')
+        for feature in all_features:
             feature_shape = self.get_feature_shape(feature)
             shape = tuple([len(cells_in_frame)] + list(feature_shape))
             frame_features[feature] = np.zeros(shape, dtype=self.dtype)
         # Fill frame_features with the proper values
         for cell_idx, cell_id in enumerate(cells_in_frame):
             cell_features = self._get_features(self.x, self.y, frame, cell_id)
-            for feature in self.features:
+            for feature in cell_features:
                 frame_features[feature][cell_idx] = cell_features[feature]
         print('Got all features for {} cells in frame {} in {} s.'.format(
             len(cells_in_frame), frame, timeit.default_timer() - t))
@@ -574,7 +585,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 self.tracks[track]['frames'].append(frame)
                 cell_features = self._get_features(self.x, self.y, frame, cell_id)
                 # cell_features = {f: self.frame_features[f][[cell]]
-                #                  for f in self.features}
+                #                  for f in self.frame_features}
                 for feature in cell_features:
                     self.tracks[track][feature] = np.concatenate([
                         self.tracks[track][feature],
@@ -620,7 +631,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             new_label = new_track_id + 1
             self._create_new_track(frame, self.tracks[track]['label'])
 
-            for feature in self.features:
+            for feature in self.frame_features:
                 f = self.tracks[track][feature][[-1]]
                 self.tracks[new_track_id][feature] = f
 
@@ -628,7 +639,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
             # Remove frame from old track
             self.tracks[track]['frames'].remove(frame)
-            for feature in self.features:
+            for feature in self.frame_features:
                 f = self.tracks[track][feature][0:-1]
                 self.tracks[track][feature] = f
             self.tracks[track]['daughters'].append(new_track_id)
