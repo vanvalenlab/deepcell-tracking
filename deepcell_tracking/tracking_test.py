@@ -29,8 +29,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from absl.testing import parameterized
-
 import numpy as np
 import pandas as pd
 import skimage as sk
@@ -74,7 +72,7 @@ class DummyModel(object):  # pylint: disable=useless-object-inheritance
         return np.random.random((batches, 3))
 
 
-class TestTracking(parameterized.TestCase):
+class TestTracking(object):  # pylint: disable=useless-object-inheritance
 
     def test_simple(self):
         length = 128
@@ -138,13 +136,10 @@ class TestTracking(parameterized.TestCase):
             with pytest.raises(ValueError):
                 tracker.dataframe(bad_value=-1)
 
-    @parameterized.named_parameters([
-        ('appearance', 'appearance'),
-        ('neighborhood', 'neighborhood'),
-        ('regionprop', 'regionprop'),
-        ('distance', 'distance')
-    ])
-    def test_fetch_track_feature(self, feature_name):
+            # test tracker.postprocess
+            tracker.postprocess()
+
+    def test_fetch_tracked_features(self):
         length = 128
         frames = 5
 
@@ -159,24 +154,35 @@ class TestTracking(parameterized.TestCase):
                     x, y,
                     model=DummyModel(),
                     track_length=track_length,
-                    data_format=data_format,
-                    features=[feature_name])
+                    data_format=data_format)
+
+                tracker._initialize_tracks()
 
                 axis = tracker.channel_axis
-                feature_shape = tracker.get_feature_shape(feature_name)
 
-                feature = tracker._fetch_track_feature(feature_name)
-                assert feature.shape[axis] == feature_shape[axis]
+                tracked_features = tracker.fetch_tracked_features()
 
-                feature = tracker._fetch_track_feature(
-                    feature_name, before_frame=frames // 2 + 1)
-                assert feature.shape[axis] == feature_shape[axis]
+                for feature_name in tracker.features:
+                    feature_shape = tracker.get_feature_shape(feature_name)
+                    feature = tracked_features[feature_name]
 
-                tracker._track_cells()
+                    axis = tracker.channel_axis
+                    print(feature_name, feature.shape)
+                    assert feature.shape[axis] == feature_shape[axis]
+                    assert feature.shape[0] == len(tracker.tracks)
+                    assert feature.shape[tracker.time_axis + 1] == track_length
 
-        # test bad value
-        with pytest.raises(ValueError):
-            tracker._fetch_track_feature('invalid-feature')
+                tracked_features = tracker.fetch_tracked_features(
+                    before_frame=frames // 2 + 1)
+
+                for feature_name in tracker.features:
+                    feature_shape = tracker.get_feature_shape(feature_name)
+                    feature = tracked_features[feature_name]
+
+                    axis = tracker.channel_axis
+                    assert feature.shape[axis] == feature_shape[axis]
+                    assert feature.shape[0] == len(tracker.tracks)
+                    assert feature.shape[tracker.time_axis + 1] == track_length
 
     def test__sub_area(self):
         length = 128
