@@ -238,7 +238,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # cell_idx = self.get_cells_in_frame(frame).index(old_label)
         # cell_features = {f: self.frame_features[f][[cell_idx]]
         #                  for f in self.frame_features}
-        cell_features = self._get_features(self.x, self.y, frame, old_label)
+        cell_features = self._get_features(frame, old_label)
         new_track_data.update(cell_features)
 
         self.tracks[new_track] = new_track_data
@@ -376,7 +376,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             frame_features[feature] = np.zeros(shape, dtype=self.dtype)
         # Fill frame_features with the proper values
         for cell_idx, cell_id in enumerate(cells_in_frame):
-            cell_features = self._get_features(self.x, self.y, frame, cell_id)
+            cell_features = self._get_features(frame, cell_id)
             for feature in cell_features:
                 frame_features[feature][cell_idx] = cell_features[feature]
         print('Got all features for {} cells in frame {} in {} s.'.format(
@@ -419,8 +419,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             try:
                 # TODO: fetch features from a track in self.tracks
                 track_label = self.tracks[track]['label']
-                track_frame_features = self._get_features(
-                    self.x, self.y, frame - 1, track_label)
+                track_frame_features = self._get_features(frame - 1, track_label)
             except:  # pylint: disable=bare-except
                 # `track_label` might not exist in `frame - 1`
                 # if this happens, default to the cell's neighborhood
@@ -584,7 +583,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
             if track in self.tracks:  # Add cell and frame to track
                 self.tracks[track]['frames'].append(frame)
-                cell_features = self._get_features(self.x, self.y, frame, cell_id)
+                cell_features = self._get_features(frame, cell_id)
                 # cell_features = {f: self.frame_features[f][[cell]]
                 #                  for f in self.frame_features}
                 for feature in cell_features:
@@ -723,12 +722,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         return X_reduced
 
-    def _get_features(self, X, y, frame, cell_label):
+    def _get_features(self, frame, cell_label):
         """Gets the features of the cell in the frame.
 
         Args:
-            X (np.array): raw data to get features from.
-            y (np.array): labeled data used to find location of features.
             frame (int): frame from which to get cell features.
             cell_label (int): label of the cell.
 
@@ -736,8 +733,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             dict: a dictionary with keys as the feature names.
         """
         # Get the bounding box
-        X_frame = self._get_frame(X, frame)
-        y_frame = self._get_frame(y, frame)
+        X_frame = self._get_frame(self.x, frame)
+        y_frame = self._get_frame(self.y, frame)
 
         roi = (y_frame == cell_label).astype('int32')
         props = regionprops(np.squeeze(roi), coordinates='rc')[0]
@@ -752,9 +749,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Extract images from bounding boxes
         minr, minc, maxr, maxc = props.bbox
         if self.data_format == 'channels_first':
-            appearance = np.copy(X[:, frame, minr:maxr, minc:maxc])
+            appearance = np.copy(X_frame[:, minr:maxr, minc:maxc])
         else:
-            appearance = np.copy(X[frame, minr:maxr, minc:maxc, :])
+            appearance = np.copy(X_frame[minr:maxr, minc:maxc, :])
 
         # Resize images from bounding box
         appearance = resize(appearance, (self.crop_dim, self.crop_dim),
@@ -766,7 +763,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Try to assign future areas if future frame is available
         # TODO: We shouldn't grab a future frame if the frame is dark (was padded)
         try:
-            X_future_frame = self._get_frame(X, frame + 1)
+            X_future_frame = self._get_frame(self.x, frame + 1)
             future_area = self._sub_area(X_future_frame, y_frame, cell_label)
         except IndexError:
             future_area = neighborhood
