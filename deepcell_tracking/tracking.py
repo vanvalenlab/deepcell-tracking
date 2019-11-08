@@ -663,25 +663,18 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         Returns:
             int: The parent cell's id or None if no parent exists.
         """
-        # are track_ids 0-something or 1-something??
-        # 0-something because of the `for track_id, p in enumerate(...)` below
-        probs = {}
+        print('New track')
+        parent_id = None
+        max_prob = self.division
         for (track, cell_id), p in predictions.items():
+            prob = p[2]  # probability cell is part of the track
             # Make sure capped tracks can't be assigned parents
             if cell_id == cell and not self.tracks[track]['capped']:
-                probs[track] = p[2]
-
-        # Find out if the cell is a daughter of a track
-        print('New track')
-        max_prob = self.division
-        parent_id = None
-        for track_id, p in probs.items():
-            # we don't want to think a sibling of `cell`, that just appeared
-            # is a parent
-            if self.tracks[track_id]['frames'] == [frame]:
-                continue
-            if p > max_prob:
-                parent_id, max_prob = track_id, p
+                # Do not call a newly-appeared sibling of "cell" a parent
+                if self.tracks[track]['frames'] == [frame]:
+                    continue
+                if prob > max_prob:
+                    parent_id, max_prob = track, prob
         return parent_id
 
     def _sub_area(self, X_frame, y_frame, cell_label):
