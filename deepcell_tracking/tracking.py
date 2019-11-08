@@ -552,8 +552,18 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         return cost_matrix, dict(zip(input_pairs, predictions))
 
     def _update_tracks(self, assignments, frame, predictions):
-        """Update the tracks if given the assignment matrix
-        and the frame that was tracked.
+        """Update the graph based on the assignment matrix for the frame.
+
+        Use the assignment matrix to determine if each cell in the frame.
+        belongs to a track or is a daughter of a track, and updates the graph
+        accordingly.
+
+        Args:
+            assignments (np.array): completed assignment matrix used to assign
+                cells to existing tracks.
+            frame (int): the frame of cells to assign.
+            predictions (dict): dictionary of trackID-cellID combination,
+                and the probability they are the same cell.
         """
         t = timeit.default_timer()
         cells_in_frame = self.get_cells_in_frame(frame)
