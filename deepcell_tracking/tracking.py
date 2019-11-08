@@ -282,12 +282,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             np.diff(centroids, axis=0)
         ], axis=0)
 
-        is_cell_in_range = True
-        # Make sure the distances are all less than max distance
-        for j in range(distances.shape[0]):  # pylint: disable=E1136
-            if np.linalg.norm(distances[j, :]) > self.max_distance:
-                is_cell_in_range = False
-                break
+        l2 = np.linalg.norm(distances, axis=0)
+        is_cell_in_range = np.all(l2 <= self.max_distance)
+
         return distances[0:-1, :], distances[-1, :], is_cell_in_range
 
     def _fetch_tracked_feature(self, tracks_with_frames, feature):
