@@ -224,9 +224,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         """
         This function creates new tracks
         """
-        new_track = len(self.tracks.keys())
+        new_track = len(self.tracks)
         new_label = new_track + 1
-        new_track_data = {
+        self.tracks[new_track] = {
             'label': new_label,
             'frames': [frame],
             'frame_labels': [old_label],
@@ -235,14 +235,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             'frame_div': None,
             'parent': None,
         }
-
-        # cell_idx = self.get_cells_in_frame(frame).index(old_label)
-        # cell_features = {f: self.frame_features[f][[cell_idx]]
-        #                  for f in self.frame_features}
-        cell_features = self._get_features(frame, old_label)
-        new_track_data.update(cell_features)
-
-        self.tracks[new_track] = new_track_data
 
         if frame > 0 and np.any(self._get_frame(self.y, frame) == new_label):
             raise Exception('new_label already in annotated frame and frame > 0')
@@ -258,8 +250,11 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         frame = 0  # initial frame
         unique_cells = self.get_cells_in_frame(frame)
         self.frame_features = self.get_frame_features(frame, unique_cells)
-        for cell_label in unique_cells:
+        for cell_idx, cell_label in enumerate(unique_cells):
             self._create_new_track(frame, cell_label)
+            track_id = max(self.tracks)  # newly added track
+            for f in self.frame_features:
+                self.tracks[track_id][f] = self.frame_features[f][[cell_idx]]
 
         # Start a tracked label array
         self.y_tracked = self.y[[frame]].astype('int32')
@@ -581,11 +576,12 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 # no assignment should be made
                 continue
 
+            cell_features = {f: self.frame_features[f][[cell]]
+                             for f in self.frame_features}
+
             if track in self.tracks:  # Add cell and frame to track
                 self.tracks[track]['frames'].append(frame)
                 self.tracks[track]['frame_labels'].append(cell_id)
-                cell_features = {f: self.frame_features[f][[cell]]
-                                 for f in self.frame_features}
                 for feature in cell_features:
                     self.tracks[track][feature] = np.concatenate([
                         self.tracks[track][feature],
@@ -597,9 +593,12 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 self.y[frame][self.y[frame] == cell_id] = track + 1
 
             else:  # Create a new track if there was a birth
-                new_track_id = len(self.tracks)
                 self._create_new_track(frame, cell_id)
+                new_track_id = max(self.tracks)
                 new_label = new_track_id + 1
+
+                # Update features for new track from frame features
+                self.tracks[new_track_id].update(cell_features)
 
                 # See if the new track has a parent
                 parent = self._get_parent(frame, cell, predictions)
@@ -633,7 +632,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             new_label = new_track_id + 1
             self._create_new_track(frame, self.tracks[track]['label'])
 
-            # TODO: create_new_track does the features too...
             for f in self.frame_features:
                 self.tracks[new_track_id][f] = self.tracks[track][f][[frame_idx]]
 
