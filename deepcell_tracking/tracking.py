@@ -322,7 +322,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 frames = frames + [frames[-1]] * num_missing
 
             # Get the feature data from the identified frames
-            # TODO: do this without a list comprehension?
             fetched = self.tracks[n][feature][[frame_dict[f] for f in frames]]
             tracked_feature[i] = fetched
         return tracked_feature
