@@ -473,6 +473,16 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                     inputs[feature][0].append(track_feature)
                     inputs[feature][1].append(frame_feature)
 
+        for feature in self.features:
+            in1, in2 = inputs[feature]
+            feature_shape = self.get_feature_shape(feature)
+            in1 = np.reshape(np.stack(in1),
+                             tuple([len(input_pairs), self.track_length] +
+                                   list(feature_shape)))
+            in2 = np.reshape(np.stack(in2), tuple([len(input_pairs), 1] +
+                                                  list(feature_shape)))
+            inputs[feature] = (in1, in2)
+
         print('Got {} input pairs for frame {} in {} s.'.format(
             len(input_pairs), frame, timeit.default_timer() - t))
         return input_pairs, inputs, invalid_pairs
@@ -519,13 +529,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         Returns:
             tuple: the assignment matrix and the predictions used to build it.
         """
-        # Initialize matrices
-        number_of_tracks = np.int(len(self.tracks))
-
         cells_in_frame = self.get_cells_in_frame(frame)
-        number_of_cells = len(cells_in_frame)
-
-        assignment_matrix = np.zeros((number_of_tracks, number_of_cells), dtype=self.dtype)
+        assignment_shape = (len(self.tracks), len(cells_in_frame))
+        assignment_matrix = np.zeros(assignment_shape, dtype=self.dtype)
 
         input_pairs, inputs, invalid_pairs = self._get_input_pairs(frame)
 
@@ -534,17 +540,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             predictions = []
             assignment_matrix.fill(1)
         else:
-            model_input = []
-            for feature in self.features:
-                in_1, in_2 = inputs[feature]
-                feature_shape = self.get_feature_shape(feature)
-                in_1 = np.reshape(np.stack(in_1),
-                                  tuple([len(input_pairs), self.track_length] +
-                                        list(feature_shape)))
-                in_2 = np.reshape(np.stack(in_2), tuple([len(input_pairs), 1] +
-                                                        list(feature_shape)))
-                model_input.extend([in_1, in_2])
-
+            model_input = [ins for f in self.features for ins in inputs[f]]
             predictions = self.model.predict(model_input)
 
             assignment_matrix[list(zip(*input_pairs))] = 1 - predictions[:, 1]
