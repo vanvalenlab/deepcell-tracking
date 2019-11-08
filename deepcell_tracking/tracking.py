@@ -584,9 +584,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             if track in self.tracks:  # Add cell and frame to track
                 self.tracks[track]['frames'].append(frame)
                 self.tracks[track]['frame_labels'].append(cell_id)
-                cell_features = self._get_features(frame, cell_id)
-                # cell_features = {f: self.frame_features[f][[cell]]
-                #                  for f in self.frame_features}
+                cell_features = {f: self.frame_features[f][[cell]]
+                                 for f in self.frame_features}
                 for feature in cell_features:
                     self.tracks[track][feature] = np.concatenate([
                         self.tracks[track][feature],
