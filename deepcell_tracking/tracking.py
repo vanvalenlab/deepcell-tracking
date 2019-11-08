@@ -530,9 +530,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         input_pairs, inputs, invalid_pairs = self._get_input_pairs(frame)
 
         t = timeit.default_timer()
-        if not input_pairs:
-            # if the frame is empty
             assignment_matrix[:, :] = 1
+        if not input_pairs:  # frame is empty
             predictions = []
         else:
             model_input = []
