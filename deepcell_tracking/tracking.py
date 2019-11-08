@@ -418,11 +418,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
             # we need to get the future frame for the track we are comparing to
             try:
-                # TODO: fetch features from a track in self.tracks
-                track_label = self.tracks[track]['label']
-                track_frame_features = self._get_features(frame - 1, track_label)
-            except:  # pylint: disable=bare-except
-                # `track_label` might not exist in `frame - 1`
+                frame_idx = self.tracks[track]['frames'].index(frame - 1)
+                track_frame_features = {f: self.tracks[track][f][[frame_idx]]
+                                        for f in self.frame_features}
+            except ValueError:  # track may not exist in previous frame
                 # if this happens, default to the cell's neighborhood
                 track_frame_features = dict()
 
