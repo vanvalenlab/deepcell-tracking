@@ -247,8 +247,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         """Intialize the tracks. Tracks are stored in a dictionary.
         """
         frame = 0  # initial frame
-        self.frame_features = self.get_frame_features(frame)
         unique_cells = self.get_cells_in_frame(frame)
+        self.frame_features = self.get_frame_features(frame, unique_cells)
         for cell_label in unique_cells:
             self._create_new_track(frame, cell_label)
 
@@ -347,18 +347,18 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             timeit.default_timer() - t))
         return tracked_features
 
-    def get_frame_features(self, frame):
+    def get_frame_features(self, frame, cells_in_frame):
         """Get all features for each cell in the given frame.
 
         Args:
             frame (int): the frame number to calculate features.
+            cells_in_frame (list): cell_labels in the frame.
 
         Returns:
             dict: dictionary of feature names to feature data
                 for each cell in the frame.
         """
         t = timeit.default_timer()
-        cells_in_frame = self.get_cells_in_frame(frame)
         frame_features = {}
         for feature in self.features:
             feature_shape = self.get_feature_shape(feature)
@@ -390,7 +390,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         track_features = self.fetch_tracked_features()
 
         # Get the features for the current frame
-        self.frame_features = self.get_frame_features(frame)
+        self.frame_features = self.get_frame_features(frame, cells_in_frame)
 
         t = timeit.default_timer()  # don't time the other functions
         # Call model.predict only on inputs that are near each other
