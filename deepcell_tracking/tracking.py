@@ -229,6 +229,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         new_track_data = {
             'label': new_label,
             'frames': [frame],
+            'frame_labels': [old_label],
             'daughters': [],
             'capped': False,
             'frame_div': None,
@@ -375,7 +376,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             shape = tuple([len(cells_in_frame)] + list(feature_shape))
             frame_features[feature] = np.zeros(shape, dtype=self.dtype)
         # Fill frame_features with the proper values
-        for cell_idx, cell_id in enumerate(cells_in_frame):
+        for cell_idx, cell_id in enumerate(sorted(cells_in_frame)):
             cell_features = self._get_features(frame, cell_id)
             for feature in cell_features:
                 frame_features[feature][cell_idx] = cell_features[feature]
@@ -583,6 +584,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
             if track in self.tracks:  # Add cell and frame to track
                 self.tracks[track]['frames'].append(frame)
+                self.tracks[track]['frame_labels'].append(cell_id)
                 cell_features = self._get_features(frame, cell_id)
                 # cell_features = {f: self.frame_features[f][[cell]]
                 #                  for f in self.frame_features}
@@ -641,6 +643,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
             # Remove features and frame from old track
             del self.tracks[track]['frames'][frame_idx]
+            del self.tracks[track]['frame_labels'][frame_idx]
             for f in self.frame_features:
                 self.tracks[track][f] = np.delete(
                     self.tracks[track][f], frame_idx, axis=0)
