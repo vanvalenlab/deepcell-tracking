@@ -346,7 +346,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             fetched = self._fetch_tracked_feature(tracks_with_frames, feature)
             tracked_features[feature] = fetched
 
-        print('Fetched tracked features in {} seconds.'.format(
+        print('Fetched tracked features in {} s.'.format(
             timeit.default_timer() - t))
         return tracked_features
 
@@ -794,9 +794,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             assignments = np.stack([row_ind, col_ind], axis=1)
 
             self._update_tracks(assignments, frame, predictions)
-            print('Tracked frame {} in {} seconds.'.format(
+            print('Tracked frame {} in {} s.'.format(
                 frame, timeit.default_timer() - t))
-        print('Tracked all {} frames in {} seconds.'.format(
+        print('Tracked all {} frames in {} s.'.format(
             self.x.shape[self.time_axis], timeit.default_timer() - start))
 
     def _track_review_dict(self):
