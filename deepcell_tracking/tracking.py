@@ -31,6 +31,7 @@ from __future__ import print_function
 
 import copy
 import json
+import logging
 import pathlib
 import tarfile
 import tempfile
@@ -125,6 +126,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.track_length = track_length
         self.channel_axis = 0 if data_format == 'channels_first' else -1
         self.time_axis = 1 if data_format == 'channels_first' else 0
+        self.logger = logging.getLogger(str(self.__class__.__name__))
 
         self._track_cells = self.track_cells  # backwards compatibility
 
@@ -346,8 +348,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             fetched = self._fetch_tracked_feature(tracks_with_frames, feature)
             tracked_features[feature] = fetched
 
-        print('Fetched tracked features in {} s.'.format(
-            timeit.default_timer() - t))
+        self.logger.debug('Fetched tracked features in %s s.',
+                          timeit.default_timer() - t)
         return tracked_features
 
     def get_frame_features(self, frame, cells_in_frame):
@@ -375,8 +377,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             cell_features = self._get_features(frame, cell_id)
             for feature in cell_features:
                 frame_features[feature][cell_idx] = cell_features[feature]
-        print('Got all features for {} cells in frame {} in {} s.'.format(
-            len(cells_in_frame), frame, timeit.default_timer() - t))
+        self.logger.debug('Got all features for %s cells in frame %s in %s s.',
+                          len(cells_in_frame), frame,
+                          timeit.default_timer() - t)
         return frame_features
 
     def _get_input_pairs(self, frame):
@@ -475,8 +478,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                                                   list(feature_shape)))
             inputs[feature] = (in1, in2)
 
-        print('Got {} input pairs for frame {} in {} s.'.format(
-            len(input_pairs), frame, timeit.default_timer() - t))
+        self.logger.debug('Got %s input pairs for frame %s in %s s.',
+                          len(input_pairs), frame, timeit.default_timer() - t)
         return input_pairs, inputs, invalid_pairs
 
     def _build_cost_matrix(self, assignment_matrix):
@@ -540,8 +543,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Assemble full cost matrix
         cost_matrix = self._build_cost_matrix(assignment_matrix)
-        print('Built cost matrix for frame {} in {} s.'.format(
-            frame, timeit.default_timer() - t))
+        self.logger.debug('Built cost matrix for frame %s in %s s.',
+                          frame, timeit.default_timer() - t)
         return cost_matrix, dict(zip(input_pairs, predictions))
 
     def _update_tracks(self, assignments, frame, predictions):
@@ -596,6 +599,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 self._create_new_track(frame, cell_id)
                 new_track_id = max(self.tracks)
                 new_label = new_track_id + 1
+                self.logger.info('Created new track for cell %s.', new_label)
 
                 # Update features for new track from frame features
                 self.tracks[new_track_id].update(cell_features)
@@ -603,7 +607,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 # See if the new track has a parent
                 parent = self._get_parent(frame, cell, predictions)
                 if parent is not None:
-                    print('Division detected')
+                    self.logger.info('Detected division! Cell %s is daughter '
+                                     'of cell %s.', new_label, parent + 1)
                     self.tracks[new_track_id]['parent'] = parent
                     self.tracks[parent]['daughters'].append(new_track_id)
                 else:
@@ -651,8 +656,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Update the tracked label array
         self.y_tracked = np.concatenate([self.y_tracked, y_tracked_update], axis=0)
-        print('Updated tracks for frame {} in {} s.'.format(
-            frame, timeit.default_timer() - t))
+        self.logger.debug('Updated tracks for frame %s in %s s.',
+                          frame, timeit.default_timer() - t)
 
     def _get_parent(self, frame, cell, predictions):
         """Searches the tracks for the parent of a given cell.
@@ -666,7 +671,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         Returns:
             int: The parent cell's id or None if no parent exists.
         """
-        print('New track')
         parent_id = None
         max_prob = self.division
         for (track, cell_id), p in predictions.items():
@@ -786,7 +790,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         for frame in range(1, self.x.shape[self.time_axis]):
             t = timeit.default_timer()
-            print('Tracking frame ' + str(frame))
+            self.logger.info('Tracking frame %s', frame)
 
             cost_matrix, predictions = self._get_cost_matrix(frame)
 
@@ -794,10 +798,11 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             assignments = np.stack([row_ind, col_ind], axis=1)
 
             self._update_tracks(assignments, frame, predictions)
-            print('Tracked frame {} in {} s.'.format(
-                frame, timeit.default_timer() - t))
-        print('Tracked all {} frames in {} s.'.format(
-            self.x.shape[self.time_axis], timeit.default_timer() - start))
+            self.logger.info('Tracked frame %s in %s s.',
+                             frame, timeit.default_timer() - t)
+        self.logger.info('Tracked all %s frames in %s s.',
+                         self.x.shape[self.time_axis],
+                         timeit.default_timer() - start)
 
     def _track_review_dict(self):
         def process(key, track_item):
@@ -1121,7 +1126,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 del lineage[label_to_remove]
 
         else:
-            print('Error: More than 2 neighbor nodes')
+            self.logger.error('Error: More than 2 neighbor nodes')
 
         return lineage, tracked
 
