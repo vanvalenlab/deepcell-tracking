@@ -411,6 +411,12 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Fill the input matrices
         for track in range(len(self.tracks)):
+            # capped tracks are not allowed to have assignments
+            if self.tracks[track]['capped']:
+                invalid_pairs.extend([(track, c)
+                                      for c in range(len(cells_in_frame))])
+                continue
+
             # we need to get the future frame for the track we are comparing to
             try:
                 # TODO: fetch features from a track in self.tracks
@@ -542,16 +548,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
             predictions = self.model.predict(model_input)
 
-            for i, (track, cell) in enumerate(input_pairs):
-                assignment_matrix[track, cell] = 1 - predictions[i, 1]
+            assignment_matrix[list(zip(*input_pairs))] = 1 - predictions[:, 1]
 
-        for bad_track, bad_cell in invalid_pairs:
-            assignment_matrix[bad_track, bad_cell] = 1
-
-        # Make sure capped tracks are not allowed to have assignments
-        for track in range(number_of_tracks):
-            if self.tracks[track]['capped']:
-                assignment_matrix[track, 0:number_of_cells] = 1
+        assignment_matrix[list(zip(*invalid_pairs))] = 1
 
         # Assemble full cost matrix
         cost_matrix = self._build_cost_matrix(assignment_matrix)
