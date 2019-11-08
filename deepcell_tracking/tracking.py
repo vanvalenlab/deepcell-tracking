@@ -542,10 +542,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         else:
             model_input = [ins for f in self.features for ins in inputs[f]]
             predictions = self.model.predict(model_input)
-
             assignment_matrix[list(zip(*input_pairs))] = 1 - predictions[:, 1]
-
-        assignment_matrix[list(zip(*invalid_pairs))] = 1
+            assignment_matrix[list(zip(*invalid_pairs))] = 1
 
         # Assemble full cost matrix
         cost_matrix = self._build_cost_matrix(assignment_matrix)
