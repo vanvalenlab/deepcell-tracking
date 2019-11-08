@@ -420,7 +420,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 # TODO: fetch features from a track in self.tracks
                 track_label = self.tracks[track]['label']
                 track_frame_features = self._get_features(
-                    self.x, self.y_tracked, frame - 1, track_label)
+                    self.x, self.y, frame - 1, track_label)
             except:  # pylint: disable=bare-except
                 # `track_label` might not exist in `frame - 1`
                 # if this happens, default to the cell's neighborhood
