@@ -35,7 +35,7 @@ setup(name='Deepcell_Tracking',
       download_url='https://github.com/vanvalenlab/'
                    'deepcell-tracking/tarball/0.2.1',
       license='LICENSE',
-      install_requires=['networkx<=2.3',
+      install_requires=['networkx>=2.1',
                         'numpy',
                         'pandas',
                         'pathlib',
