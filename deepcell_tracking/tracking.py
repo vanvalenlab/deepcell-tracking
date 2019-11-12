@@ -978,35 +978,36 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         #       Further research needed
 
         # Identify false positive nodes
-        D = {}
+        node_fix = []
         for g in (G.subgraph(c) for c in nx.connected_components(G)):
-            div_nodes = [n for n, d in g.nodes(data='division')]
-            if len(div_nodes) < 2:
-                continue
-            for nd in div_nodes:
-                if g.degree(nd) != 2:
-                    continue
-                # Check how close suspected FP is to other known divisions
-                keep_div = True
-                for div_nd in div_nodes:
-                    if div_nd != nd:
-                        time_spacing = abs(int(nd.split('_')[1]) -
-                                           int(div_nd.split('_')[1]))
-                        # If division is sufficiently far away
-                        # we should exclude it from FP list
-                        if time_spacing > time_excl:
-                            keep_div = False
-                            break  # no reason to keep looking
+            div_nodes = [node for node, d in g.nodes(data='divison') if d]
+            if len(div_nodes) > 1:
+                for nd in div_nodes:
+                    if g.degree(nd) == 2:
+                        # Check how close suspected FP is to other known divisions
 
-                if keep_div:
-                    # Add supplementary information for each false positive
-                    lineages = set(int(n.split('_')[0]) for n
-                                   in nx.node_connected_component(G, nd))
-                    D[nd] = {
-                        'false positive': nd,
-                        'neighbors': list(G.neighbors(nd)),
-                        'connected lineages': lineages
-                    }
+                        keep_div = True
+                        for div_nd in div_nodes:
+                            if div_nd != nd:
+                                time_spacing = abs(int(nd.split('_')[1]) -
+                                                   int(div_nd.split('_')[1]))
+                                # If division is sufficiently far away
+                                # we should exclude it from FP list
+                                if time_spacing > time_excl:
+                                    keep_div = False
+
+                        if keep_div is True:
+                            node_fix.append(nd)
+
+        # Add supplementary information for each false positive
+        D = {}
+        for node in node_fix:
+            D[node] = {
+                'false positive': node,
+                'neighbors': list(G.neighbors(node)),
+                'connected lineages': set([int(node.split('_')[0])
+                                          for node in nx.node_connected_component(G, node)])
+            }
 
         return D
 
