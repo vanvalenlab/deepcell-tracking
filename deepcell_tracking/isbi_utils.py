@@ -215,7 +215,9 @@ def classify_divisions(g_true, g_pred):
         nb_gt = list(g_true.neighbors(node))
         # Check if res node was also called a division
         if node in div_res:
-            nb_pred = list(g_pred.neighbors(node))
+            # TODO: is it supposed to use g_pred?
+            # nb_pred = list(g_pred.neighbors(node))
+            nb_pred = list(g_true.neighbors(node))
             # If neighbors are same, then correct division
             if Counter(nb_gt) == Counter(nb_pred):
                 divI += 1
