@@ -36,32 +36,57 @@ import tarfile
 import tempfile
 from io import BytesIO
 
+import cv2
 import numpy as np
+from skimage import transform
 
 
-def sorted_nicely(l):
-    """Sort a list of strings by the numerical order of all substrings
+def resize(data, shape, data_format='channels_last'):
+    """Resize the data to the given shape.
+
+    Uses openCV to resize the data if the data is a single channel, as it
+    is very fast. However, openCV does not support multi-channel resizing,
+    so if the data has multiple channels, use skimage.
 
     Args:
-        l (list): List of strings to sort
+        data (np.array): data to be reshaped.
+        shape (tuple): shape of the output data.
+        data_format (str): determines the order of the channel axis,
+            one of 'channels_first' and 'channels_last'.
 
     Returns:
-        list: a sorted list
+        numpy.array: data reshaped to new shape.
     """
-    convert = lambda text: int(text) if text.isdigit() else text
-    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
-    return sorted(l, key=alphanum_key)
+    # cv2 resize is faster but does not support multi-channel data
+    # If the data is multi-channel, use skimage.transform.resize
+    channel_axis = 0 if data_format == 'channels_first' else -1
+    if data.shape[channel_axis] > 1:  # multichannel data, use skimage
+        # resize with skimage
+        if data_format == 'channels_first':
+            shape = tuple([data.shape[channel_axis]] + list(shape))
+        else:
+            shape = tuple(list(shape) + [data.shape[channel_axis]])
+        resized = transform.resize(data, shape,
+                                   mode='constant',
+                                   preserve_range=True)
+    else:  # single channel image, resize with cv2
+        resized = cv2.resize(np.squeeze(data), shape)  # pytest: disable=E1101
+        resized = np.expand_dims(resized, axis=channel_axis)
+
+    return resized
 
 
 def count_pairs(y, same_probability=0.5, data_format='channels_last'):
     """Compute number of training samples needed to observe all cell pairs.
 
     Args:
-        y (numpy.array): 5D tensor of cell labels
-        same_probability (float): liklihood that 2 cells are the same
+        y (np.array): 5D tensor of cell labels.
+        same_probability (float): liklihood that 2 cells are the same.
+        data_format (str): determines the order of the channel axis,
+            one of 'channels_first' and 'channels_last'.
 
     Returns:
-        int: the total pairs needed to sample to see all possible pairings
+        int: the total pairs needed to sample to see all possible pairings.
     """
     total_pairs = 0
     zaxis = 2 if data_format == 'channels_first' else 1
@@ -100,10 +125,10 @@ def load_trks(filename):
     """Load a trk/trks file.
 
     Args:
-        trks_file (str): full path to the file including .trk/.trks
+        filename (str): full path to the file including .trk/.trks.
 
     Returns:
-        dict: A dictionary with raw, tracked, and lineage data
+        dict: A dictionary with raw, tracked, and lineage data.
     """
     with tarfile.open(filename, 'r') as trks:
 
@@ -144,15 +169,17 @@ def trk_folder_to_trks(dirname, trks_filename):
     """Compiles a directory of trk files into one trks_file.
 
     Args:
-        dirname (str): full path to the directory containing multiple trk files
-        trks_filename (str): desired filename (the name should end in .trks)
+        dirname (str): full path to the directory containing multiple trk files.
+        trks_filename (str): desired filename (the name should end in .trks).
     """
     lineages = []
     raw = []
     tracked = []
 
+    convert = lambda text: int(text) if text.isdigit() else text
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
     file_list = os.listdir(dirname)
-    file_list_sorted = sorted_nicely(file_list)
+    file_list_sorted = sorted(file_list, key=alphanum_key)
 
     for filename in file_list_sorted:
         trk = load_trks(os.path.join(dirname, filename))
@@ -169,10 +196,13 @@ def save_trks(filename, lineages, raw, tracked):
     """Saves raw, tracked, and lineage data into one trks_file.
 
     Args:
-        filename (str): full path to the final trk files
-        lineages (dict[]): a list of dictionaries saved as a json
-        raw (numpy.array): raw images data
-        tracked (numpy.array): annotated image data
+        filename (str): full path to the final trk files.
+        lineages (dict): a list of dictionaries saved as a json.
+        raw (np.array): raw images data.
+        tracked (np.array): annotated image data.
+
+    Raises:
+        ValueError: filename does not end in ".trks".
     """
     if not str(filename).lower().endswith('.trks'):
         raise ValueError('filename must end with `.trks`. Found %s' % filename)
@@ -194,14 +224,22 @@ def save_trks(filename, lineages, raw, tracked):
             trks.add(tracked_file.name, 'tracked.npy')
 
 
-def trks_stats(trks_file_name):
+def trks_stats(filename):
     """For a given trks_file, find the Number of cell tracks,
        the Number of frames per track, and the Number of divisions.
 
     Args:
-        filename (str): full path to a trks file
+        filename (str): full path to a trks file.
+
+    Raises:
+        ValueError: filename is not a .trk or .trks file.
     """
-    training_data = load_trks(trks_file_name)
+    ext = os.path.splitext(filename)[-1].lower()
+    if ext not in {'.trks', '.trk'}:
+        raise ValueError('`trks_stats` expects a .trk or .trks but found a ' +
+                         str(ext))
+
+    training_data = load_trks(filename)
     X = training_data['X']
     y = training_data['y']
     daughters = [{cell: fields['daughters']
