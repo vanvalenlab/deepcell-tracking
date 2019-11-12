@@ -230,7 +230,15 @@ def trks_stats(filename):
 
     Args:
         filename (str): full path to a trks file.
+
+    Raises:
+        ValueError: filename is not a .trk or .trks file.
     """
+    ext = os.path.splitext(filename)[-1].lower()
+    if ext not in {'.trks', '.trk'}:
+        raise ValueError('`trks_stats` expects a .trk or .trks but found a ' +
+                         str(ext))
+
     training_data = load_trks(filename)
     X = training_data['X']
     y = training_data['y']
