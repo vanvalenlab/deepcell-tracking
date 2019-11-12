@@ -42,15 +42,21 @@ def _get_image(img_h=300, img_w=300):
 
 class TestTrackingUtils(object):
 
-    def test_sorted_nicely(self):
-        # test image file sorting
-        expected = ['test_001_dapi', 'test_002_dapi', 'test_003_dapi']
-        unsorted = ['test_003_dapi', 'test_001_dapi', 'test_002_dapi']
-        np.testing.assert_array_equal(expected, utils.sorted_nicely(unsorted))
-        # test montage folder sorting
-        expected = ['test_0_0', 'test_1_0', 'test_1_1']
-        unsorted = ['test_1_1', 'test_0_0', 'test_1_0']
-        np.testing.assert_array_equal(expected, utils.sorted_nicely(unsorted))
+    def test_resize(self):
+        channel_sizes = (3, 1)  # skimage used for multi-channel, cv2 otherwise
+        for c in channel_sizes:
+            for data_format in ('channels_last', 'channels_first'):
+                channel_axis = 2 if data_format == 'channels_last' else 0
+                img = np.stack([_get_image()] * c, axis=channel_axis)
+
+                resize_shape = (28, 28)
+                resized_img = utils.resize(img, resize_shape,
+                                           data_format=data_format)
+
+                if data_format == 'channels_first':
+                    assert resized_img.shape[1:] == resize_shape
+                else:
+                    assert resized_img.shape[:-1] == resize_shape
 
     def test_count_pairs(self):
         batches = 1

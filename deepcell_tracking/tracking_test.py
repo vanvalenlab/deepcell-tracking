@@ -29,8 +29,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from absl.testing import parameterized
-
 import numpy as np
 import pandas as pd
 import skimage as sk
@@ -74,7 +72,7 @@ class DummyModel(object):  # pylint: disable=useless-object-inheritance
         return np.random.random((batches, 3))
 
 
-class TestTracking(parameterized.TestCase):
+class TestTracking(object):  # pylint: disable=useless-object-inheritance
 
     def test_simple(self):
         length = 128
@@ -83,29 +81,29 @@ class TestTracking(parameterized.TestCase):
         num_objects = len(np.unique(y)) - 1
         model = DummyModel()
 
-        _ = tracking.cell_tracker(x, y, model=model)
+        _ = tracking.CellTracker(x, y, model=model)
 
         # test data with bad rank
         with pytest.raises(ValueError):
-            tracking.cell_tracker(
+            tracking.CellTracker(
                 np.random.random((32, 32, 1)),
                 np.random.randint(num_objects, size=(32, 32, 1)),
                 model=model)
 
         # test mismatched x and y shape
         with pytest.raises(ValueError):
-            tracking.cell_tracker(
+            tracking.CellTracker(
                 np.random.random((3, 32, 32, 1)),
                 np.random.randint(num_objects, size=(2, 32, 32, 1)),
                 model=model)
 
         # test bad features
         with pytest.raises(ValueError):
-            tracking.cell_tracker(x, y, model=model, features=None)
+            tracking.CellTracker(x, y, model=model, features=None)
 
         # test bad data_format
         with pytest.raises(ValueError):
-            tracking.cell_tracker(x, y, model=model, data_format='invalid')
+            tracking.CellTracker(x, y, model=model, data_format='invalid')
 
     def test__track_cells(self):
         length = 128
@@ -120,7 +118,7 @@ class TestTracking(parameterized.TestCase):
             x, y = _get_dummy_tracking_data(
                 length, frames=frames, data_format=data_format)
 
-            tracker = tracking.cell_tracker(
+            tracker = tracking.CellTracker(
                 x, y,
                 model=DummyModel(),
                 track_length=track_length,
@@ -138,13 +136,10 @@ class TestTracking(parameterized.TestCase):
             with pytest.raises(ValueError):
                 tracker.dataframe(bad_value=-1)
 
-    @parameterized.named_parameters([
-        ('appearance', 'appearance'),
-        ('neighborhood', 'neighborhood'),
-        ('regionprop', 'regionprop'),
-        ('distance', 'distance')
-    ])
-    def test_fetch_track_feature(self, feature_name):
+            # test tracker.postprocess
+            tracker.postprocess()
+
+    def test_fetch_tracked_features(self):
         length = 128
         frames = 5
 
@@ -155,28 +150,39 @@ class TestTracking(parameterized.TestCase):
                 length, frames=frames, data_format=data_format)
 
             for track_length in (1, frames // 2 + 1, frames + 1):
-                tracker = tracking.cell_tracker(
+                tracker = tracking.CellTracker(
                     x, y,
                     model=DummyModel(),
                     track_length=track_length,
-                    data_format=data_format,
-                    features=[feature_name])
+                    data_format=data_format)
+
+                tracker._initialize_tracks()
 
                 axis = tracker.channel_axis
-                feature_shape = tracker.feature_shape[feature_name]
 
-                feature = tracker._fetch_track_feature(feature_name)
-                assert feature.shape[axis] == feature_shape[axis]
+                tracked_features = tracker.fetch_tracked_features()
 
-                feature = tracker._fetch_track_feature(
-                    feature_name, before_frame=frames // 2 + 1)
-                assert feature.shape[axis] == feature_shape[axis]
+                for feature_name in tracker.features:
+                    feature_shape = tracker.get_feature_shape(feature_name)
+                    feature = tracked_features[feature_name]
 
-                tracker._track_cells()
+                    axis = tracker.channel_axis
+                    print(feature_name, feature.shape)
+                    assert feature.shape[axis] == feature_shape[axis]
+                    assert feature.shape[0] == len(tracker.tracks)
+                    assert feature.shape[tracker.time_axis + 1] == track_length
 
-        # test bad value
-        with pytest.raises(ValueError):
-            tracker._fetch_track_feature('invalid-feature')
+                tracked_features = tracker.fetch_tracked_features(
+                    before_frame=frames // 2 + 1)
+
+                for feature_name in tracker.features:
+                    feature_shape = tracker.get_feature_shape(feature_name)
+                    feature = tracked_features[feature_name]
+
+                    axis = tracker.channel_axis
+                    assert feature.shape[axis] == feature_shape[axis]
+                    assert feature.shape[0] == len(tracker.tracks)
+                    assert feature.shape[tracker.time_axis + 1] == track_length
 
     def test__sub_area(self):
         length = 128
@@ -188,7 +194,7 @@ class TestTracking(parameterized.TestCase):
             x, y = _get_dummy_tracking_data(
                 length, frames=frames, data_format=data_format)
 
-            tracker = tracking.cell_tracker(
+            tracker = tracking.CellTracker(
                 x, y, model=model, data_format=data_format)
 
             for f in range(frames):
@@ -199,7 +205,6 @@ class TestTracking(parameterized.TestCase):
                     xf = x[f]
                     yf = y[f]
 
-                    sub = tracker._sub_area(
-                        xf, yf, 1, x.shape[tracker.channel_axis])
-
-                    assert sub.shape == tracker.feature_shape['neighborhood']
+                    sub = tracker._sub_area(xf, yf, 1)
+                    expected_shape = tracker.get_feature_shape('neighborhood')
+                    assert sub.shape == expected_shape

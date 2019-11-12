@@ -31,6 +31,7 @@ from __future__ import print_function
 
 import copy
 import json
+import logging
 import pathlib
 import tarfile
 import tempfile
@@ -39,14 +40,38 @@ import timeit
 import pandas as pd
 import networkx as nx
 
-import cv2
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 from skimage.measure import regionprops
-from skimage.transform import resize
+
+from deepcell_tracking.utils import resize
 
 
-class cell_tracker(object):  # pylint: disable=useless-object-inheritance
+class CellTracker(object):  # pylint: disable=useless-object-inheritance
+    """Solves the linear assingment problem to build a cell lineage graph.
+
+    Args:
+        movie (np.array): raw time series movie of cells.
+        annotation (np.array): the labeled cell movie.
+        model (keras.Model): tracking model to determine if two cells are the
+            same, different, or parent/daughter.
+        features (list): list of strings for the features to use.
+        crop_dim (int): crop size for the appearance feature.
+        death (float): paramter used to fill the death matrix in the LAP,
+            (top right of the cost matrix).
+        birth (float): paramter used to fill the birth matrix in the LAP,
+            (bottom left of the cost matrix).
+        division (float): probability threshold for assigning daughter cells.
+        max_distance (int): maximum distance to compare cells with the model.
+        track_length (int): the track length used for the model.
+        neighborhood_scale_size (int): neighborhood feature size to pass to the
+            model.
+        neighborhood_true_size (int): original size of the neighborhood feature
+            which will be scaled down to neighborhood_scale_size.
+        dtype (str): data type for features, can be 'float32', 'float16', etc.
+        data_format (str): determines the order of the channel axis,
+            one of 'channels_first' and 'channels_last'.
+    """
 
     def __init__(self,
                  movie,
@@ -86,6 +111,7 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
 
         self.x = copy.copy(movie)
         self.y = copy.copy(annotation)
+        self.tracks = {}
         # TODO: Use a model that is served by tf-serving, not one on a local machine
         self.model = model
         self.crop_dim = crop_dim
@@ -99,320 +125,487 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
         self.data_format = data_format
         self.track_length = track_length
         self.channel_axis = 0 if data_format == 'channels_first' else -1
+        self.time_axis = 1 if data_format == 'channels_first' else 0
+        self.logger = logging.getLogger(str(self.__class__.__name__))
+
+        self._track_cells = self.track_cells  # backwards compatibility
 
         self.features = sorted(features)
-        self.feature_shape = {
-            'appearance': (crop_dim, crop_dim, self.x.shape[self.channel_axis]),
-            'neighborhood': (2 * neighborhood_scale_size + 1,
-                             2 * neighborhood_scale_size + 1, 1),
-            'regionprop': (3,),
-            'distance': (2,),
-        }
 
         # Clean up annotations
         self._clean_up_annotations()
-
-        # Initialize tracks
-        self._initialize_tracks()
 
     def _clean_up_annotations(self):
         """Relabels every frame in the label matrix.
         Cells will be relabeled 1 to N
         """
-        y = self.y
-        number_of_frames = self.y.shape[0]
+        num_frames = self.y.shape[self.time_axis]
+        all_uniques = [self.get_cells_in_frame(f) for f in range(num_frames)]
 
         # The annotations need to be unique across all frames
-        # TODO: Resolve the starting unique ID issue
-        uid = 1000
-        for frame in range(number_of_frames):
-            unique_cells = np.unique(y[frame])
-            y_frame_new = np.zeros(y[frame].shape)
-            for _, old_label in enumerate(list(unique_cells)):
-                if old_label == 0:
-                    y_frame_new[y[frame] == old_label] = 0
-                else:
-                    y_frame_new[y[frame] == old_label] = uid
-                    uid += 1
-            y[frame] = y_frame_new
-        self.y = y.astype('int32')
+        uid = sum(len(x) for x in all_uniques) + 1
+        for frame, unique_cells in zip(range(num_frames), all_uniques):
+            y_frame = self._get_frame(self.y, frame)
+            y_frame_new = np.zeros(y_frame.shape)
+            for cell_label in unique_cells:
+                y_frame_new[y_frame == cell_label] = uid
+                uid += 1
+            if self.data_format == 'channels_first':
+                self.y[:, frame] = y_frame_new
+            else:
+                self.y[frame] = y_frame_new
+        self.y = self.y.astype('int32')
+
+    def _get_frame(self, tensor, frame):
+        """Helper function for fetching a frame of a tensor.
+
+        Useful for avoiding duplication of the data_format conditional.
+
+        Args:
+            tensor (np.array): The 3D tensor to slice.
+            frame (int): The frame to slice out of the tensor.
+
+        Returns:
+            np.array: the 2D slice of the 3D tensor.
+        """
+        if self.data_format == 'channels_first':
+            return tensor[:, frame]
+        return tensor[frame]
+
+    def get_cells_in_frame(self, frame):
+        """Count the number of cells in the given frame.
+
+        Args:
+            frame (int): counts cells in this frame.
+
+        Returns:
+            list: All cell labels in the frame.
+        """
+        cells = np.unique(self._get_frame(self.y, frame))
+        cells = np.delete(cells, np.where(cells == 0))  # remove the background
+        return sorted(list(cells))
+
+    def get_feature_shape(self, feature_name):
+        """Return the shape of the requested feature.
+
+        Args:
+            feature_name (str): The name of the feature.
+
+        Returns:
+            tuple: The shape of the feature.
+
+        Raises:
+            ValueError: feature_name is invalid.
+        """
+        channels = self.x.shape[self.channel_axis]
+
+        # future area is just a neighborhood of a different frame.
+        if feature_name == '~future area':
+            feature_name = 'neighborhood'
+
+        shape_dict = {
+            'appearance': (self.crop_dim, self.crop_dim, channels),
+            'neighborhood': (2 * self.neighborhood_scale_size + 1,
+                             2 * self.neighborhood_scale_size + 1,
+                             channels),
+            'regionprop': (3,),
+            'distance': (2,),
+        }
+        try:
+            shape = shape_dict[feature_name]
+        except KeyError:
+            raise ValueError('{} is an invalid feature name. '
+                             'Use one of {}'.format(
+                                 feature_name, shape_dict.keys()))
+        # shift the channel axis (it is channels_last by default)
+        if len(shape) > 1 and self.data_format == 'channels_first':
+            shape = tuple([shape[-1]] + list(shape[:-1]))
+        return shape
 
     def _create_new_track(self, frame, old_label):
         """
         This function creates new tracks
         """
-
-        new_track = len(self.tracks.keys())
+        new_track = len(self.tracks)
         new_label = new_track + 1
+        self.tracks[new_track] = {
+            'label': new_label,
+            'frames': [frame],
+            'frame_labels': [old_label],
+            'daughters': [],
+            'capped': False,
+            'frame_div': None,
+            'parent': None,
+        }
 
-        self.tracks[new_track] = {}
-        self.tracks[new_track]['label'] = new_label
-
-        self.tracks[new_track]['frames'] = [frame]
-        self.tracks[new_track]['daughters'] = []
-        self.tracks[new_track]['capped'] = False
-        self.tracks[new_track]['frame_div'] = None
-        self.tracks[new_track]['parent'] = None
-
-        self.tracks[new_track].update(self._get_features(self.x, self.y, [frame], [old_label]))
-
-        if frame > 0 and np.any(self.y[frame] == new_label):
+        if frame > 0 and np.any(self._get_frame(self.y, frame) == new_label):
             raise Exception('new_label already in annotated frame and frame > 0')
 
-        self.y[frame][self.y[frame] == old_label] = new_label
+        if self.data_format == 'channels_first':
+            self.y[:, frame][self.y[:, frame] == old_label] = new_label
+        else:
+            self.y[frame][self.y[frame] == old_label] = new_label
 
     def _initialize_tracks(self):
         """Intialize the tracks. Tracks are stored in a dictionary.
         """
-        self.tracks = {}
-        unique_cells = np.unique(self.y[0])
-
-        # Remove background that has value 0
-        unique_cells = np.delete(unique_cells, np.where(unique_cells == 0))
-
-        for track_counter, label in enumerate(unique_cells):
-            self._create_new_track(0, label)
+        frame = 0  # initial frame
+        unique_cells = self.get_cells_in_frame(frame)
+        self.frame_features = self.get_frame_features(frame, unique_cells)
+        for cell_idx, cell_label in enumerate(unique_cells):
+            self._create_new_track(frame, cell_label)
+            track_id = max(self.tracks)  # newly added track
+            for f in self.frame_features:
+                self.tracks[track_id][f] = self.frame_features[f][[cell_idx]]
 
         # Start a tracked label array
-        self.y_tracked = self.y[[0]].astype('int32')
+        self.y_tracked = self.y[[frame]].astype('int32')
 
-    def _compute_feature(self, feature_name, track_feature, frame_feature):
+    def compute_distance(self, track_centroids, frame_centroids):
+        """Computes the distance between two centroids.
+
+        Args:
+            track_centroids (tuple): x and y centroid for the given track.
+            frame_centroids (tuple): x and y centroid for the given frame.
+
+        Returns:
+            tuple: the distances for tracks and frames,
+                and a boolean indicating whether the distance is valid.
         """
-        Given a track and frame feature, compute the resulting track and frame features.
-        This also returns True or False as the third element of the tuple indicating if these
-        features should be used at all. False indicates that this pair of track & cell features
-        should result in a maximum cost assignment.
-        This is usually for some preprocessing in case it is desired. For example, the
-        distance feature normalizes distances.
+        centroids = np.concatenate([
+            track_centroids,
+            np.array([frame_centroids])
+        ], axis=0)
+
+        distances = np.concatenate([
+            np.zeros((1, 2), dtype=self.dtype),
+            np.diff(centroids, axis=0)
+        ], axis=0)
+
+        l2 = np.linalg.norm(distances, axis=0)
+        is_cell_in_range = np.all(l2 <= self.max_distance)
+
+        return distances[0:-1, :], distances[-1, :], is_cell_in_range
+
+    def _fetch_tracked_feature(self, tracks_with_frames, feature):
+        """Get feature data from each tracked frame less than before_frame.
+
+        Args:
+            tracks_with_frames (list): List of tuples,
+                nodes and tracks to fetch.
+            feature (str): Name of feature to fetch from tracked data.
+
+        Returns:
+            dict: dictionary of feature name to np.array of feature data.
         """
-        if feature_name == 'appearance':
-            return track_feature, frame_feature, True
+        feature_shape = self.get_feature_shape(feature)
+        batches = len(tracks_with_frames)
+        if self.data_format == 'channels_first':
+            shape = tuple([batches, feature_shape[0], self.track_length] +
+                          list(feature_shape)[1:])
+        else:
+            shape = tuple([batches, self.track_length] + list(feature_shape))
 
-        if feature_name == 'distance':
-            centroids = np.concatenate([track_feature, np.array([frame_feature])], axis=0)
-            distances = np.diff(centroids, axis=0)
-            zero_pad = np.zeros((1, 2), dtype=self.dtype)
-            distances = np.concatenate([zero_pad, distances], axis=0)
+        tracked_feature = np.zeros(shape, dtype=self.dtype)
+        for i, (n, valid_frames) in enumerate(tracks_with_frames):
+            frame_dict = {frame: i for i, frame in enumerate(valid_frames)}
+            frames = valid_frames[-self.track_length:]
 
-            ok = True
-            # Make sure the distances are all less than max distance
-            for j in range(distances.shape[0]):
-                dist = distances[j, :]
-                # TODO(enricozb): Finish the distance-based optimizations
-                if np.linalg.norm(dist) > self.max_distance:
-                    ok = False
-            return distances[0:-1, :], distances[-1, :], ok
+            if len(frames) != self.track_length:
+                # Pad the the frames with the last frame if not enough
+                num_missing = self.track_length - len(frames)
+                frames = frames + [frames[-1]] * num_missing
 
-        if feature_name == 'neighborhood':
-            return track_feature, frame_feature, True
+            # Get the feature data from the identified frames
+            fetched = self.tracks[n][feature][[frame_dict[f] for f in frames]]
+            tracked_feature[i] = fetched
+        return tracked_feature
 
-        if feature_name == 'regionprop':
-            return track_feature, frame_feature, True
+    def fetch_tracked_features(self, before_frame=None):
+        """Get all feature data from each tracked frame less than before_frame.
 
-        raise ValueError('_fetch_track_feature: '
-                         'Unknown feature `{}`'.format(feature_name))
+        Args:
+            before_frame (int, optional): The maximum frame to from which to
+                fetch feature data.
 
-    def _get_cost_matrix(self, frame):
-        """Uses the model to create the cost matrix for
-        assigning the cells in frame to existing tracks.
+        Returns:
+            dict: dictionary of feature name to np.array of feature data.
         """
         t = timeit.default_timer()
-        # Initialize matrices
-        number_of_tracks = np.int(len(self.tracks.keys()))
 
-        cells_in_frame = np.unique(self.y[frame])
-        cells_in_frame = list(np.delete(cells_in_frame, np.where(cells_in_frame == 0)))
-        number_of_cells = len(cells_in_frame)
+        if before_frame is None:
+            before_frame = self.x.shape[self.time_axis] + 1  # all frames
 
-        total_cells = number_of_tracks + number_of_cells
-        cost_matrix = np.zeros((total_cells, total_cells), dtype=self.dtype)
-        assignment_matrix = np.zeros((number_of_tracks, number_of_cells), dtype=self.dtype)
-        birth_matrix = np.zeros((number_of_cells, number_of_cells), dtype=self.dtype)
-        death_matrix = np.zeros((number_of_tracks, number_of_tracks), dtype=self.dtype)
+        track_valid_frames = ((n, d['frames'][:before_frame])
+                              for n, d in self.tracks.items())
+        tracks_with_frames = [(n, f) for n, f in track_valid_frames if f]
 
-        # Bottom right matrix
-        mordor_matrix = np.zeros((number_of_cells, number_of_tracks), dtype=self.dtype)
+        tracked_features = {}
+        for feature in self.features:
+            fetched = self._fetch_tracked_feature(tracks_with_frames, feature)
+            tracked_features[feature] = fetched
 
-        # Grab the features for the entire track
-        track_features = {f: self._fetch_track_feature(f) for f in self.features}
+        self.logger.debug('Fetched tracked features in %s s.',
+                          timeit.default_timer() - t)
+        return tracked_features
 
-        # Grab the features for this frame
-        # Fill frame_features with zero matrices
+    def get_frame_features(self, frame, cells_in_frame):
+        """Get all features for each cell in the given frame.
+
+        Args:
+            frame (int): the frame number to calculate features.
+            cells_in_frame (list): cell_labels in the frame.
+
+        Returns:
+            dict: dictionary of feature names to feature data
+                for each cell in the frame.
+        """
+        t = timeit.default_timer()
         frame_features = {}
-        for feature_name in self.features:
-            feature_shape = self.feature_shape[feature_name]
-            # TODO(enricozb): why are there extra (1,)'s in the image shapes
-            additional = (1,) if feature_name in {'appearance', 'neighborhood'} else ()
-            shape = tuple([number_of_cells] + list(additional) + list(feature_shape))
-            frame_features[feature_name] = np.zeros(shape, dtype=self.dtype)
+        all_features = list(self.features)
+        if 'neighborhood' in self.features:
+            all_features.append('~future area')
+        for feature in all_features:
+            feature_shape = self.get_feature_shape(feature)
+            shape = tuple([len(cells_in_frame)] + list(feature_shape))
+            frame_features[feature] = np.zeros(shape, dtype=self.dtype)
         # Fill frame_features with the proper values
-        for cell_idx, cell_id in enumerate(cells_in_frame):
-            cell_features = self._get_features(self.x, self.y, [frame], [cell_id])
-            for feature_name in self.features:
-                frame_features[feature_name][cell_idx] = cell_features[feature_name]
+        for cell_idx, cell_id in enumerate(sorted(cells_in_frame)):
+            cell_features = self._get_features(frame, cell_id)
+            for feature in cell_features:
+                frame_features[feature][cell_idx] = cell_features[feature]
+        self.logger.debug('Got all features for %s cells in frame %s in %s s.',
+                          len(cells_in_frame), frame,
+                          timeit.default_timer() - t)
+        return frame_features
 
+    def _get_input_pairs(self, frame):
+        """Get all input pairs, inputs, and invalid pairs.
+
+        Args:
+            frame (int): Returns input pairs for only the given frame.
+
+        Returns:
+            list: input_pairs, list of tuples of frame and cell to use as input.
+            dict: inputs for the given input pairs.
+            list: invalid pairs of tracks and cells to ignore in assignment.
+        """
+        cells_in_frame = self.get_cells_in_frame(frame)
+
+        # Get the features for previously tracked data
+        track_features = self.fetch_tracked_features()
+
+        # Get the features for the current frame
+        self.frame_features = self.get_frame_features(frame, cells_in_frame)
+
+        t = timeit.default_timer()  # don't time the other functions
         # Call model.predict only on inputs that are near each other
-        inputs = {feature_name: ([], []) for feature_name in self.features}
-        input_pairs = []
+        inputs = {feature: ([], []) for feature in self.features}
+        input_pairs, invalid_pairs = [], []
 
-        # Compute assignment matrix - Initialize and get model inputs
         # Fill the input matrices
-        for track in range(number_of_tracks):
+        for track in range(len(self.tracks)):
+            # capped tracks are not allowed to have assignments
+            if self.tracks[track]['capped']:
+                bad_pairs = [(track, c) for c in range(len(cells_in_frame))]
+                invalid_pairs.extend(bad_pairs)
+                continue
 
             # we need to get the future frame for the track we are comparing to
             try:
-                track_label = self.tracks[track]['label']
-                track_frame_features = self._get_features(
-                    self.x, self.y_tracked, [frame - 1], [track_label])
-            except:
-                # `track_label` might not exist in `frame - 1`
+                frame_idx = self.tracks[track]['frames'].index(frame - 1)
+                track_frame_features = {f: self.tracks[track][f][[frame_idx]]
+                                        for f in self.frame_features}
+            except ValueError:  # track may not exist in previous frame
                 # if this happens, default to the cell's neighborhood
                 track_frame_features = dict()
 
-            for cell in range(number_of_cells):
+            for cell, _ in enumerate(cells_in_frame):
                 feature_vals = {}
 
                 # If distance is a feature it is used to exclude
                 # impossible pairings from the get_feature call
                 if 'distance' in self.features:
-                    _, _, is_cell_in_range = self._compute_feature(
-                        'distance',
-                        track_features['distance'][track],
-                        frame_features['distance'][cell])
+                    track_feature = track_features['distance'][track]
+                    frame_feature = self.frame_features['distance'][cell]
+
+                    track_feature, frame_feature, is_cell_in_range = \
+                        self.compute_distance(track_feature, frame_feature)
+
+                    # Set the distance feature
+                    feature_vals['distance'] = (track_feature, frame_feature)
                 else:
                     # not worried about distance, just calculate features
                     is_cell_in_range = True
 
                 if not is_cell_in_range:
                     # Cell is outside of range, set cost to max and move on
-                    assignment_matrix[track, cell] = 1
+                    invalid_pairs.append((track, cell))
                     continue
 
                 # The cell is within range so we should add
                 # all the information for all features
-                for feature_name in self.features:
+                for feature in self.features:
+                    if feature == 'distance':
+                        continue  # already calculated distance feature
 
-                    track_feature, frame_feature, _ = self._compute_feature(
-                        feature_name,
-                        track_features[feature_name][track],
-                        frame_features[feature_name][cell])
+                    track_feature = track_features[feature][track]
+                    frame_feature = self.frame_features[feature][cell]
 
                     # this condition changes `frame_feature`
-                    if feature_name == 'neighborhood':
-                        # This segment of the loop should not be run
-                        # if the disance check fails
-                        frame_feature = track_frame_features.get('~future area', frame_feature)
+                    if feature == 'neighborhood':
+                        if '~future area' in track_frame_features:
+                            frame_feature = self._get_frame(
+                                track_frame_features['~future area'], 0)
 
-                    feature_vals[feature_name] = (track_feature, frame_feature)
+                    feature_vals[feature] = (track_feature, frame_feature)
 
                 input_pairs.append((track, cell))
-                for feature_name, (track_feature, frame_feature) in feature_vals.items():
-                    inputs[feature_name][0].append(track_feature)
-                    inputs[feature_name][1].append(frame_feature)
+                for feature, (track_feature, frame_feature) in feature_vals.items():
+                    inputs[feature][0].append(track_feature)
+                    inputs[feature][1].append(frame_feature)
 
-        # print('Got features in {}s'.format(timeit.default_timer() - t))
+        for feature in self.features:
+            in1, in2 = inputs[feature]
+            feature_shape = self.get_feature_shape(feature)
+            in1 = np.reshape(np.stack(in1),
+                             tuple([len(input_pairs), self.track_length] +
+                                   list(feature_shape)))
+            in2 = np.reshape(np.stack(in2), tuple([len(input_pairs), 1] +
+                                                  list(feature_shape)))
+            inputs[feature] = (in1, in2)
 
-        if input_pairs == []:
-            # if the frame is empty
-            assignment_matrix[:, :] = 1
-            predictions = []
-        else:
-            model_input = []
-            for feature_name in self.features:
-                in_1, in_2 = inputs[feature_name]
-                feature_shape = self.feature_shape[feature_name]
-                in_1 = np.reshape(np.stack(in_1),
-                                  tuple([len(input_pairs), self.track_length] +
-                                        list(feature_shape)))
-                in_2 = np.reshape(np.stack(in_2), tuple([len(input_pairs), 1] +
-                                                        list(feature_shape)))
-                model_input.extend([in_1, in_2])
+        self.logger.debug('Got %s input pairs for frame %s in %s s.',
+                          len(input_pairs), frame, timeit.default_timer() - t)
+        return input_pairs, inputs, invalid_pairs
 
-            predictions = self.model.predict(model_input)
+    def _build_cost_matrix(self, assignment_matrix):
+        """Build the full cost matrix based on the assignment_matrix.
 
-            for i, (track, cell) in enumerate(input_pairs):
-                assignment_matrix[track, cell] = 1 - predictions[i, 1]
+        Args:
+            assignment_matrix (np.array): assignment_matrix.
 
-        # Make sure capped tracks are not allowed to have assignments
-        for track in range(number_of_tracks):
-            if self.tracks[track]['capped']:
-                assignment_matrix[track, 0:number_of_cells] = 1
+        Returns:
+            numpy.array: cost matrix.
+        """
+        # Initialize cost matrix
+        num_tracks, num_cells = assignment_matrix.shape
+        cost_matrix = np.zeros((num_tracks + num_cells,) * 2, dtype=self.dtype)
 
-        # Compute birth matrix
-        birth_diagonal = np.array([self.birth] * number_of_cells)
+        # assignment matrix - top left
+        cost_matrix[0:num_tracks, 0:num_cells] = assignment_matrix
+
+        # birth matrix - bottom left
+        birth_diagonal = np.array([self.birth] * num_cells)
+        birth_matrix = np.zeros((num_cells, num_cells), dtype=self.dtype)
         birth_matrix = np.diag(birth_diagonal) + np.ones(birth_matrix.shape)
-        birth_matrix = birth_matrix - np.eye(number_of_cells)
+        birth_matrix = birth_matrix - np.eye(num_cells)
+        cost_matrix[num_tracks:, 0:num_cells] = birth_matrix
 
-        # Compute death matrix
-        death_matrix = self.death * np.eye(number_of_tracks) + np.ones(death_matrix.shape)
-        death_matrix = death_matrix - np.eye(number_of_tracks)
+        # death matrix - top right
+        death_matrix = np.ones((num_tracks, num_tracks), dtype=self.dtype)
+        death_matrix = self.death * np.eye(num_tracks) + death_matrix
+        death_matrix = death_matrix - np.eye(num_tracks)
+        cost_matrix[0:num_tracks, num_cells:] = death_matrix
 
-        # Compute mordor matrix
-        # The mordor matrix must sastify shape constraints and allow for
-        # auxillary assignments - therefore it should be the transpose of the
-        # assignment matrix
-        mordor_matrix = assignment_matrix.T
+        # mordor matrix - bottom right
+        cost_matrix[num_tracks:, num_cells:] = assignment_matrix.T
+        return cost_matrix
+
+    def _get_cost_matrix(self, frame):
+        """Use the model predictions to build an assignment matrix to be solved.
+
+        Args:
+            frame (int): The frame with cells to assign.
+
+        Returns:
+            tuple: the assignment matrix and the predictions used to build it.
+        """
+        cells_in_frame = self.get_cells_in_frame(frame)
+        assignment_shape = (len(self.tracks), len(cells_in_frame))
+        assignment_matrix = np.zeros(assignment_shape, dtype=self.dtype)
+
+        input_pairs, inputs, invalid_pairs = self._get_input_pairs(frame)
+
+        t = timeit.default_timer()
+        if not input_pairs:  # frame is empty
+            predictions = []
+            assignment_matrix.fill(1)
+        else:
+            model_input = [ins for f in self.features for ins in inputs[f]]
+            predictions = self.model.predict(model_input)
+            # TODO: using tuple (as warning indicates) changes results.
+            assignment_matrix[list(zip(*input_pairs))] = 1 - predictions[:, 1]
+            assignment_matrix[list(zip(*invalid_pairs))] = 1
 
         # Assemble full cost matrix
-        cost_matrix[0:number_of_tracks, 0:number_of_cells] = assignment_matrix
-        cost_matrix[number_of_tracks:, 0:number_of_cells] = birth_matrix
-        cost_matrix[0:number_of_tracks, number_of_cells:] = death_matrix
-        cost_matrix[number_of_tracks:, number_of_cells:] = mordor_matrix
-
-        predictions_map = {pair: prediction
-                           for pair, prediction in zip(input_pairs, predictions)}
-
-        return cost_matrix, predictions_map
-
-    def _run_lap(self, cost_matrix):
-        """Runs the linear assignment function on a cost matrix.
-        """
-        row_ind, col_ind = linear_sum_assignment(cost_matrix)
-        assignments = np.stack([row_ind, col_ind], axis=1)
-
-        return assignments
+        cost_matrix = self._build_cost_matrix(assignment_matrix)
+        self.logger.debug('Built cost matrix for frame %s in %s s.',
+                          frame, timeit.default_timer() - t)
+        return cost_matrix, dict(zip(input_pairs, predictions))
 
     def _update_tracks(self, assignments, frame, predictions):
-        """Update the tracks if given the assignment matrix
-        and the frame that was tracked.
+        """Update the graph based on the assignment matrix for the frame.
+
+        Use the assignment matrix to determine if each cell in the frame.
+        belongs to a track or is a daughter of a track, and updates the graph
+        accordingly.
+
+        Args:
+            assignments (np.array): completed assignment matrix used to assign
+                cells to existing tracks.
+            frame (int): the frame of cells to assign.
+            predictions (dict): dictionary of trackID-cellID combination,
+                and the probability they are the same cell.
         """
-        number_of_tracks = len(self.tracks.keys())
-        cells_in_frame = np.unique(self.y[frame])
-        cells_in_frame = np.delete(cells_in_frame, np.where(cells_in_frame == 0))
+        t = timeit.default_timer()
+        cells_in_frame = self.get_cells_in_frame(frame)
+
         # Number of lables present in the current frame (needed to build cost matrix)
-        number_of_cells = len(list(cells_in_frame))
-        y_tracked_update = np.zeros((1, self.y.shape[1], self.y.shape[2], 1), dtype='int32')
+        y_tracked_update = np.zeros((1, self.y.shape[1], self.y.shape[2], 1),
+                                    dtype='int32')
 
         for a in range(assignments.shape[0]):
             track, cell = assignments[a]
-            track_id = track + 1  # Labels and indices differ by 1
 
-            # This is a mapping of the column index provided by the lap
-            # assignment to the cell label in the frame
-            if cell < number_of_cells:
-                cell_id = cells_in_frame[cell]  # This is the new mapping
+            # map the index from the LAP assignment to the cell label
+            try:
+                cell_id = cells_in_frame[cell]
+            except IndexError:
+                # cell has "died" or is a shadow assignment
+                # no assignment should be made
+                continue
 
-            # Take care of everything if cells are tracked
-            if track < number_of_tracks and cell < number_of_cells:
+            cell_features = {f: self.frame_features[f][[cell]]
+                             for f in self.frame_features}
+
+            if track in self.tracks:  # Add cell and frame to track
                 self.tracks[track]['frames'].append(frame)
-                cell_features = self._get_features(self.x, self.y, [frame], [cell_id])
-                for feature_name, cell_feature in cell_features.items():
-                    self.tracks[track][feature_name] = np.concatenate([
-                        self.tracks[track][feature_name], cell_feature], axis=0)
+                self.tracks[track]['frame_labels'].append(cell_id)
+                for feature in cell_features:
+                    self.tracks[track][feature] = np.concatenate([
+                        self.tracks[track][feature],
+                        cell_features[feature],
+                    ], axis=0)
 
-                y_tracked_update[self.y[[frame]] == cell_id] = track_id
-                self.y[frame][self.y[frame] == cell_id] = track_id
+                # Labels and indices differ by 1
+                y_tracked_update[self.y[[frame]] == cell_id] = track + 1
+                self.y[frame][self.y[frame] == cell_id] = track + 1
 
-            # Create a new track if there was a birth
-            elif track > number_of_tracks - 1 and cell < number_of_cells:
-                new_track_id = len(self.tracks.keys())
+            else:  # Create a new track if there was a birth
                 self._create_new_track(frame, cell_id)
+                new_track_id = max(self.tracks)
                 new_label = new_track_id + 1
+                self.logger.info('Created new track for cell %s.', new_label)
+
+                # Update features for new track from frame features
+                self.tracks[new_track_id].update(cell_features)
 
                 # See if the new track has a parent
                 parent = self._get_parent(frame, cell, predictions)
                 if parent is not None:
-                    print('Division detected')
+                    self.logger.info('Detected division! Cell %s is daughter '
+                                     'of cell %s.', new_label, parent + 1)
                     self.tracks[new_track_id]['parent'] = parent
                     self.tracks[parent]['daughters'].append(new_track_id)
                 else:
@@ -421,349 +614,192 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
                 y_tracked_update[self.y[[frame]] == new_label] = new_track_id + 1
                 self.y[frame][self.y[frame] == new_label] = new_track_id + 1
 
-            # Dont touch anything if there was a cell that "died"
-            elif track < number_of_tracks and cell > number_of_cells - 1:
-                continue
+        # Check and make sure cells that divided did not get assigned to the same cell
+        for track in range(len(self.tracks)):
+            if not self.tracks[track]['daughters']:
+                continue  # Filter out cells that have not divided
 
-        # Cap the tracks of cells that divided
-        number_of_tracks = len(self.tracks.keys())
-        for track in range(number_of_tracks):
-            if self.tracks[track]['daughters'] and not self.tracks[track]['capped']:
+            # Cap tracks for any divided cells
+            if not self.tracks[track]['capped']:
                 self.tracks[track]['frame_div'] = int(frame)
                 self.tracks[track]['capped'] = True
 
-        # Check and make sure cells that divided did not get assigned to the same cell
-        for track in range(number_of_tracks):
-            if self.tracks[track]['daughters']:
-                if frame in self.tracks[track]['frames']:
-                    # Create new track
-                    old_label = self.tracks[track]['label']
-                    new_track_id = len(self.tracks.keys())
-                    new_label = new_track_id + 1
-                    self._create_new_track(frame, old_label)
+            try:
+                frame_idx = self.tracks[track]['frames'].index(frame)
+            except ValueError:
+                continue  # Filter out tracks that are not in the frame
 
-                    for feature_name in self.features:
-                        fname = self.tracks[track][feature_name][[-1]]
-                        self.tracks[new_track_id][feature_name] = fname
+            # Create new track
+            new_track_id = len(self.tracks)
+            new_label = new_track_id + 1
+            self._create_new_track(frame, self.tracks[track]['label'])
 
-                    self.tracks[new_track_id]['parent'] = track
+            for f in self.frame_features:
+                self.tracks[new_track_id][f] = self.tracks[track][f][[frame_idx]]
 
-                    # Remove frame from old track
-                    self.tracks[track]['frames'].remove(frame)
-                    for feature_name in self.features:
-                        fname = self.tracks[track][feature_name][0:-1]
-                        self.tracks[track][feature_name] = fname
-                    self.tracks[track]['daughters'].append(new_track_id)
+            self.tracks[new_track_id]['parent'] = track
 
-                    # Change y_tracked_update
-                    y_tracked_update[self.y[[frame]] == new_label] = new_track_id + 1
-                    self.y[frame][self.y[frame] == new_label] = new_track_id + 1
+            # Remove features and frame from old track
+            del self.tracks[track]['frames'][frame_idx]
+            del self.tracks[track]['frame_labels'][frame_idx]
+            for f in self.frame_features:
+                self.tracks[track][f] = np.delete(
+                    self.tracks[track][f], frame_idx, axis=0)
+            self.tracks[track]['daughters'].append(new_track_id)
+
+            # Change y_tracked_update
+            y_tracked_update[self.y[[frame]] == new_label] = new_track_id + 1
+            self.y[frame][self.y[frame] == new_label] = new_track_id + 1
 
         # Update the tracked label array
         self.y_tracked = np.concatenate([self.y_tracked, y_tracked_update], axis=0)
+        self.logger.debug('Updated tracks for frame %s in %s s.',
+                          frame, timeit.default_timer() - t)
 
     def _get_parent(self, frame, cell, predictions):
         """Searches the tracks for the parent of a given cell.
+
+        Args:
+            frame (int): the frame the cell appears in.
+            cell (int): the label of the cell in the frame.
+            predictions (dict): dictionary of trackID-cellID combination,
+                and the probability they are the same cell.
+
         Returns:
-            The parent cell's id or None if no parent exists.
+            int: The parent cell's id or None if no parent exists.
         """
-        # are track_ids 0-something or 1-something??
-        # 0-something because of the `for track_id, p in enumerate(...)` below
-        probs = {}
+        parent_id = None
+        max_prob = self.division
         for (track, cell_id), p in predictions.items():
+            prob = p[2]  # probability cell is part of the track
             # Make sure capped tracks can't be assigned parents
             if cell_id == cell and not self.tracks[track]['capped']:
-                probs[track] = p[2]
-
-        # Find out if the cell is a daughter of a track
-        print('New track')
-        max_prob = self.division
-        parent_id = None
-        for track_id, p in probs.items():
-            # we don't want to think a sibling of `cell`, that just appeared
-            # is a parent
-            if self.tracks[track_id]['frames'] == [frame]:
-                continue
-            if p > max_prob:
-                parent_id, max_prob = track_id, p
+                # Do not call a newly-appeared sibling of "cell" a parent
+                if self.tracks[track]['frames'] == [frame]:
+                    continue
+                if prob > max_prob:
+                    parent_id, max_prob = track, prob
         return parent_id
 
-    def _fetch_track_feature(self, feature, before_frame=None):
-        if before_frame is None:
-            before_frame = float('inf')
+    def _sub_area(self, X_frame, y_frame, cell_label):
+        """Fetch a neighborhood surrounding the cell in the given frame.
 
-        if feature == 'appearance':
-            return self._fetch_track_appearances(before_frame)
-        if feature == 'distance':
-            return self._fetch_track_centroids(before_frame)
-        if feature == 'regionprop':
-            return self._fetch_track_regionprops(before_frame)
-        if feature == 'neighborhood':
-            return self._fetch_track_neighborhoods(before_frame)
+        Slices out a neighborhood_true_size square region around the center of
+        the provided cell, and reshapes it to neighborhood_scale_size square.
 
-        raise ValueError('_fetch_track_feature: '
-                         'Unknown feature `{}`'.format(feature))
+        Args:
+            X_frame (np.array): 2D numpy array, a frame of raw data.
+            y_frame (np.array): 2D numpy array, a frame of annotated data.
+            cell_label (int): The label of the cell to slice out.
 
-    def _fetch_track_appearances(self, before_frame):
+        Returns:
+            numpy.array: the resized region of X_frame around cell_label.
         """
-        This function fetches the appearances for all of the existing tracks.
-        If tracks are shorter than the track length, they are filled in with
-        the first frame.
-        """
-        shape = (len(self.tracks.keys()),
-                 self.track_length,
-                 self.crop_dim,
-                 self.crop_dim,
-                 self.x.shape[self.channel_axis])
-        track_appearances = np.zeros(shape, dtype=self.dtype)
-
-        for track_id, track in self.tracks.items():
-            app = track['appearance']
-            allowed_frames = [f for f in track['frames'] if f < before_frame]
-            frame_dict = {frame: idx for idx, frame in enumerate(allowed_frames)}
-
-            if not allowed_frames:
-                continue
-
-            if len(allowed_frames) >= self.track_length:
-                frames = allowed_frames[-self.track_length:]
-            else:
-                num_missing = self.track_length - len(allowed_frames)
-                last_frame = allowed_frames[-1]
-                frames = allowed_frames + [last_frame] * num_missing
-
-            track_appearances[track_id] = app[[frame_dict[f] for f in frames]]
-
-        return track_appearances
-
-    def _fetch_track_regionprops(self, before_frame):
-        """Fetches the regionprops for all of the existing tracks.
-        If tracks are shorter than the track length they are filled in with
-        the centroids from the first frame.
-        """
-        shape = (len(self.tracks.keys()), self.track_length, 3)
-        track_regionprops = np.zeros(shape, dtype=self.dtype)
-
-        for track_id, track in self.tracks.items():
-            regionprop = track['regionprop']
-            allowed_frames = list(filter(lambda f: f < before_frame, track['frames']))
-            frame_dict = {frame: idx for idx, frame in enumerate(allowed_frames)}
-
-            if not allowed_frames:
-                continue
-
-            if len(allowed_frames) >= self.track_length:
-                frames = allowed_frames[-self.track_length:]
-            else:
-                num_missing = self.track_length - len(allowed_frames)
-                last_frame = allowed_frames[-1]
-                frames = allowed_frames + [last_frame] * num_missing
-
-            track_regionprops[track_id] = regionprop[[frame_dict[f] for f in frames]]
-
-        return track_regionprops
-
-    def _fetch_track_centroids(self, before_frame):
-        """Fetches the centroids for all of the existing tracks.
-        If tracks are shorter than the track length they are filled in with
-        the centroids from the first frame.
-        """
-        shape = (len(self.tracks.keys()), self.track_length, 2)
-        track_centroids = np.zeros(shape, dtype=self.dtype)
-
-        for track_id, track in self.tracks.items():
-            centroids = track['distance']
-            allowed_frames = list(filter(lambda f: f < before_frame, track['frames']))
-            frame_dict = {frame: idx for idx, frame in enumerate(allowed_frames)}
-
-            if len(allowed_frames) == 0:
-                continue
-
-            if len(allowed_frames) >= self.track_length:
-                frames = allowed_frames[-self.track_length:]
-            else:
-                num_missing = self.track_length - len(allowed_frames)
-                last_frame = allowed_frames[-1]
-                frames = allowed_frames + [last_frame] * num_missing
-
-            track_centroids[track_id] = centroids[[frame_dict[f] for f in frames]]
-
-        return track_centroids
-
-    def _fetch_track_neighborhoods(self, before_frame):
-        """Gets the neighborhoods for all of the existing tracks.
-        If tracks are shorter than the track length they are filled in with the
-        neighborhoods from the first frame.
-        """
-        shape = (len(self.tracks.keys()),
-                 self.track_length,
-                 2 * self.neighborhood_scale_size + 1,
-                 2 * self.neighborhood_scale_size + 1,
-                 1)
-        track_neighborhoods = np.zeros(shape, dtype=self.dtype)
-
-        for track_id, track in self.tracks.items():
-            neighborhoods = track['neighborhood']
-            allowed_frames = list(filter(lambda f: f < before_frame, track['frames']))
-            frame_dict = {frame: idx for idx, frame in enumerate(allowed_frames)}
-
-            if len(allowed_frames) == 0:
-                continue
-
-            if len(allowed_frames) >= self.track_length:
-                frames = allowed_frames[-self.track_length:]
-            else:
-                num_missing = self.track_length - len(allowed_frames)
-                last_frame = allowed_frames[-1]
-                frames = allowed_frames + [last_frame] * num_missing
-
-            track_neighborhoods[track_id] = neighborhoods[[frame_dict[f] for f in frames]]
-
-        return track_neighborhoods
-
-    def _sub_area(self, X_frame, y_frame, cell_label, num_channels):
-        true_size = self.neighborhood_true_size
-        pads = ((true_size, true_size),
-                (true_size, true_size),
+        pads = ((self.neighborhood_true_size, self.neighborhood_true_size),
+                (self.neighborhood_true_size, self.neighborhood_true_size),
                 (0, 0))
 
         X_padded = np.pad(X_frame, pads, mode='constant', constant_values=0)
         y_padded = np.pad(y_frame, pads, mode='constant', constant_values=0)
 
-        props = regionprops(np.squeeze(np.int32(y_padded == cell_label)))
+        roi = (y_padded == cell_label).astype('int32')
+        props = regionprops(np.squeeze(roi), coordinates='rc')
 
         center_x, center_y = props[0].centroid
         center_x, center_y = np.int(center_x), np.int(center_y)
 
-        X_reduced = X_padded[center_x - true_size:center_x + true_size,
-                             center_y - true_size:center_y + true_size]
+        x1 = center_x - self.neighborhood_true_size
+        x2 = center_x + self.neighborhood_true_size
 
-        # resize to neighborhood_scale_size with skimage
-        # resize_shape = (2 * self.neighborhood_scale_size + 1,
-        #                 2 * self.neighborhood_scale_size + 1,
-        #                 num_channels)
-        # X_reduced = resize(X_reduced, resize_shape, mode='constant', preserve_range=True)
+        y1 = center_y - self.neighborhood_true_size
+        y2 = center_y + self.neighborhood_true_size
 
-        # resize to neighborhood_scale_size with cv2
+        X_reduced = X_padded[x1:x2, y1:y2]
+
+        # resize to neighborhood_scale_size
         resize_shape = (2 * self.neighborhood_scale_size + 1,
                         2 * self.neighborhood_scale_size + 1)
-        X_reduced = cv2.resize(np.squeeze(X_reduced), resize_shape)
+        X_reduced = resize(X_reduced, resize_shape,
+                           data_format=self.data_format)
 
-        # X_reduced /= np.amax(X_reduced)
-        X_reduced = np.expand_dims(X_reduced, axis=self.channel_axis)
         return X_reduced
 
-    def _get_features(self, X, y, frames, labels):
-        """Gets the features of a list of cells.
-        Cells are defined by lists of frames and labels. The i'th element of
-        frames and labels is the frame and label of the i'th cell being grabbed.
-        Returns a dictionary with keys as the feature names.
+    def _get_features(self, frame, cell_label):
+        """Gets the features of the cell in the frame.
+
+        Args:
+            frame (int): frame from which to get cell features.
+            cell_label (int): label of the cell.
+
+        Returns:
+            dict: a dictionary with keys as the feature names.
         """
-        channel_axis = self.channel_axis
+        # Get the bounding box
+        X_frame = self._get_frame(self.x, frame)
+        y_frame = self._get_frame(self.y, frame)
+
+        roi = (y_frame == cell_label).astype('int32')
+        props = regionprops(np.squeeze(roi), coordinates='rc')[0]
+
+        centroid = props.centroid
+        rprop = np.array([
+            props.area,
+            props.perimeter,
+            props.eccentricity
+        ])
+
+        # Extract images from bounding boxes
+        minr, minc, maxr, maxc = props.bbox
         if self.data_format == 'channels_first':
-            appearance_shape = (X.shape[channel_axis],
-                                len(frames),
-                                self.crop_dim,
-                                self.crop_dim)
+            appearance = np.copy(X_frame[:, minr:maxr, minc:maxc])
         else:
-            appearance_shape = (len(frames),
-                                self.crop_dim,
-                                self.crop_dim,
-                                X.shape[channel_axis])
+            appearance = np.copy(X_frame[minr:maxr, minc:maxc, :])
 
-        centroid_shape = (len(frames), 2)
-        regionprop_shape = (len(frames), 3)
+        # Resize images from bounding box
+        appearance = resize(appearance, (self.crop_dim, self.crop_dim),
+                            data_format=self.data_format)
 
-        neighborhood_shape = (len(frames),
-                              2 * self.neighborhood_scale_size + 1,
-                              2 * self.neighborhood_scale_size + 1, 1)
+        # Get the neighborhood
+        neighborhood = self._sub_area(X_frame, y_frame, cell_label)
 
-        # look-ahead neighborhoods
-        future_area_shape = (len(frames),
-                             2 * self.neighborhood_scale_size + 1,
-                             2 * self.neighborhood_scale_size + 1, 1)
-
-        # Initialize storage for appearances and centroids
-        appearances = np.zeros(appearance_shape, dtype=self.dtype)
-        centroids = np.zeros(centroid_shape, dtype=self.dtype)
-        rprops = np.zeros(regionprop_shape, dtype=self.dtype)
-        neighborhoods = np.zeros(neighborhood_shape, dtype=self.dtype)
-        future_areas = np.zeros(future_area_shape, dtype=self.dtype)
-        for counter, (frame, cell_label) in enumerate(zip(frames, labels)):
-            # print('Start _get_features for frame {} and label {}'.format(
-            #     frame, cell_label))
-            t = timeit.default_timer()
-            # Get the bounding box
-            X_frame = X[frame] if self.data_format == 'channels_last' else X[:, frame]
-            y_frame = y[frame] if self.data_format == 'channels_last' else y[:, frame]
-            props = regionprops(np.squeeze(np.int32(y_frame == cell_label)))
-
-            minr, minc, maxr, maxc = props[0].bbox
-            centroids[counter] = props[0].centroid
-            rprops[counter] = np.array([
-                props[0].area,
-                props[0].perimeter,
-                props[0].eccentricity
-            ])
-
-            # Extract images from bounding boxes
-            if self.data_format == 'channels_first':
-                appearance = np.copy(X[:, frame, minr:maxr, minc:maxc])
-                resize_shape = (X.shape[channel_axis], self.crop_dim, self.crop_dim)
-            else:
-                appearance = np.copy(X[frame, minr:maxr, minc:maxc, :])
-                resize_shape = (self.crop_dim, self.crop_dim, X.shape[channel_axis])
-
-            # Resize images from bounding box
-            t = timeit.default_timer()
-            # appearance = resize(appearance, resize_shape, mode="constant", preserve_range=True)
-            resize_shape = (self.crop_dim, self.crop_dim)
-            appearance = cv2.resize(np.squeeze(appearance), resize_shape)
-            # appearance /= np.amax(appearance)
-            appearance = np.expand_dims(appearance, axis=self.channel_axis)
-
-            if self.data_format == 'channels_first':
-                appearances[:, counter] = appearance
-            else:
-                appearances[counter] = appearance
-
-            # Get the neighborhood
-            neighborhoods[counter] = self._sub_area(
-                X_frame, y_frame, cell_label, X.shape[channel_axis])
-
-            # Try to assign future areas if future frame is available
-            # TODO: We shouldn't grab a future frame if the frame is dark (was padded)
-            try:
-                if self.data_format == 'channels_first':
-                    X_future_frame = X[:, frame + 1]
-                else:
-                    X_future_frame = X[frame + 1]
-                future_areas[counter] = self._sub_area(
-                    X_future_frame, y_frame, cell_label, X.shape[channel_axis])
-            except IndexError:
-                future_areas[counter] = neighborhoods[counter]
+        # Try to assign future areas if future frame is available
+        # TODO: We shouldn't grab a future frame if the frame is dark (was padded)
+        try:
+            X_future_frame = self._get_frame(self.x, frame + 1)
+            future_area = self._sub_area(X_future_frame, y_frame, cell_label)
+        except IndexError:
+            future_area = neighborhood
 
         # future areas are not a feature instead a part of the neighborhood feature
-        return {'appearance': appearances,
-                'distance': centroids,
-                'neighborhood': neighborhoods,
-                'regionprop': rprops,
-                '~future area': future_areas}
+        return {
+            'appearance': np.expand_dims(appearance, axis=0),
+            'distance': np.expand_dims(centroid, axis=0),
+            'neighborhood': np.expand_dims(neighborhood, axis=0),
+            'regionprop': np.expand_dims(rprop, axis=0),
+            '~future area': np.expand_dims(future_area, axis=0)
+        }
 
-    def _track_cells(self):
+    def track_cells(self):
         """Tracks all of the cells in every frame.
         """
-        for frame in range(1, self.x.shape[0]):
+        start = timeit.default_timer()
+        self._initialize_tracks()
+
+        for frame in range(1, self.x.shape[self.time_axis]):
             t = timeit.default_timer()
-            print('Tracking frame ' + str(frame))
+            self.logger.info('Tracking frame %s', frame)
 
             cost_matrix, predictions = self._get_cost_matrix(frame)
 
-            assignments = self._run_lap(cost_matrix)
+            row_ind, col_ind = linear_sum_assignment(cost_matrix)
+            assignments = np.stack([row_ind, col_ind], axis=1)
 
             self._update_tracks(assignments, frame, predictions)
-            print('Tracked frame {} in {} seconds.'.format(
-                frame, timeit.default_timer() - t))
+            self.logger.info('Tracked frame %s in %s s.',
+                             frame, timeit.default_timer() - t)
+        self.logger.info('Tracked all %s frames in %s s.',
+                         self.x.shape[self.time_axis],
+                         timeit.default_timer() - start)
 
     def _track_review_dict(self):
         def process(key, track_item):
@@ -782,7 +818,7 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
                            for _, track in self.tracks.items()},
                 'X': self.x,
                 'y': self.y,
-                'y_tracked': self.y}
+                'y_tracked': self.y_tracked}
 
     def dataframe(self, **kwargs):
         """Returns a dataframe of the tracked cells with lineage.
@@ -1085,6 +1121,9 @@ class cell_tracker(object):  # pylint: disable=useless-object-inheritance
                 del lineage[label_to_remove]
 
         else:
-            print('Error: More than 2 neighbor nodes')
+            self.logger.error('Error: More than 2 neighbor nodes')
 
         return lineage, tracked
+
+
+cell_tracker = CellTracker  # allow backwards compatibility imports
