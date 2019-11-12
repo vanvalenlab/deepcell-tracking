@@ -36,6 +36,69 @@ import numpy as np
 import pandas as pd
 
 
+def contig_tracks(label, batch_info, batch_tracked):
+    """Check for contiguous tracks (tracks should only consist of consecutive tracks).
+
+    Split one track into two if neccesary
+
+    Args:
+        label (int): label of the cell.
+        batch_info (dict): batch info.
+        batch_tracked (dict): batch tracked data.
+
+    Returns:
+        tuple(dict, dict):
+    """
+
+    frame_div_missing = False
+
+    original_label = label
+    frames = batch_info[original_label]['frames']
+    final_frame_idx = len(frames) - 1
+
+    for frame_idx, frame in enumerate(frames):
+        next_con_frame = frame + 1
+        # If the next frame is available and contiguous we should move on to the next frame. Otherwise:
+        # If the next frame is available and NONcontiguous we should separate this track into two
+        if frame_idx + 1 <= final_frame_idx and next_con_frame != frames[frame_idx + 1]:
+            contig_end_idx = frame_idx
+
+            next_trk_frames = frames[frame_idx+1:]
+            daughters = batch_info[original_label]['daughters']
+
+
+            if 'frame_div' in batch_info[original_label]:
+                frame_div = batch_info[original_label]['frame_div']
+            else:
+                frame_div = None
+                frame_div_missing = True
+
+            # Create a new track to hold the information from this
+            # frame forward and add it to the batch.
+            batch_info, batch_tracked = create_new_ISBI_track(
+                batch_tracked, batch_info, original_label,
+                next_trk_frames, daughters, frame_div)
+
+            # Adjust the info for the current track to vacate the new track info
+            batch_info[original_label]['frames'] = frames[0:contig_end_idx+1]
+            batch_info[original_label]['daughters'] = []
+            batch_info[original_label]['frame_div'] = None
+
+            # Because we are splitting tracks recursively, we stop here
+            break
+
+        # If the current frame is the last frame then were done
+        # Either the last frame is contiguous and we don't alter batch_info
+        # or it's not and it's been made into a new track by the previous
+        # iteration of the loop
+
+    # Print warning if there is no 'frame_div'
+    if frame_div_missing:
+        print('Warning: frame_div is missing')
+
+    return batch_info, batch_tracked
+
+
 def create_new_ISBI_track(batch_tracked, batch_info, old_label,
                           frames, daughters, frame_div):
     """Adds a new track to the lineage and swaps the labels accordingly.
