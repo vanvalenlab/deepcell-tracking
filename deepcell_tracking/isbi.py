@@ -134,8 +134,8 @@ def classify_divisions(g_true, g_pred):
     """Compare two graphs and calculate the cell division confusion matrix.
 
     Args:
-        g_true: Ground truth cell lineage graph.
-        g_pred: Predicted cell lineage graph.
+        g_true (networkx.Graph): Ground truth cell lineage graph.
+        g_pred (networkx.Graph): Predicted cell lineage graph.
 
     Returns:
         dict: Diciontary of all division statistics.
