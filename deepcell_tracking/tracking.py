@@ -980,7 +980,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Identify false positive nodes
         node_fix = []
         for g in (G.subgraph(c) for c in nx.connected_components(G)):
-            div_nodes = [node for node, d in g.nodes(data='divison') if d]
+            div_nodes = [n for n, d in g.nodes(data=True) if d.get('division')]
             if len(div_nodes) > 1:
                 for nd in div_nodes:
                     if g.degree(nd) == 2:
