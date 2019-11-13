@@ -47,7 +47,7 @@ def contig_tracks(label, batch_info, batch_tracked):
         batch_tracked (dict): batch tracked data.
 
     Returns:
-        tuple(dict, dict):
+        tuple(dict, dict): updated batch_info and batch_tracked.
     """
 
     frame_div_missing = False
@@ -57,15 +57,14 @@ def contig_tracks(label, batch_info, batch_tracked):
     final_frame_idx = len(frames) - 1
 
     for frame_idx, frame in enumerate(frames):
-        next_con_frame = frame + 1
-        # If the next frame is available and contiguous we should move on to the next frame. Otherwise:
-        # If the next frame is available and NONcontiguous we should separate this track into two
-        if frame_idx + 1 <= final_frame_idx and next_con_frame != frames[frame_idx + 1]:
+        # If the next frame is available and contiguous we should move on to
+        # the next frame. Otherwise, if the next frame is available and
+        # NONcontiguous we should separate this track into two.
+        if frame_idx + 1 <= final_frame_idx and frame + 1 != frames[frame_idx + 1]:
             contig_end_idx = frame_idx
 
-            next_trk_frames = frames[frame_idx+1:]
+            next_trk_frames = frames[frame_idx + 1:]
             daughters = batch_info[original_label]['daughters']
-
 
             if 'frame_div' in batch_info[original_label]:
                 frame_div = batch_info[original_label]['frame_div']
@@ -79,8 +78,8 @@ def contig_tracks(label, batch_info, batch_tracked):
                 batch_tracked, batch_info, original_label,
                 next_trk_frames, daughters, frame_div)
 
-            # Adjust the info for the current track to vacate the new track info
-            batch_info[original_label]['frames'] = frames[0:contig_end_idx+1]
+            # Adjust the info of the current track to vacate the new track info
+            batch_info[original_label]['frames'] = frames[0:contig_end_idx + 1]
             batch_info[original_label]['daughters'] = []
             batch_info[original_label]['frame_div'] = None
 
@@ -92,7 +91,6 @@ def contig_tracks(label, batch_info, batch_tracked):
         # or it's not and it's been made into a new track by the previous
         # iteration of the loop
 
-    # Print warning if there is no 'frame_div'
     if frame_div_missing:
         print('Warning: frame_div is missing')
 
@@ -193,36 +191,38 @@ def txt_to_graph(path, node_key=None):
     return G
 
 
-def classify_divisions(g_true, g_pred):
+def classify_divisions(G_gt, G_res):
     """Compare two graphs and calculate the cell division confusion matrix.
 
     Args:
-        g_true (networkx.Graph): Ground truth cell lineage graph.
-        g_pred (networkx.Graph): Predicted cell lineage graph.
+        G_gt (networkx.Graph): Ground truth cell lineage graph.
+        G_res (networkx.Graph): Predicted cell lineage graph.
 
     Returns:
         dict: Diciontary of all division statistics.
     """
-    div_gt = [node for node, d in g_true.nodes(data='division') if d]
-    div_res = [node for node, d in g_pred.nodes(data='division') if d]
+    # Identify nodes with parent attribute
+    div_gt = [node for node, d in G_gt.nodes(data=True)
+              if d.get('division', False)]
+    div_res = [node for node, d in G_res.nodes(data=True)
+               if d.get('division', False)]
 
-    divI = 0   # Correct division
-    divJ = 0   # Wrong division
-    divC = 0   # False positive division
-    divGH = 0  # Missed division
+    divI = 0 # Correct division
+    divJ = 0 # Wrong division
+    divC = 0 # False positive division
+    divGH = 0 # Missed division
 
     for node in div_gt:
-        nb_gt = list(g_true.neighbors(node))
+        nb_gt = list(G_gt.neighbors(node))
+
         # Check if res node was also called a division
         if node in div_res:
-            # TODO: is it supposed to use g_pred?
-            # nb_pred = list(g_pred.neighbors(node))
-            nb_pred = list(g_true.neighbors(node))
+            nb_res = list(G_gt.neighbors(node))
             # If neighbors are same, then correct division
-            if Counter(nb_gt) == Counter(nb_pred):
+            if Counter(nb_gt) == Counter(nb_res):
                 divI += 1
             # Wrong division
-            elif len(nb_pred) == 3:
+            elif len(nb_res) == 3:
                 divJ += 1
             else:
                 divGH += 1
@@ -230,10 +230,10 @@ def classify_divisions(g_true, g_pred):
         else:
             divGH += 1
 
-        # Remove processed nodes from pred list
+        # Remove processed nodes from res list
         try:
             div_res.remove(node)
-        except ValueError:  # TODO: why did this fail?
+        except:
             print('attempted removal of node {} failed'.format(node))
 
     # Count any remaining res nodes as false positives
