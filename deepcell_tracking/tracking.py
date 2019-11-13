@@ -979,13 +979,12 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Identify false positive nodes
         node_fix = []
-        for g in nx.connected_component_subgraphs(G):
-            div_nodes = [node for node, d in g.node.data() if d.get('division', False) is True]
+        for g in (G.subgraph(c) for c in nx.connected_components(G)):
+            div_nodes = [n for n, d in g.nodes(data=True) if d.get('division')]
             if len(div_nodes) > 1:
                 for nd in div_nodes:
                     if g.degree(nd) == 2:
                         # Check how close suspected FP is to other known divisions
-                        neighbors = list(G.neighbors(nd))
 
                         keep_div = True
                         for div_nd in div_nodes:

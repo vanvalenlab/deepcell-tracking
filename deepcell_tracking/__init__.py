@@ -30,6 +30,7 @@ from __future__ import print_function
 
 from deepcell_tracking.tracking import CellTracker
 from deepcell_tracking.tracking import cell_tracker  # alias for old versions
+from deepcell_tracking import isbi_utils
 from deepcell_tracking import utils
 
 del absolute_import
