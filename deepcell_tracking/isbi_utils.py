@@ -207,10 +207,10 @@ def classify_divisions(G_gt, G_res):
     div_res = [node for node, d in G_res.nodes(data=True)
                if d.get('division', False)]
 
-    divI = 0 # Correct division
-    divJ = 0 # Wrong division
-    divC = 0 # False positive division
-    divGH = 0 # Missed division
+    divI = 0   # Correct division
+    divJ = 0   # Wrong division
+    divC = 0   # False positive division
+    divGH = 0  # Missed division
 
     for node in div_gt:
         nb_gt = list(G_gt.neighbors(node))
