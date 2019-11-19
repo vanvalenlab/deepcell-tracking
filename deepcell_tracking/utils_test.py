@@ -29,6 +29,7 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
+import skimage as sk
 
 from deepcell_tracking import utils
 
@@ -41,6 +42,30 @@ def _get_image(img_h=300, img_w=300):
 
 
 class TestTrackingUtils(object):
+
+    def test_clean_up_annotations(self):
+        img = sk.measure.label(sk.data.binary_blobs(length=256, n_dim=2)) * 3
+        img = np.expand_dims(img, axis=-1)
+        uid = 100
+
+        cleaned = utils.clean_up_annotations(
+            img, uid=uid, data_format='channels_last')
+        unique = np.unique(cleaned)
+        assert len(np.unique(img)) == len(unique)
+        expected = np.arange(len(unique)) + uid - 1
+        expected[0] = 0  # background shouldn't get added
+        np.testing.assert_equal(expected, unique)
+
+        img = sk.measure.label(sk.data.binary_blobs(length=256, n_dim=2)) * 3
+        img = np.expand_dims(img, axis=0)
+
+        cleaned = utils.clean_up_annotations(
+            img, uid=uid, data_format='channels_first')
+        unique = np.unique(cleaned)
+        assert len(np.unique(img)) == len(unique)
+        expected = np.arange(len(unique)) + uid - 1
+        expected[0] = 0  # background shouldn't get added
+        np.testing.assert_equal(expected, unique)
 
     def test_resize(self):
         channel_sizes = (3, 1)  # skimage used for multi-channel, cv2 otherwise

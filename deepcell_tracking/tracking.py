@@ -45,6 +45,7 @@ from scipy.optimize import linear_sum_assignment
 from skimage.measure import regionprops
 
 from deepcell_tracking.utils import resize
+from deepcell_tracking.utils import clean_up_annotations
 
 
 class CellTracker(object):  # pylint: disable=useless-object-inheritance
@@ -133,28 +134,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.features = sorted(features)
 
         # Clean up annotations
-        self._clean_up_annotations()
-
-    def _clean_up_annotations(self):
-        """Relabels every frame in the label matrix.
-        Cells will be relabeled 1 to N
-        """
-        num_frames = self.y.shape[self.time_axis]
-        all_uniques = [self.get_cells_in_frame(f) for f in range(num_frames)]
-
-        # The annotations need to be unique across all frames
-        uid = sum(len(x) for x in all_uniques) + 1
-        for frame, unique_cells in zip(range(num_frames), all_uniques):
-            y_frame = self._get_frame(self.y, frame)
-            y_frame_new = np.zeros(y_frame.shape)
-            for cell_label in unique_cells:
-                y_frame_new[y_frame == cell_label] = uid
-                uid += 1
-            if self.data_format == 'channels_first':
-                self.y[:, frame] = y_frame_new
-            else:
-                self.y[frame] = y_frame_new
-        self.y = self.y.astype('int32')
+        self.y = clean_up_annotations(self.y, data_format=self.data_format)
 
     def _get_frame(self, tensor, frame):
         """Helper function for fetching a frame of a tensor.
