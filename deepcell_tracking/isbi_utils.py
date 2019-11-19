@@ -131,23 +131,17 @@ def create_new_ISBI_track(batch_tracked, batch_info, old_label,
     return batch_info, batch_tracked
 
 
-def txt_to_graph(path, node_key=None):
+def txt_to_graph(path):
     """Read the ISBI text file and create a Graph.
 
     Args:
         path (str): Path to the ISBI text file.
-        node_key (str, optional): Key to identify the parent/daughter links.
-            (defaults to Cell_ID+Parent_ID)
 
     Returns:
         networkx.Graph: Graph representation of the text file.
     """
     names = ['Cell_ID', 'Start', 'End', 'Parent_ID']
     df = pd.read_csv(path, header=None, sep=' ', names=names)
-
-    if node_key is not None:
-        df[['Cell_ID', 'Parent_ID']] = df[['Cell_ID', 'Parent_ID']].replace(
-            node_key)
 
     edges = pd.DataFrame()
 
