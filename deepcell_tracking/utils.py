@@ -106,7 +106,7 @@ def resize(data, shape, data_format='channels_last'):
                                    mode='constant',
                                    preserve_range=True)
     else:  # single channel image, resize with cv2
-        resized = cv2.resize(np.squeeze(data), shape)  # pytest: disable=E1101
+        resized = cv2.resize(np.squeeze(data), shape)  # pylint: disable=E1101
         resized = np.expand_dims(resized, axis=channel_axis)
 
     return resized
