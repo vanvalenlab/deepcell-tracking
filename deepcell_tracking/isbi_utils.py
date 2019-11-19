@@ -220,15 +220,12 @@ def classify_divisions(G_gt, G_res):
                 divJ += 1
             else:
                 divGH += 1
+
+            div_res.remove(node)
+
         # If not called division, then missed division
         else:
             divGH += 1
-
-        # Remove processed nodes from res list
-        try:
-            div_res.remove(node)
-        except:
-            print('attempted removal of node {} failed'.format(node))
 
     # Count any remaining res nodes as false positives
     divC += len(div_res)
