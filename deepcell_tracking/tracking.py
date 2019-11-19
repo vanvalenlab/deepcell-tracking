@@ -163,7 +163,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         """
         cells = np.unique(self._get_frame(self.y, frame))
         cells = np.delete(cells, np.where(cells == 0))  # remove the background
-        return sorted(list(cells))
+        return list(cells)
 
     def get_feature_shape(self, feature_name):
         """Return the shape of the requested feature.
