@@ -211,7 +211,7 @@ def classify_divisions(G_gt, G_res):
 
         # Check if res node was also called a division
         if node in div_res:
-            nb_res = list(G_gt.neighbors(node))
+            nb_res = list(G_res.neighbors(node))
             # If neighbors are same, then correct division
             if Counter(nb_gt) == Counter(nb_res):
                 divI += 1
