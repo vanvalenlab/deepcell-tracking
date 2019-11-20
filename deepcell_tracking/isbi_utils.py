@@ -139,38 +139,48 @@ def txt_to_graph(path):
 
     Returns:
         networkx.Graph: Graph representation of the text file.
+
+    Raises:
+        ValueError: If the Parent_ID is not in any previous frames.
     """
     names = ['Cell_ID', 'Start', 'End', 'Parent_ID']
     df = pd.read_csv(path, header=None, sep=' ', names=names)
 
     edges = pd.DataFrame()
 
+    all_ids = set()
+
     # Add each cell lineage as a set of edges to df
     for _, row in df.iterrows():
         tpoints = np.arange(row['Start'], row['End'] + 1)
 
-        cellids = ['{cellid}_{frame}'.format(cellid=row['Cell_ID'], frame=t)
-                   for t in tpoints]
+        cellids = ['{}_{}'.format(row['Cell_ID'], t) for t in tpoints]
 
-        source = cellids[0:-1]
-        target = cellids[1:]
+        all_ids.update(cellids)
 
         edges = edges.append(pd.DataFrame({
-            'source': source,
-            'target': target
+            'source': cellids[0:-1],
+            'target': cellids[1:],
         }))
 
     attributes = {}
 
     # Add parent-daughter connections
     for _, row in df[df['Parent_ID'] != 0].iterrows():
-        source = '{cellid}_{frame}'.format(
-            cellid=row['Parent_ID'],
-            frame=row['Start'] - 1)
+        # Assume the parent is in the previous frame.
+        parent_frame = row['Start'] - 1
+        source = '{}_{}'.format(row['Parent_ID'], parent_frame)
 
-        target = '{cellid}_{frame}'.format(
-            cellid=row['Cell_ID'],
-            frame=row['Start'])
+        # If not in the previous frame, decrement the frame number again.
+        while source not in all_ids:
+            parent_frame = parent_frame - 1
+            if parent_frame < 0:
+                raise ValueError('Parent ID {} does not exist in any '
+                                 'frame'.format(row['Parent_ID']))
+
+            source = '{}_{}'.format(row['Parent_ID'], parent_frame)
+
+        target = '{}_{}'.format(row['Cell_ID'], row['Start'])
 
         edges = edges.append(pd.DataFrame({
             'source': [source],
