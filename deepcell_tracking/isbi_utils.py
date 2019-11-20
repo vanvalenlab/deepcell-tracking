@@ -150,7 +150,7 @@ def txt_to_graph(path):
 
     all_ids = set()
 
-    # Add each cell lineage as a set of edges to df
+    # Add each continuous cell lineage as a set of edges to df
     for _, row in df.iterrows():
         tpoints = np.arange(row['Start'], row['End'] + 1)
 
@@ -171,14 +171,10 @@ def txt_to_graph(path):
         parent_frame = row['Start'] - 1
         source = '{}_{}'.format(row['Parent_ID'], parent_frame)
 
-        # If not in the previous frame, decrement the frame number again.
-        while source not in all_ids:
-            parent_frame = parent_frame - 1
-            if parent_frame < 0:
-                raise ValueError('Parent ID {} does not exist in any '
-                                 'frame'.format(row['Parent_ID']))
-
-            source = '{}_{}'.format(row['Parent_ID'], parent_frame)
+        if source not in all_ids:  # parents should be in the previous frame.
+            # parent_frame = df[df['Cell_ID'] == row['Parent_id']]['End']
+            # source = '{}_{}'.format(row['Parent_ID'], parent_frame)
+            continue
 
         target = '{}_{}'.format(row['Cell_ID'], row['Start'])
 
