@@ -214,24 +214,37 @@ def classify_divisions(G_gt, G_res):
     divGH = 0  # Missed division
 
     for node in div_gt:
-        nb_gt = list(G_gt.neighbors(node))
+
+        pred_gt = list(G_gt.pred[node])
+        succ_gt = list(G_gt.succ[node])
 
         # Check if res node was also called a division
         if node in div_res:
-            nb_res = list(G_res.neighbors(node))
-            # If neighbors are same, then correct division
-            if Counter(nb_gt) == Counter(nb_res):
+            pred_res = list(G_gt.pred[node])
+            succ_res = list(G_res.succ[node])
+
+            # Parents and daughters are the same, perfect!
+            if (Counter(pred_gt) == Counter(pred_res) and
+                    Counter(succ_gt) == Counter(succ_res)):
                 divI += 1
-            # Wrong division
-            elif len(nb_res) == 3:
-                divJ += 1
+
             else:
-                divGH += 1
+                if Counter(succ_gt) != Counter(succ_res):
+                    print('daughters mismatch, out degree',
+                          G_res.out_degree(node))
+                if Counter(pred_gt) != Counter(pred_res):
+                    print('parents mismatch, in degree',
+                          G_res.in_degree(node))
+                if G_res.out_degree(node) == G_gt.out_degree(node):
+                    print('parent and daughter mismatch, but degree equal at',
+                          G_res.out_degree(node))
+                divJ += 1
 
             div_res.remove(node)
 
         # If not called division, then missed division
         else:
+            print('missed division completely')
             divGH += 1
 
     # Count any remaining res nodes as false positives
