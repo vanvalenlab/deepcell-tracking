@@ -37,96 +37,60 @@ import pandas as pd
 
 
 def contig_tracks(label, batch_info, batch_tracked):
-    """Check for contiguous tracks (tracks should only consist of consecutive tracks).
+    """Check for contiguous tracks (tracks should only consist of consecutive frames).
 
     Split one track into two if neccesary
 
     Args:
         label (int): label of the cell.
-        batch_info (dict): batch info.
-        batch_tracked (dict): batch tracked data.
+        batch_info (dict): a track's lineage info
+        batch_tracked (dict): the new image data associated with the lineage.
 
     Returns:
         tuple(dict, dict): updated batch_info and batch_tracked.
     """
-
     frame_div_missing = False
 
-    original_label = label
-    frames = batch_info[original_label]['frames']
-    final_frame_idx = len(frames) - 1
+    frames = batch_info[label]['frames']
 
-    for frame_idx, frame in enumerate(frames):
+    for i, frame in enumerate(frames):
         # If the next frame is available and contiguous we should move on to
         # the next frame. Otherwise, if the next frame is available and
         # NONcontiguous we should separate this track into two.
-        if frame_idx + 1 <= final_frame_idx and frame + 1 != frames[frame_idx + 1]:
-            contig_end_idx = frame_idx
-
-            next_trk_frames = frames[frame_idx + 1:]
-            daughters = batch_info[original_label]['daughters']
-
-            if 'frame_div' in batch_info[original_label]:
-                frame_div = batch_info[original_label]['frame_div']
-            else:
-                frame_div = None
-                frame_div_missing = True
+        if i + 1 <= len(frames) - 1 and frame + 1 != frames[i + 1]:
+            frame_div = batch_info[label].get('frame_div')
+            if frame_div is None:
+                frame_div_missing = True  # TODO: is this necessary?
 
             # Create a new track to hold the information from this
             # frame forward and add it to the batch.
-            batch_info, batch_tracked = create_new_ISBI_track(
-                batch_tracked, batch_info, original_label,
-                next_trk_frames, daughters, frame_div)
+            new_label = max(batch_info) + 1
+            batch_info[new_label] = {
+                'old_label': label,
+                'label': new_label,
+                'frames': frames[i + 1:],
+                'daughters': batch_info[label]['daughters'],
+                'frame_div': frame_div,
+                'parent': None
+            }
+
+            for f in frames[i + 1:]:
+                batch_tracked[f][batch_tracked[f] == label] = new_label
 
             # Adjust the info of the current track to vacate the new track info
-            batch_info[original_label]['frames'] = frames[0:contig_end_idx + 1]
-            batch_info[original_label]['daughters'] = []
-            batch_info[original_label]['frame_div'] = None
+            batch_info[label]['frames'] = frames[0:i + 1]
+            batch_info[label]['daughters'] = []
+            batch_info[label]['frame_div'] = None
 
-            # Because we are splitting tracks recursively, we stop here
-            break
+            break  # Because we are splitting tracks recursively, we stop here
 
         # If the current frame is the last frame then were done
         # Either the last frame is contiguous and we don't alter batch_info
         # or it's not and it's been made into a new track by the previous
         # iteration of the loop
 
-    if frame_div_missing:
-        print('Warning: frame_div is missing')
-
-    return batch_info, batch_tracked
-
-
-def create_new_ISBI_track(batch_tracked, batch_info, old_label,
-                          frames, daughters, frame_div):
-    """Adds a new track to the lineage and swaps the labels accordingly.
-
-    Args:
-        batch_tracked (dict): tracked data.
-        batch_info (dict): tracked info data.
-        old_label (int): integer label of the tracked cell.
-        frames (list): List of frame numbers in which the cell is present.
-        daughters (list): List of daughter cell IDs.
-        frame_div (int): Frame number in which the cell divides.
-
-    Returns:
-        tuple(dict, dict): updated batch_info and batch_tracked.
-    """
-    new_label = max(batch_info) + 1
-
-    new_track_data = {
-        'old_label': old_label,
-        'label': new_label,
-        'frames': frames,
-        'daughters': daughters,
-        'frame_div': frame_div,
-        'parent': None
-    }
-
-    batch_info[new_label] = new_track_data
-
-    for frame in frames:
-        batch_tracked[frame][batch_tracked[frame] == old_label] = new_label
+        if frame_div_missing:
+            print('Warning: frame_div is missing')
 
     return batch_info, batch_tracked
 
