@@ -186,7 +186,8 @@ def txt_to_graph(path):
         attributes[source] = {'division': True}
 
     # Create graph
-    G = nx.from_pandas_edgelist(edges, source='source', target='target')
+    G = nx.from_pandas_edgelist(edges, source='source', target='target',
+                                create_using=nx.DiGraph)
     nx.set_node_attributes(G, attributes)
     return G
 
