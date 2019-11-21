@@ -195,16 +195,15 @@ def classify_divisions(G_gt, G_res):
                 correct += 1
 
             else:  # what went wrong?
-                if Counter(succ_gt) != Counter(succ_res):
-                    print('daughters mismatch, out degree',
-                          G_res.out_degree(node))
-                if Counter(pred_gt) != Counter(pred_res):
-                    print('parents mismatch, in degree',
-                          G_res.in_degree(node))
-                if G_res.out_degree(node) == G_gt.out_degree(node):
-                    print('parent and daughter mismatch, but degree equal at',
-                          G_res.out_degree(node))
                 incorrect += 1
+                err_msg = 'out degree = {}, '.format(G_res.out_degree(node))
+                if Counter(succ_gt) != Counter(succ_res):
+                    err_msg += 'daughters mismatch, '
+                if Counter(pred_gt) != Counter(pred_res):
+                    err_msg += 'parents mismatch, '
+                if G_res.out_degree(node) == G_gt.out_degree(node):
+                    err_msg += 'gt and res degree equal.'
+                print(err_msg)
 
             div_res.remove(node)
 
