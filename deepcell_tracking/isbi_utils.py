@@ -152,7 +152,6 @@ def txt_to_graph(path):
 
         attributes[source] = {'division': True}
 
-    # Create graph
     G = nx.from_pandas_edgelist(edges, source='source', target='target',
                                 create_using=nx.DiGraph)
     nx.set_node_attributes(G, attributes)
@@ -175,10 +174,10 @@ def classify_divisions(G_gt, G_res):
     div_res = [node for node, d in G_res.nodes(data=True)
                if d.get('division', False)]
 
-    divI = 0   # Correct division
-    divJ = 0   # Wrong division
-    divC = 0   # False positive division
-    divGH = 0  # Missed division
+    correct = 0          # Correct division
+    incorrect = 0        # Wrong division
+    false_positive = 0   # False positive division
+    missed = 0           # Missed division
 
     for node in div_gt:
 
@@ -193,9 +192,9 @@ def classify_divisions(G_gt, G_res):
             # Parents and daughters are the same, perfect!
             if (Counter(pred_gt) == Counter(pred_res) and
                     Counter(succ_gt) == Counter(succ_res)):
-                divI += 1
+                correct += 1
 
-            else:
+            else:  # what went wrong?
                 if Counter(succ_gt) != Counter(succ_res):
                     print('daughters mismatch, out degree',
                           G_res.out_degree(node))
@@ -205,21 +204,20 @@ def classify_divisions(G_gt, G_res):
                 if G_res.out_degree(node) == G_gt.out_degree(node):
                     print('parent and daughter mismatch, but degree equal at',
                           G_res.out_degree(node))
-                divJ += 1
+                incorrect += 1
 
             div_res.remove(node)
 
-        # If not called division, then missed division
-        else:
+        else:  # valid division not in results, it was missed
             print('missed division completely')
-            divGH += 1
+            missed += 1
 
     # Count any remaining res nodes as false positives
-    divC += len(div_res)
+    false_positive += len(div_res)
 
     return {
-        'Correct division': divI,
-        'Incorrect division': divJ,
-        'False positive division': divC,
-        'False negative division': divGH
+        'Correct division': correct,
+        'Incorrect division': incorrect,
+        'False positive division': false_positive,
+        'False negative division': missed
     }
