@@ -174,10 +174,10 @@ def classify_divisions(G_gt, G_res):
     div_res = [node for node, d in G_res.nodes(data=True)
                if d.get('division', False)]
 
-    correct = 0          # Correct division
-    incorrect = 0        # Wrong division
-    false_positive = 0   # False positive division
-    missed = 0           # Missed division
+    correct = 0         # Correct division
+    incorrect = 0       # Wrong division
+    false_positive = 0  # False positive division
+    missed = 0          # Missed division
 
     for node in div_gt:
 
