@@ -74,6 +74,9 @@ def contig_tracks(label, batch_info, batch_tracked):
                 'parent': None
             }
 
+            for d in batch_info[new_label]['daughters']:
+                batch_info[d]['parent'] = new_label
+
             for f in frames[i + 1:]:
                 batch_tracked[f][batch_tracked[f] == label] = new_label
 
