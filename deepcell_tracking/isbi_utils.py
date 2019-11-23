@@ -36,6 +36,34 @@ import numpy as np
 import pandas as pd
 
 
+def trk_to_isbi(track, path):
+    """Convert a lineage track into an ISBI formatted text file.
+
+    Args:
+        track (dict): Cell lineage object.
+        path (str): Path to save the .txt file.
+    """
+    with open(path, 'w') as text_file:
+        for label in track:
+            first_frame = min(track[label]['frames'])
+            last_frame = max(track[label]['frames'])
+            parent = track[label]['parent']
+            parent = 0 if parent is None else parent
+            if parent:
+                parent_frames = track[parent]['frames']
+                if parent_frames[-1] != first_frame - 1:
+                    parent = 0
+
+            line = '{cell_id} {start} {end} {parent}\n'.format(
+                cell_id=label,
+                start=first_frame,
+                end=last_frame,
+                parent=parent
+            )
+
+            text_file.write(line)
+
+
 def contig_tracks(label, batch_info, batch_tracked):
     """Check for contiguous tracks (tracks should only consist of consecutive frames).
 
