@@ -144,12 +144,16 @@ def txt_to_graph(path):
     edges = pd.DataFrame()
 
     all_ids = set()
+    single_nodes = set()
 
     # Add each continuous cell lineage as a set of edges to df
     for _, row in df.iterrows():
         tpoints = np.arange(row['Start'], row['End'] + 1)
 
         cellids = ['{}_{}'.format(row['Cell_ID'], t) for t in tpoints]
+
+        if len(cellids) == 1:
+            single_nodes.add(cellids[0])
 
         all_ids.update(cellids)
 
@@ -185,6 +189,10 @@ def txt_to_graph(path):
     G = nx.from_pandas_edgelist(edges, source='source', target='target',
                                 create_using=nx.DiGraph)
     nx.set_node_attributes(G, attributes)
+
+    # Add all isolates to graph
+    for cell_id in single_nodes:
+        G.add_node(cell_id)
     return G
 
 
