@@ -169,6 +169,7 @@ def txt_to_graph(path):
         if source not in all_ids:  # parents should be in the previous frame.
             # parent_frame = df[df['Cell_ID'] == row['Parent_id']]['End']
             # source = '{}_{}'.format(row['Parent_ID'], parent_frame)
+            print('%s: skipped parent %s to daughter %s' % (path, source, row['Cell_ID']))
             continue
 
         target = '{}_{}'.format(row['Cell_ID'], row['Start'])
@@ -180,6 +181,7 @@ def txt_to_graph(path):
 
         attributes[source] = {'division': True}
 
+    # Create graph
     G = nx.from_pandas_edgelist(edges, source='source', target='target',
                                 create_using=nx.DiGraph)
     nx.set_node_attributes(G, attributes)
@@ -231,7 +233,7 @@ def classify_divisions(G_gt, G_res):
                     err_msg += 'parents mismatch, '
                 if G_res.out_degree(node) == G_gt.out_degree(node):
                     err_msg += 'gt and res degree equal.'
-                print(err_msg)
+                print(node, err_msg)
 
             div_res.remove(node)
 
