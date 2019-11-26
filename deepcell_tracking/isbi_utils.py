@@ -234,14 +234,14 @@ def classify_divisions(G_gt, G_res):
 
             else:  # what went wrong?
                 incorrect += 1
-                err_msg = 'out degree = {}, '.format(G_res.out_degree(node))
+                errors = ['out degree = {}'.format(G_res.out_degree(node))]
                 if Counter(succ_gt) != Counter(succ_res):
-                    err_msg += 'daughters mismatch, '
+                    errors.append('daughters mismatch')
                 if Counter(pred_gt) != Counter(pred_res):
-                    err_msg += 'parents mismatch, '
+                    errors.append('parents mismatch')
                 if G_res.out_degree(node) == G_gt.out_degree(node):
-                    err_msg += 'gt and res degree equal.'
-                print(node, err_msg)
+                    errors.append('gt and res degree equal')
+                print(node, '{}.'.format(', '.join(errors)))
 
             div_res.remove(node)
 
