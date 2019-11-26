@@ -27,13 +27,13 @@ from setuptools import setup
 from setuptools import find_packages
 
 setup(name='Deepcell_Tracking',
-      version='0.2.3',
+      version='0.2.4',
       description='Tracking cells and lineage with deep learning.',
       author='Van Valen Lab',
       author_email='vanvalenlab@gmail.com',
       url='https://github.com/vanvalenlab/deepcell-tracking',
       download_url='https://github.com/vanvalenlab/'
-                   'deepcell-tracking/tarball/0.2.3',
+                   'deepcell-tracking/tarball/0.2.4',
       license='LICENSE',
       install_requires=['networkx>=2.1',
                         'numpy',
