@@ -246,7 +246,7 @@ def classify_divisions(G_gt, G_res):
             div_res.remove(node)
 
         else:  # valid division not in results, it was missed
-            print('missed division completely')
+            print('missed node {} division completely'.format(node))
             missed += 1
 
     # Count any remaining res nodes as false positives
