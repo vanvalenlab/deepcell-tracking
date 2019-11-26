@@ -124,16 +124,38 @@ class TestIsbiUtils(object):
                         assert not G.in_degree(daughter_id)
 
     def test_classify_divisions(self):
-        # G = nx.DiGraph()
-        # G.add_edge('1_0', '1_1')
-        # G.add_edge('1_1', '1_2')
-        # G.add_edge('1_2', '1_3')
-        #
-        # G.add_edge('2_0', '2_1')
-        # G.add_edge('2_1', '2_2')
-        #
-        # G.add_edge('2_1', '2_2')
-        pass
+        G = nx.DiGraph()
+        G.add_edge('1_0', '1_1')
+        G.add_edge('1_1', '1_2')
+        G.add_edge('1_2', '1_3')
+
+        G.add_edge('2_0', '2_1')
+        G.add_edge('2_1', '2_2')
+
+        # node 2 divides into 3 and 4 in frame 3
+        G.add_edge('2_2', '3_3')
+        G.add_edge('2_2', '4_3')
+        G.nodes['2_2']['division'] = True
+
+        G.add_edge('4_3', '4_4')  # another division in frame 4
+        G.nodes['4_3']['division'] = True
+
+        H = G.copy()
+
+        H.nodes['1_3']['division'] = True  # False Positive
+        H.nodes['4_3']['division'] = False  # False Negative
+
+        # force an incorrect division
+        G.add_edge('3_3', '5_4')  # another division in frame 4
+        G.nodes['3_3']['division'] = True
+        H.nodes['3_3']['division'] = True
+
+        stats = isbi_utils.classify_divisions(G, H)
+
+        assert stats['Correct division'] == 1  # the only correct one
+        assert stats['False positive division'] == 1  # node 1_3
+        assert stats['False negative division'] == 1  # node 4_3
+        assert stats['Incorrect division'] == 1  # node 3_3
 
     def test_contig_tracks(self):
         # test already contiguous
