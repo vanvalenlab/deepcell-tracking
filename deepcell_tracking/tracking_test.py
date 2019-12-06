@@ -29,7 +29,9 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import errno
 import os
+import shutil
 import tempfile
 
 import numpy as np
@@ -139,19 +141,25 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
             with pytest.raises(ValueError):
                 tracker.dataframe(bad_value=-1)
 
-            # test tracker.postprocess
-            with tempfile.TemporaryDirectory() as tempdir:
+            try:
+                # test tracker.postprocess
+                tempdir = tempfile.mkdtemp()  # create dir
                 path = os.path.join(tempdir, 'postprocess.xyz')
                 tracker.postprocess(filename=path)
                 saved_path = os.path.join(tempdir, 'postprocess.trk')
                 assert os.path.isfile(saved_path)
 
-            # test tracker.dump
-            with tempfile.TemporaryDirectory() as tempdir:
+                # test tracker.dump
                 path = os.path.join(tempdir, 'test.xyz')
                 tracker.dump(path)
                 saved_path = os.path.join(tempdir, 'test.trk')
                 assert os.path.isfile(saved_path)
+            finally:
+                try:
+                    shutil.rmtree(tempdir)  # delete directory
+                except OSError as exc:
+                    if exc.errno != errno.ENOENT:  # no such file or directory
+                        raise  # re-raise exception
 
     def test_fetch_tracked_features(self):
         length = 128
@@ -181,7 +189,6 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                     feature = tracked_features[feature_name]
 
                     axis = tracker.channel_axis
-                    print(feature_name, feature.shape)
                     assert feature.shape[axis] == feature_shape[axis]
                     assert feature.shape[0] == len(tracker.tracks)
                     assert feature.shape[tracker.time_axis + 1] == track_length
