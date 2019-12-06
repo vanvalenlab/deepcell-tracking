@@ -41,6 +41,7 @@ import skimage as sk
 import pytest
 
 from deepcell_tracking import tracking
+from deepcell_tracking import utils
 
 
 def _get_dummy_tracking_data(length=128, frames=3,
@@ -130,7 +131,7 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                 data_format=data_format,
                 features=features)
 
-            tracker._track_cells()
+            tracker.track_cells()
 
             # test tracker.dataframe
             df = tracker.dataframe(cell_type='test-value')
@@ -146,14 +147,33 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                 tempdir = tempfile.mkdtemp()  # create dir
                 path = os.path.join(tempdir, 'postprocess.xyz')
                 tracker.postprocess(filename=path)
-                saved_path = os.path.join(tempdir, 'postprocess.trk')
-                assert os.path.isfile(saved_path)
+                post_saved_path = os.path.join(tempdir, 'postprocess.trk')
+                assert os.path.isfile(post_saved_path)
 
                 # test tracker.dump
                 path = os.path.join(tempdir, 'test.xyz')
                 tracker.dump(path)
-                saved_path = os.path.join(tempdir, 'test.trk')
-                assert os.path.isfile(saved_path)
+                dump_saved_path = os.path.join(tempdir, 'test.trk')
+                assert os.path.isfile(dump_saved_path)
+
+                # utility tests for loading trk files
+                # TODO: move utility tests into utils_test.py
+
+                # test trk_folder_to_trks
+                utils.trk_folder_to_trks(tempdir, os.path.join(tempdir, 'all.trks'))
+                assert os.path.isfile(os.path.join(tempdir, 'all.trks'))
+
+                # test load_trks
+                data = utils.load_trks(post_saved_path)
+                assert isinstance(data['lineages'], list)
+                assert all(isinstance(d, dict) for d in data['lineages'])
+                np.testing.assert_equal(data['X'], tracker.x)
+                np.testing.assert_equal(data['y'], tracker.y_tracked)
+                # load trks instead of trk
+                data = utils.load_trks(os.path.join(tempdir, 'all.trks'))
+
+                # test trks_stats
+                utils.trks_stats(os.path.join(tempdir, 'test.trk'))
             finally:
                 try:
                     shutil.rmtree(tempdir)  # delete directory
