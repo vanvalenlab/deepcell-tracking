@@ -54,7 +54,7 @@ def _get_dummy_tracking_data(length=128, frames=3,
     while len(x) < frames:
         _x = sk.data.binary_blobs(length=length, n_dim=2)
         _y = sk.measure.label(_x)
-        if len(np.unique(_y)) > 2:
+        if len(np.unique(_y)) > 3:
             x.append(_x)
             y.append(_y)
 
