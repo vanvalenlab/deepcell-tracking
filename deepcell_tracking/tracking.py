@@ -758,6 +758,20 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             '~future area': np.expand_dims(future_area, axis=0)
         }
 
+    def _track_frame(self, frame):
+        """Inner function for tracking each frame"""
+        t = timeit.default_timer()
+        self.logger.info('Tracking frame %s', frame)
+
+        cost_matrix, predictions = self._get_cost_matrix(frame)
+
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        assignments = np.stack([row_ind, col_ind], axis=1)
+
+        self._update_tracks(assignments, frame, predictions)
+        self.logger.info('Tracked frame %s in %s s.',
+                         frame, timeit.default_timer() - t)
+
     def track_cells(self):
         """Tracks all of the cells in every frame.
         """
@@ -765,17 +779,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self._initialize_tracks()
 
         for frame in range(1, self.x.shape[self.time_axis]):
-            t = timeit.default_timer()
-            self.logger.info('Tracking frame %s', frame)
+            self._track_frame(frame)
 
-            cost_matrix, predictions = self._get_cost_matrix(frame)
-
-            row_ind, col_ind = linear_sum_assignment(cost_matrix)
-            assignments = np.stack([row_ind, col_ind], axis=1)
-
-            self._update_tracks(assignments, frame, predictions)
-            self.logger.info('Tracked frame %s in %s s.',
-                             frame, timeit.default_timer() - t)
         self.logger.info('Tracked all %s frames in %s s.',
                          self.x.shape[self.time_axis],
                          timeit.default_timer() - start)
