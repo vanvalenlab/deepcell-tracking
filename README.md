@@ -27,13 +27,13 @@ pip install -r requirements.txt
 ## How to Use
 
 ```python
-from deepcell_tracking import cell_tracker
+from deepcell_tracking import CellTracker
 
 # X and y are the time-sequence data and their corresponding segmentations (labels), respectively.
 # model is a deepcell-tf tracking model.
-tracker = cell_tracker(X, y, model)
+tracker = CellTracker(X, y, model)
 
-tracker._track_cells()  # runs in place, builds tracks
+tracker.track_cells()  # runs in place, builds tracks
 
 # Save all tracked data and lineage files to a .trk file
 tracker.dump('./results.trk')

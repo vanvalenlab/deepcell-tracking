@@ -29,6 +29,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import errno
+import os
+import shutil
+import tempfile
+
 import numpy as np
 import pandas as pd
 import skimage as sk
@@ -36,6 +41,7 @@ import skimage as sk
 import pytest
 
 from deepcell_tracking import tracking
+from deepcell_tracking import utils
 
 
 def _get_dummy_tracking_data(length=128, frames=3,
@@ -49,7 +55,7 @@ def _get_dummy_tracking_data(length=128, frames=3,
     while len(x) < frames:
         _x = sk.data.binary_blobs(length=length, n_dim=2)
         _y = sk.measure.label(_x)
-        if len(np.unique(_y)) > 2:
+        if len(np.unique(_y)) > 3:
             x.append(_x)
             y.append(_y)
 
@@ -105,7 +111,7 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
         with pytest.raises(ValueError):
             tracking.CellTracker(x, y, model=model, data_format='invalid')
 
-    def test__track_cells(self):
+    def test_track_cells(self):
         length = 128
         frames = 5
         track_length = 2
@@ -125,19 +131,55 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                 data_format=data_format,
                 features=features)
 
-            tracker._track_cells()
+            tracker.track_cells()
 
             # test tracker.dataframe
             df = tracker.dataframe(cell_type='test-value')
             assert isinstance(df, pd.DataFrame)
-            assert 'cell_type' in df.columns
+            assert 'cell_type' in df.columns  # pylint: disable=E1135
 
             # test incorrect values in tracker.dataframe
             with pytest.raises(ValueError):
                 tracker.dataframe(bad_value=-1)
 
-            # test tracker.postprocess
-            tracker.postprocess()
+            try:
+                # test tracker.postprocess
+                tempdir = tempfile.mkdtemp()  # create dir
+                path = os.path.join(tempdir, 'postprocess.xyz')
+                tracker.postprocess(filename=path)
+                post_saved_path = os.path.join(tempdir, 'postprocess.trk')
+                assert os.path.isfile(post_saved_path)
+
+                # test tracker.dump
+                path = os.path.join(tempdir, 'test.xyz')
+                tracker.dump(path)
+                dump_saved_path = os.path.join(tempdir, 'test.trk')
+                assert os.path.isfile(dump_saved_path)
+
+                # utility tests for loading trk files
+                # TODO: move utility tests into utils_test.py
+
+                # test trk_folder_to_trks
+                utils.trk_folder_to_trks(tempdir, os.path.join(tempdir, 'all.trks'))
+                assert os.path.isfile(os.path.join(tempdir, 'all.trks'))
+
+                # test load_trks
+                data = utils.load_trks(post_saved_path)
+                assert isinstance(data['lineages'], list)
+                assert all(isinstance(d, dict) for d in data['lineages'])
+                np.testing.assert_equal(data['X'], tracker.x)
+                np.testing.assert_equal(data['y'], tracker.y_tracked)
+                # load trks instead of trk
+                data = utils.load_trks(os.path.join(tempdir, 'all.trks'))
+
+                # test trks_stats
+                utils.trks_stats(os.path.join(tempdir, 'test.trk'))
+            finally:
+                try:
+                    shutil.rmtree(tempdir)  # delete directory
+                except OSError as exc:
+                    if exc.errno != errno.ENOENT:  # no such file or directory
+                        raise  # re-raise exception
 
     def test_fetch_tracked_features(self):
         length = 128
@@ -167,7 +209,6 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                     feature = tracked_features[feature_name]
 
                     axis = tracker.channel_axis
-                    print(feature_name, feature.shape)
                     assert feature.shape[axis] == feature_shape[axis]
                     assert feature.shape[0] == len(tracker.tracks)
                     assert feature.shape[tracker.time_axis + 1] == track_length
