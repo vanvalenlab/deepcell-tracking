@@ -983,8 +983,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         for candidate_node in FPs_candidates:
             node = candidate_node[0]
             node_info = candidate_node[1]
-            fp_label = int(node.split('_')[0])
-            fp_frame = int(node.split('_')[1])
 
             neighbors = []  # structure will be [(neighbor1, frame), (neighbor2,frame)]
             for neighbor in node_info['neighbors']:
