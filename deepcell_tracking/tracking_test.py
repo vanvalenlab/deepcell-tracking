@@ -29,6 +29,9 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
+import tempfile
+
 import numpy as np
 import pandas as pd
 import skimage as sk
@@ -130,14 +133,25 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
             # test tracker.dataframe
             df = tracker.dataframe(cell_type='test-value')
             assert isinstance(df, pd.DataFrame)
-            assert 'cell_type' in df.columns
+            assert 'cell_type' in df.columns  # pylint: disable=E1135
 
             # test incorrect values in tracker.dataframe
             with pytest.raises(ValueError):
                 tracker.dataframe(bad_value=-1)
 
             # test tracker.postprocess
-            tracker.postprocess()
+            with tempfile.TemporaryDirectory() as tempdir:
+                path = os.path.join(tempdir, 'postprocess.xyz')
+                tracker.postprocess(filename=path)
+                saved_path = os.path.join(tempdir, 'postprocess.trk')
+                assert os.path.isfile(saved_path)
+
+            # test tracker.dump
+            with tempfile.TemporaryDirectory() as tempdir:
+                path = os.path.join(tempdir, 'test.xyz')
+                tracker.dump(path)
+                saved_path = os.path.join(tempdir, 'test.trk')
+                assert os.path.isfile(saved_path)
 
     def test_fetch_tracked_features(self):
         length = 128
