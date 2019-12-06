@@ -872,38 +872,18 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Save information to a track file file if requested
         if filename is not None:
-            # Prep filepath
-            filename = pathlib.Path(filename)
-            if filename.suffix != '.trk':
-                filename = filename.with_suffix('.trk')
-
-            filename = str(filename)
-
-            # Save
-            with tarfile.open(filename, 'w') as trks:
-                with tempfile.NamedTemporaryFile('w') as lineage_file:
-                    json.dump(track_review_dict['tracks'], lineage_file, indent=1)
-                    lineage_file.flush()
-                    trks.add(lineage_file.name, 'lineage.json')
-
-                with tempfile.NamedTemporaryFile() as raw_file:
-                    np.save(raw_file, track_review_dict['X'])
-                    raw_file.flush()
-                    trks.add(raw_file.name, 'raw.npy')
-
-                with tempfile.NamedTemporaryFile() as tracked_file:
-                    np.save(tracked_file, track_review_dict['y_tracked'])
-                    tracked_file.flush()
-                    trks.add(tracked_file.name, 'tracked.npy')
+            self.dump(filename, track_review_dict)
 
         return track_review_dict
 
-    def dump(self, filename):
+    def dump(self, filename, track_review_dict=None):
         """Writes the state of the cell tracker to a .trk ('track') file.
         Includes raw & tracked images, and a lineage.json for parent/daughter
         information.
         """
-        track_review_dict = self._track_review_dict()
+        if not track_review_dict:
+            track_review_dict = self._track_review_dict()
+
         filename = pathlib.Path(filename)
 
         if filename.suffix != '.trk':
