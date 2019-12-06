@@ -111,7 +111,7 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
         with pytest.raises(ValueError):
             tracking.CellTracker(x, y, model=model, data_format='invalid')
 
-    def test__track_cells(self):
+    def test_track_cells(self):
         length = 128
         frames = 5
         track_length = 2
