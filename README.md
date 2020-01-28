@@ -1,5 +1,6 @@
 # deepcell-tracking
 
+[![PyPI version](https://badge.fury.io/py/Deepcell-Tracking.svg)](https://badge.fury.io/py/Deepcell-Tracking)
 [![Build Status](https://travis-ci.com/vanvalenlab/deepcell-tracking.svg?branch=master)](https://travis-ci.com/vanvalenlab/deepcell-tracking)
 [![Coverage Status](https://coveralls.io/repos/github/vanvalenlab/deepcell-tracking/badge.svg?branch=master)](https://coveralls.io/github/vanvalenlab/deepcell-tracking?branch=master)
 
