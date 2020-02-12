@@ -44,6 +44,5 @@ setup(name='Deepcell_Tracking',
       extras_require={
           'tests': ['pytest',
                     'pytest-pep8',
-                    'pytest-cov'],
-      },  # nopep8
+                    'pytest-cov']},
       packages=find_packages())
