@@ -111,6 +111,23 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
         with pytest.raises(ValueError):
             tracking.CellTracker(x, y, model=model, data_format='invalid')
 
+    def test_get_feature_shape(self):
+        length = 128
+        frames = 3
+        x, y = _get_dummy_tracking_data(length, frames=frames)
+        model = DummyModel()
+
+        for data_format in ('channels_first', 'channels_last'):
+            tracker = tracking.CellTracker(x, y, model=model,
+                                           data_format=data_format)
+
+            for f in tracker.features:
+                shape = tracker.get_feature_shape(f)
+                assert isinstance(shape, tuple)
+
+            with pytest.raises(ValueError):
+                tracker.get_feature_shape('bad feature name')
+
     def test_track_cells(self):
         length = 128
         frames = 5
