@@ -1,4 +1,4 @@
-# ![DeepCell Tracking Banner](https://raw.githubusercontent.com/vanvalenlab/deepcell-tracking/readme_update/docs/images/DeepCell_tracking_Banner.png)
+# ![DeepCell Tracking Banner](https://raw.githubusercontent.com/vanvalenlab/deepcell-tracking/master/docs/images/DeepCell_tracking_Banner.png)
 
 [![Build Status](https://travis-ci.com/vanvalenlab/deepcell-tracking.svg?branch=master)](https://travis-ci.com/vanvalenlab/deepcell-tracking)
 [![Coverage Status](https://coveralls.io/repos/github/vanvalenlab/deepcell-tracking/badge.svg?branch=master)](https://coveralls.io/github/vanvalenlab/deepcell-tracking?branch=master)
