@@ -44,7 +44,7 @@ from deepcell_tracking.utils import load_trks
 
 data = load_trks('./results.trk')
 
-lineage = data['lineage']  # linage information
+lineage = data['lineages']  # linage information
 X = data['X']  # raw X data
 y = data['y']  # tracked y data
 ```
