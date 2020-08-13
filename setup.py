@@ -26,16 +26,19 @@
 from setuptools import setup
 from setuptools import find_packages
 
+VERSION = '0.2.6'
+
 setup(name='Deepcell_Tracking',
-      version='0.2.5',
+      version=VERSION,
       description='Tracking cells and lineage with deep learning.',
       author='Van Valen Lab',
       author_email='vanvalenlab@gmail.com',
       url='https://github.com/vanvalenlab/deepcell-tracking',
       download_url='https://github.com/vanvalenlab/'
-                   'deepcell-tracking/tarball/0.2.5',
+                   'deepcell-tracking/tarball/{}'.format(VERSION),
       license='LICENSE',
-      install_requires=['networkx>=2.1',
+      install_requires=['opencv-python<=3.4.9.31',
+                        'networkx>=2.1',
                         'numpy',
                         'pandas',
                         'pathlib',
