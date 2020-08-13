@@ -37,7 +37,7 @@ setup(name='Deepcell_Tracking',
       download_url='https://github.com/vanvalenlab/'
                    'deepcell-tracking/tarball/{}'.format(VERSION),
       license='LICENSE',
-      install_requires=['opencv-python',
+      install_requires=['opencv-python<=3.4.9.31',
                         'networkx>=2.1',
                         'numpy',
                         'pandas',
