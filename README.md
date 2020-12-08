@@ -1,7 +1,7 @@
 # ![DeepCell Tracking Banner](https://raw.githubusercontent.com/vanvalenlab/deepcell-tracking/master/docs/images/DeepCell_tracking_Banner.png)
 
 [![PyPI version](https://badge.fury.io/py/Deepcell-Tracking.svg)](https://badge.fury.io/py/Deepcell-Tracking)
-[![Build Status](https://travis-ci.com/vanvalenlab/deepcell-tracking.svg?branch=master)](https://travis-ci.com/vanvalenlab/deepcell-tracking)
+[![Build Status](https://github.com/vanvalenlab/deepcell-tracking/workflows/build/badge.svg)](https://github.com/vanvalenlab/deepcell-tracking/actions)
 [![Coverage Status](https://coveralls.io/repos/github/vanvalenlab/deepcell-tracking/badge.svg?branch=master)](https://coveralls.io/github/vanvalenlab/deepcell-tracking?branch=master)
 
 `deepcell-tracking` uses deep learning models from [deepcell-tf](https://github.com/vanvalenlab/deepcell-tf) within an assignment problem framework to [track cells through time-lapse sequences](https://www.biorxiv.org/content/10.1101/803205v2) and build cell lineages. The assignment problem is solved using the [Hungarian algorithm.](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2747604/)
