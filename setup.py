@@ -26,7 +26,7 @@
 from setuptools import setup
 from setuptools import find_packages
 
-VERSION = '0.2.6'
+VERSION = '0.2.7'
 
 setup(name='Deepcell_Tracking',
       version=VERSION,
