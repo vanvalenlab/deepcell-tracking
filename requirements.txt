@@ -1,7 +1,7 @@
+pathlib
 pandas>=0.23.4
 networkx>=2.1
 numpy>=1.16.4,<2
 scipy>=1.1.0,<2
 scikit-image>=0.14.0,<0.17
 opencv-python-headless<=3.4.9.31
-pathlib
