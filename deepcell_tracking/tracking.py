@@ -512,7 +512,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             predictions = []
             assignment_matrix.fill(1)
         else:
-            model_input = [ins for f in self.features for ins in inputs[f]]
+            model_input = {}
+            for f in self.features:
+                model_input['{}_input1'.format(f)] = inputs[f][0]
+                model_input['{}_input2'.format(f)] = inputs[f][1]
             predictions = self.model.predict(model_input)
             assignment_matrix[tuple(zip(*input_pairs))] = 1 - predictions[:, 1]
             assignment_matrix[tuple(zip(*invalid_pairs))] = 1
