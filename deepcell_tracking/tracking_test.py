@@ -71,10 +71,10 @@ def _get_dummy_tracking_data(length=128, frames=3,
 class DummyModel(object):  # pylint: disable=useless-object-inheritance
 
     def predict(self, data):
-        if isinstance(data, list):
-            batches = 0 if not data else len(data[0])
+        if isinstance(data, dict):
+            batches = 0 if not data else next(iter(data.values())).shape[0]
         else:
-            batches = len(data)
+            batches = next(iter(data.values())).shape[0]
         return np.random.random((batches, 3))
 
 
