@@ -72,6 +72,7 @@ class DummyModel(object):  # pylint: disable=useless-object-inheritance
 
     def predict(self, data):
         if isinstance(data, dict):
+            # Grab a random value from the data dict and select batch dim
             batches = 0 if not data else next(iter(data.values())).shape[0]
         else:
             batches = next(iter(data.values())).shape[0]
