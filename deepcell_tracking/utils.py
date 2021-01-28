@@ -256,7 +256,7 @@ def save_trks(filename, lineages, raw, tracked):
             raw_file.flush()
             raw_file.close()
             trks.add(raw_file.name, 'raw.npy')
-            os.remove(lineages_file.name)
+            os.remove(raw_file.name)
 
         with tempfile.NamedTemporaryFile(delete=False) as tracked_file:
             np.save(tracked_file, tracked)
