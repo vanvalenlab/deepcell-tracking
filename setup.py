@@ -23,29 +23,60 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import os
+
+from codecs import open
 from setuptools import setup
 from setuptools import find_packages
 
-VERSION = '0.3.0'
 
-setup(name='Deepcell_Tracking',
+here = os.path.abspath(os.path.dirname(__file__))
+
+
+with open(os.path.join(here, 'README.md'), 'r', 'utf-8') as f:
+    readme = f.read()
+
+
+VERSION = '0.3.1'
+NAME = 'DeepCell_Tracking'
+DESCRIPTION = 'Tracking cells and lineage with deep learning.'
+LICENSE = 'LICENSE'
+AUTHOR = 'Van Valen Lab'
+AUTHOR_EMAIL = 'vanvalenlab@gmail.com'
+URL = 'https://github.com/vanvalenlab/deepcell-tracking'
+DOWNLOAD_URL = ('https://github.com/vanvalenlab/'
+                'deepcell-tracking/tarball/{}'.format(VERSION))
+
+
+setup(name=NAME,
       version=VERSION,
-      description='Tracking cells and lineage with deep learning.',
-      author='Van Valen Lab',
-      author_email='vanvalenlab@gmail.com',
-      url='https://github.com/vanvalenlab/deepcell-tracking',
-      download_url='https://github.com/vanvalenlab/'
-                   'deepcell-tracking/tarball/{}'.format(VERSION),
-      license='LICENSE',
-      install_requires=['opencv-python-headless<=3.4.9.31',
+      description=DESCRIPTION,
+      author=AUTHOR,
+      author_email=AUTHOR_EMAIL,
+      url=URL,
+      download_url=DOWNLOAD_URL,
+      license=LICENSE,
+      install_requires=['opencv-python-headless<=4.2.0.32; python_version < "3"',
+                        'opencv-python-headless>=4.2.0.32; python_version >= "3"',
                         'networkx>=2.1',
                         'numpy',
                         'pandas',
                         'pathlib',
                         'scipy',
-                        'scikit-image'],
+                        'scikit-image<0.17'],
       extras_require={
-          'tests': ['pytest',
+          'tests': ['pytest<6',
                     'pytest-pep8',
                     'pytest-cov']},
-      packages=find_packages())
+      long_description=readme,
+      long_description_content_type='text/markdown',
+      packages=find_packages(),
+      classifiers=[
+          'Programming Language :: Python',
+          'Programming Language :: Python :: 2',
+          'Programming Language :: Python :: 2.7',
+          'Programming Language :: Python :: 3',
+          'Programming Language :: Python :: 3.5',
+          'Programming Language :: Python :: 3.6',
+          'Programming Language :: Python :: 3.7',
+          'Programming Language :: Python :: 3.8'])

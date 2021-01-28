@@ -1,4 +1,0 @@
-pytest<6
-pytest-cov
-pytest-pep8
-coveralls

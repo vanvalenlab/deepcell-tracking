@@ -22,7 +22,7 @@ git clone https://github.com/vanvalenlab/deepcell-tracking.git
 cd deepcell-tracking
 
 # install the dependencies
-pip install -r requirements.txt
+pip install .
 ```
 
 ## How to Use
