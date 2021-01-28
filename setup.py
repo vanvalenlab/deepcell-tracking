@@ -29,6 +29,14 @@ from codecs import open
 from setuptools import setup
 from setuptools import find_packages
 
+
+here = os.path.abspath(os.path.dirname(__file__))
+
+
+with open(os.path.join(here, 'README.md'), 'r', 'utf-8') as f:
+    readme = f.read()
+
+
 VERSION = '0.3.1'
 NAME = 'DeepCell_Tracking'
 DESCRIPTION = 'Tracking cells and lineage with deep learning.'
@@ -39,8 +47,6 @@ URL = 'https://github.com/vanvalenlab/deepcell-tracking'
 DOWNLOAD_URL = ('https://github.com/vanvalenlab/'
                 'deepcell-tracking/tarball/{}'.format(VERSION))
 
-with open(os.path.join(here, 'README.md'), 'r', 'utf-8') as f:
-    readme = f.read()
 
 setup(name=NAME,
       version=VERSION,
