@@ -31,7 +31,6 @@ from __future__ import print_function
 
 import copy
 import os
-import tempfile
 
 import networkx as nx
 import numpy as np
