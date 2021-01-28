@@ -82,10 +82,10 @@ class TestIsbiUtils(object):
             data = set(l.decode() for l in f.readlines())
 
         expected = {
-            '1 0 4 0\n',
-            '2 5 5 1\n',
-            '3 5 5 1\n',
-            '4 7 7 0\n',  # no parent, as it is not consecutive frame
+            '1 0 4 0{}'.format(os.linesep),
+            '2 5 5 1{}'.format(os.linesep),
+            '3 5 5 1{}'.format(os.linesep),
+            '4 7 7 0{}'.format(os.linesep),  # no parent; not consecutive frame
         }
         assert data == expected
 
@@ -102,7 +102,8 @@ class TestIsbiUtils(object):
         with open(text_file, 'wb') as f:
             # write the file
             for row in rows:
-                line = '{} {} {} {}\n'.format(row[0], row[1], row[2], row[3])
+                line = '{} {} {} {}{}'.format(
+                    row[0], row[1], row[2], row[3], os.linesep)
                 f.write(line.encode())
 
             f.flush()  # save the file
