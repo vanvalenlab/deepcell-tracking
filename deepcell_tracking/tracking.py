@@ -895,7 +895,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         filename = str(filename)
 
         with tarfile.open(filename, 'w') as trks:
-            with tempfile.NamedTemporaryFile() as lineage_file:
+            with tempfile.NamedTemporaryFile('w') as lineage_file:
                 json.dump(track_review_dict['tracks'], lineage_file, indent=1)
                 lineage_file.flush()
                 trks.add(lineage_file.name, 'lineage.json')
