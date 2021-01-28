@@ -898,7 +898,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             with tempfile.NamedTemporaryFile('w') as lineage_file:
                 json.dump(track_review_dict['tracks'], lineage_file, indent=1)
                 lineage_file.flush()
-                trks.add(lineage_file.name, 'lineage.json')
+                name = lineage_file.name
+                trks.add(name, 'lineage.json')
 
             with tempfile.NamedTemporaryFile() as raw_file:
                 np.save(raw_file, track_review_dict['X'])
