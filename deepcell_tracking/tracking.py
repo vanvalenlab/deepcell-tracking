@@ -32,6 +32,7 @@ from __future__ import print_function
 import copy
 import json
 import logging
+import os
 import pathlib
 import tarfile
 import tempfile
@@ -895,21 +896,28 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         filename = str(filename)
 
         with tarfile.open(filename, 'w') as trks:
-            with tempfile.NamedTemporaryFile('w') as lineage_file:
-                json.dump(track_review_dict['tracks'], lineage_file, indent=4)
-                lineage_file.flush()
-                name = lineage_file.name
-                trks.add(name, 'lineage.json')
+            # disable auto deletion and close/delete manually
+            # to resolve double-opening issue on Windows.
+            with tempfile.NamedTemporaryFile('w', delete=False) as lineage:
+                json.dump(track_review_dict['tracks'], lineage, indent=4)
+                lineage.flush()
+                lineage.close()
+                trks.add(lineage.name, 'lineage.json')
+                os.remove(lineage.name)
 
-            with tempfile.NamedTemporaryFile() as raw_file:
-                np.save(raw_file, track_review_dict['X'])
-                raw_file.flush()
-                trks.add(raw_file.name, 'raw.npy')
+            with tempfile.NamedTemporaryFile(delete=False) as raw:
+                np.save(raw, track_review_dict['X'])
+                raw.flush()
+                raw.close()
+                trks.add(raw.name, 'raw.npy')
+                os.remove(raw.name)
 
-            with tempfile.NamedTemporaryFile() as tracked_file:
-                np.save(tracked_file, track_review_dict['y_tracked'])
-                tracked_file.flush()
-                trks.add(tracked_file.name, 'tracked.npy')
+            with tempfile.NamedTemporaryFile(delete=False) as tracked:
+                np.save(tracked, track_review_dict['y_tracked'])
+                tracked.flush()
+                tracked.close()
+                trks.add(tracked.name, 'tracked.npy')
+                os.remove(tracked.name)
 
     def _track_to_graph(self, tracks):
         """Create a graph from the lineage information"""
