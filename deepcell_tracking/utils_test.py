@@ -125,6 +125,12 @@ class TestTrackingUtils(object):
             utils.save_trks(filename, lineage, X, y)
             assert os.path.isfile(filename)
 
+            # test saved tracks can be loaded
+            loaded = utils.load_trks(filename)
+            assert loaded['lineages'] == lineage
+            np.testing.assert_array_equal(X, loaded['X'])
+            np.testing.assert_array_equal(y, loaded['y'])
+
         finally:
             try:
                 shutil.rmtree(tempdir)  # delete directory

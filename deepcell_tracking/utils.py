@@ -244,20 +244,26 @@ def save_trks(filename, lineages, raw, tracked):
         raise ValueError('filename must end with `.trks`. Found %s' % filename)
 
     with tarfile.open(filename, 'w') as trks:
-        with tempfile.NamedTemporaryFile('w') as lineages_file:
-            json.dump(lineages, lineages_file, indent=1)
+        with tempfile.NamedTemporaryFile('w', delete=False) as lineages_file:
+            json.dump(lineages, lineages_file, indent=4)
             lineages_file.flush()
+            lineages_file.close()
             trks.add(lineages_file.name, 'lineages.json')
+            os.remove(lineages_file.name)
 
-        with tempfile.NamedTemporaryFile() as raw_file:
+        with tempfile.NamedTemporaryFile(delete=False) as raw_file:
             np.save(raw_file, raw)
             raw_file.flush()
+            raw_file.close()
             trks.add(raw_file.name, 'raw.npy')
+            os.remove(raw_file.name)
 
-        with tempfile.NamedTemporaryFile() as tracked_file:
+        with tempfile.NamedTemporaryFile(delete=False) as tracked_file:
             np.save(tracked_file, tracked)
             tracked_file.flush()
+            tracked_file.close()
             trks.add(tracked_file.name, 'tracked.npy')
+            os.remove(tracked_file.name)
 
 
 def trks_stats(filename):

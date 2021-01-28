@@ -30,7 +30,7 @@ from __future__ import division
 from __future__ import print_function
 
 import copy
-import tempfile
+import os
 
 import networkx as nx
 import numpy as np
@@ -40,7 +40,7 @@ from deepcell_tracking import isbi_utils
 
 class TestIsbiUtils(object):
 
-    def test_trk_to_isbi(self):
+    def test_trk_to_isbi(self, tmpdir):
         # start with dummy lineage
         # convert to ISBI file
         # read file and validate
@@ -75,19 +75,21 @@ class TestIsbiUtils(object):
             'parent': 3,
             'label': 4,
         }
-        with tempfile.NamedTemporaryFile() as temp:
-            isbi_utils.trk_to_isbi(track, temp.name)
-            data = set(l.decode() for l in temp.readlines())
-            expected = {
-                '1 0 4 0\n',
-                '2 5 5 1\n',
-                '3 5 5 1\n',
-                '4 7 7 0\n',  # no parent, as it is not consecutive frame
-            }
-            print(data)
-            assert data == expected
+        isbifile = os.path.join(str(tmpdir), 'test_trk_to_isbi')
+        isbi_utils.trk_to_isbi(track, isbifile)
 
-    def test_txt_to_graph(self):
+        with open(isbifile, 'rb') as f:
+            data = set(l.decode() for l in f.readlines())
+
+        expected = {
+            '1 0 4 0{}'.format(os.linesep),
+            '2 5 5 1{}'.format(os.linesep),
+            '3 5 5 1{}'.format(os.linesep),
+            '4 7 7 0{}'.format(os.linesep),  # no parent; not consecutive frame
+        }
+        assert data == expected
+
+    def test_txt_to_graph(self, tmpdir):
         # cell_id, start, end, parent_id
         rows = [
             (1, 0, 3, 0),  # cell 1 is in all 3 frames
@@ -96,32 +98,33 @@ class TestIsbiUtils(object):
             (4, 3, 3, 2),  # cell 4 is a daughter of 2
             (5, 3, 3, 4),  # cell 5 is a daughter of 4, ignored bad frame value
         ]
-        with tempfile.NamedTemporaryFile() as text_file:
+        text_file = os.path.join(str(tmpdir), 'test_txt_to_graph.txt')
+        with open(text_file, 'wb') as f:
             # write the file
             for row in rows:
-                line = '{} {} {} {}\n'.format(row[0], row[1], row[2], row[3])
-                text_file.write(line.encode())
+                line = '{} {} {} {}{}'.format(
+                    row[0], row[1], row[2], row[3], os.linesep)
+                f.write(line.encode())
 
-            text_file.flush()  # save the file
+            f.flush()  # save the file
 
-            # read the file
-            G = isbi_utils.txt_to_graph(text_file.name)
-            print(list(G.nodes()))
-            for row in rows:
-                node_ids = ['{}_{}'.format(row[0], t)
-                            for t in range(row[1], row[2] + 1)]
+        # read the file
+        G = isbi_utils.txt_to_graph(text_file)
+        for row in rows:
+            node_ids = ['{}_{}'.format(row[0], t)
+                        for t in range(row[1], row[2] + 1)]
 
-                for node_id in node_ids:
-                    assert node_id in G
+            for node_id in node_ids:
+                assert node_id in G
 
-                if row[3]:  # should have a division
-                    daughter_id = '{}_{}'.format(row[0], row[1])
-                    parent_id = '{}_{}'.format(row[3], row[1] - 1)
-                    if G.has_node(parent_id):
-                        assert G.nodes[parent_id]['division'] is True
-                        assert G.has_edge(parent_id, daughter_id)
-                    else:
-                        assert not G.in_degree(daughter_id)
+            if row[3]:  # should have a division
+                daughter_id = '{}_{}'.format(row[0], row[1])
+                parent_id = '{}_{}'.format(row[3], row[1] - 1)
+                if G.has_node(parent_id):
+                    assert G.nodes[parent_id]['division'] is True
+                    assert G.has_edge(parent_id, daughter_id)
+                else:
+                    assert not G.in_degree(daughter_id)
 
     def test_classify_divisions(self):
         G = nx.DiGraph()
