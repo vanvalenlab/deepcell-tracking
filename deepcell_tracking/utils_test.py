@@ -55,7 +55,7 @@ class TestTrackingUtils(object):
         img = np.expand_dims(img, axis=-1) 
         img = np.expand_dims(img, axis=0)  # time axis
         uid = 100
-        
+
         cleaned = utils.clean_up_annotations(
             img, uid=uid, data_format='channels_last')
         unique = np.unique(cleaned)
