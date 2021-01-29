@@ -53,6 +53,7 @@ def clean_up_annotations(y, uid=None, data_format='channels_last'):
     Returns:
         np.array: Cleaned up annotations.
     """
+    y = y.astype('int32')
     time_axis = 1 if data_format == 'channels_first' else 0
     num_frames = y.shape[time_axis]
 
@@ -74,7 +75,7 @@ def clean_up_annotations(y, uid=None, data_format='channels_last'):
             y[:, frame] = y_frame_new
         else:
             y[frame] = y_frame_new
-    return y.astype('int32')
+    return y
 
 
 def resize(data, shape, data_format='channels_last'):
