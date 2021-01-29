@@ -53,8 +53,9 @@ class TestTrackingUtils(object):
     def test_clean_up_annotations(self):
         img = sk.measure.label(sk.data.binary_blobs(length=256, n_dim=2)) * 3
         img = np.expand_dims(img, axis=-1)
+        img = np.expand_dims(img, axis=0)
         uid = 100
-
+        
         cleaned = utils.clean_up_annotations(
             img, uid=uid, data_format='channels_last')
         unique = np.unique(cleaned)
@@ -65,6 +66,7 @@ class TestTrackingUtils(object):
 
         img = sk.measure.label(sk.data.binary_blobs(length=256, n_dim=2)) * 3
         img = np.expand_dims(img, axis=0)
+        img = np.expand_dims(img, axis=1) # time axis
 
         cleaned = utils.clean_up_annotations(
             img, uid=uid, data_format='channels_first')
