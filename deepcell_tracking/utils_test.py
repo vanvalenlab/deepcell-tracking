@@ -52,7 +52,7 @@ class TestTrackingUtils(object):
 
     def test_clean_up_annotations(self):
         img = sk.measure.label(sk.data.binary_blobs(length=256, n_dim=2)) * 3
-        img = np.expand_dims(img, axis=-1) 
+        img = np.expand_dims(img, axis=-1)
         img = np.expand_dims(img, axis=0)  # time axis
         uid = 100
 
