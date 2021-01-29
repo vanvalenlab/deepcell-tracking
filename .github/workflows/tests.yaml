@@ -41,12 +41,15 @@ jobs:
         pip install coveralls
 
     - name: Run PyTest and Coveralls
+      run: |
+        pytest --cov deepcell_tracking --pep8
+    
+    - name: Coveralls
       env:
         COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         COVERALLS_FLAG_NAME: python-${{ matrix.os }}-${{ matrix.python-version }}
         COVERALLS_PARALLEL: true
       run: |
-        pytest --cov deepcell_tracking --pep8
         coveralls
 
   coveralls:
