@@ -40,7 +40,7 @@ jobs:
         pip install .[tests]
         pip install coveralls
 
-    - name: Run PyTest and Coveralls
+    - name: PyTest
       run: |
         pytest --cov deepcell_tracking --pep8
     
