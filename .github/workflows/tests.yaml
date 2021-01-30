@@ -45,7 +45,7 @@ jobs:
         pytest --cov deepcell_tracking --pep8
     
     - name: Coveralls
-      if: ${{ secrets.COVERALLS_REPO_TOKEN != '' }}
+      if: env.COVERALLS_REPO_TOKEN != null
       env:
         COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         COVERALLS_FLAG_NAME: python-${{ matrix.os }}-${{ matrix.python-version }}
