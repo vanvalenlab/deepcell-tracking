@@ -686,7 +686,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         y_padded = np.pad(y_frame, pads, mode='constant', constant_values=0)
 
         roi = (y_padded == cell_label).astype('int32')
-        props = regionprops(np.squeeze(roi), coordinates='rc')
+        props = regionprops(np.squeeze(roi))
 
         center_x, center_y = props[0].centroid
         center_x, center_y = np.int(center_x), np.int(center_y)
@@ -722,7 +722,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         y_frame = self._get_frame(self.y, frame)
 
         roi = (y_frame == cell_label).astype('int32')
-        props = regionprops(np.squeeze(roi), coordinates='rc')[0]
+        props = regionprops(np.squeeze(roi))[0]
 
         centroid = props.centroid
         rprop = np.array([
