@@ -63,7 +63,7 @@ setup(name=NAME,
                         'pandas',
                         'pathlib',
                         'scipy',
-                        'scikit-image'],
+                        'scikit-image>=0.14.5'],
       extras_require={
           'tests': ['pytest<6',
                     'pytest-pep8',
