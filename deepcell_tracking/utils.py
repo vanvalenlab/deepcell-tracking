@@ -36,9 +36,17 @@ import tarfile
 import tempfile
 from io import BytesIO
 
-import cv2
 import numpy as np
 from skimage import transform
+
+from skimage.measure import regionprops
+from skimage.segmentation import relabel_sequential
+
+from scipy.spatial.distance import cdist
+
+import cv2
+
+from deepcell_toolbox.utils import resize
 
 
 def clean_up_annotations(y, uid=None, data_format='channels_last'):
@@ -330,3 +338,268 @@ def trks_stats(filename):
     print('Total number of divisions                  - ', total_divisions)
     print('Average cell density (cells/100 sq pixels) - ', avg_cells_per_sq_pixel * 100)
     print('Average number of frames per track         - ', int(avg_num_frames_per_track))
+
+
+class Track(object):
+    def __init__(self,
+                 path,
+                 appearance_dim=32,
+                 distance_threshold=64):
+
+        training_data = load_trks(path)
+        self.X = training_data['X'].astype(np.float32)
+        self.y = training_data['y'].astype(np.int)
+        self.lineages = training_data['lineages']
+        self.appearance_dim = appearance_dim
+        self.distance_threshold = distance_threshold
+
+        # Correct lineages
+        self._correct_lineages()
+
+        # Remove bad batches
+        self._check_lineages()
+
+        # Create dictionaries
+        self._create_features()
+
+    def _correct_lineages(self):
+        n_batches = self.y.shape[0]
+
+        # Ensure sequential labels
+        new_lineages = {}
+        for batch in range(n_batches):
+            y_batch = self.y[batch]
+            y_relabel, fw, inv = relabel_sequential(y_batch)
+
+            new_lineages[batch] = {}
+
+            cell_ids = np.unique(y_batch)
+            cell_ids = cell_ids[cell_ids != 0]
+            for cell_id in cell_ids:
+                new_lineages[batch][fw[cell_id]] = {}
+
+                # Fix label
+                new_lineages[batch][fw[cell_id]]['label'] = fw[cell_id]
+
+                # Fix parent
+                parent = self.lineages[batch][cell_id]['parent']
+                if parent is not None:
+                    new_lineages[batch][fw[cell_id]]['parent'] = fw[parent]
+                else:
+                    new_lineages[batch][fw[cell_id]]['parent'] = None
+
+                # Fix daughters
+                daughters = self.lineages[batch][cell_id]['daughters']
+                if len(daughters) > 0:
+                    new_lineages[batch][fw[cell_id]]['daughters'] = [fw[d] for d in daughters]
+                else:
+                    new_lineages[batch][fw[cell_id]]['daughters'] = []
+
+                # Fix frames
+                y_true = np.sum(y_batch == cell_id, axis=(1, 2))
+                y_index = np.where(y_true > 0)[0]
+                new_lineages[batch][fw[cell_id]]['frames'] = list(y_index)
+
+            self.y[batch] = y_relabel
+        self.lineages = new_lineages
+
+    def _check_lineages(self):
+        # Make sure that mother cells leave the fov
+        # and daughter cells enter
+
+        bad_batch = []
+
+        n_batches = self.y.shape[0]
+
+        for batch in range(n_batches):
+            for cell_id in self.lineages[batch].keys():
+
+                # Get parent frames
+                parent_frames = self.lineages[batch][cell_id]['frames']
+
+                # Get daughter frames
+                daughters = self.lineages[batch][cell_id]['daughters']
+
+                if len(daughters) == 0:
+                    daughter_frames = None
+                else:
+                    daughter_frames = [self.lineages[batch][daughter]['frames'] for daughter in daughters]
+                    # Check that daughter's start frame is one larger than parent end frame
+                    parent_end = parent_frames[-1]
+                    daughters_start = [d[0] for d in daughter_frames]
+
+                    for ds in daughters_start:
+                        if ds - parent_end != 1:
+                            bad_batch.append(batch)
+
+        bad_batch = set(bad_batch)
+        bad_batch = list(bad_batch)
+
+        print(bad_batch)
+
+        new_X = []
+        new_y = []
+        new_lineages = []
+        for batch in range(self.X.shape[0]):
+            if batch not in bad_batch:
+                new_X.append(self.X[batch])
+                new_y.append(self.y[batch])
+                new_lineages.append(self.lineages[batch])
+
+        new_X = np.stack(new_X, axis=0)
+        new_y = np.stack(new_y, axis=0)
+
+        self.X = new_X
+        self.y = new_y
+        self.lineages = new_lineages
+
+    def _get_max_tracks(self):
+        # Get maximum number of tracks in a batch
+        max_tracks = 0
+        for batch in range(self.X.shape[0]):
+            tracks = np.unique(self.y[batch])
+            n_tracks = tracks[tracks != 0].shape[0]
+            if n_tracks > max_tracks:
+                max_tracks = n_tracks
+        return max_tracks
+
+    def _normalize_adj_matrix(self, adj, epsilon=1e-5):
+        # adj is (batch, node, node, time)
+        # get degree matrix
+        normed_adj = np.zeros(adj.shape, dtype='float32')
+        for t in range(adj.shape[-1]):
+            adj_frame = adj[...,t]
+            degrees = np.sum(adj_frame, axis=1)
+            degree_matrix = np.zeros(adj_frame.shape, dtype=np.float32)
+            for batch, degree in enumerate(degrees):
+                degree = (degree + epsilon) ** -0.5
+                degree_matrix[batch] = np.diagflat(degree)
+
+            norm_adj = np.matmul(degree_matrix, adj_frame)
+            norm_adj = np.matmul(norm_adj, degree_matrix)
+            normed_adj[...,t] = norm_adj
+        return normed_adj
+
+    def _create_features(self):
+        max_tracks = self._get_max_tracks()
+        n_batches = self.X.shape[0]
+        n_frames = self.X.shape[1]
+        n_channels = self.X.shape[-1]
+
+        appearances = np.zeros((n_batches,
+                                max_tracks,
+                                n_frames,
+                                self.appearance_dim,
+                                self.appearance_dim,
+                                n_channels), dtype=np.float32)
+
+        morphologies = np.zeros((n_batches,
+                                 max_tracks,
+                                 n_frames,
+                                 3), dtype=np.float32)
+
+        centroids = np.zeros((n_batches,
+                              max_tracks,
+                              n_frames,
+                              2), dtype=np.float32)
+
+        adj_matrix = np.zeros((n_batches,
+                               max_tracks,
+                               max_tracks,
+                               n_frames), dtype=np.float32)
+
+        temporal_adj_matrix = np.zeros((n_batches,
+                                        max_tracks,
+                                        max_tracks,
+                                        n_frames-1,
+                                        3), dtype=np.float32)
+
+        mask = np.zeros((n_batches,
+                         max_tracks,
+                         n_frames), dtype=np.float32)
+
+        track_length = np.zeros((n_batches,
+                                 max_tracks,
+                                 2), dtype=np.int32)
+
+        for batch in range(n_batches):
+            for frame in range(n_frames):
+                y = self.y[batch, frame,...,0]
+                props = regionprops(y)
+                for prop in props:
+                    track_id = prop.label - 1
+
+                    # Get centroid
+                    centroids[batch, track_id, frame] = np.array(prop.centroid)
+
+                    # Get morphology
+                    morphologies[batch, track_id, frame] = np.array([prop.area, prop.perimeter, prop.eccentricity])
+
+                    # Get appearance
+                    minr, minc, maxr, maxc = prop.bbox
+                    appearance = np.copy(self.X[batch, frame, minr:maxr, minc:maxc, :])
+                    resize_shape = (self.appearance_dim, self.appearance_dim)
+                    appearances[batch, track_id, frame] = resize(appearance, resize_shape)
+
+                    # Get mask
+                    mask[batch, track_id, frame] = 1
+
+                # Get adjacency matrix
+                cent = centroids[batch, :, frame, :]
+                distance = cdist(cent, cent, metric='euclidean') < self.distance_threshold
+                adj_matrix[batch, :, :, frame] = distance.astype(np.float32)
+
+            # Get track length
+            labels = np.unique(self.y[batch,...,0])
+            labels = labels[labels != 0]
+            for label in labels:
+                track_id = label-1
+                start_frame = self.lineages[batch][label]['frames'][0]
+                end_frame = self.lineages[batch][label]['frames'][-1]
+
+                track_length[batch, track_id, 0] = start_frame
+                track_length[batch, track_id, 1] = end_frame
+
+            # Get temporal adjacency matrix
+            for label in labels:
+                track_id = label-1
+
+                # Assign same
+                frames = self.lineages[batch][label]['frames']
+                frames_0 = frames[0:-1]
+                frames_1 = frames[1:]
+                for frame_0, frame_1 in zip(frames_0, frames_1):
+                    if frame_1-frame_0 == 1:
+                        temporal_adj_matrix[batch, track_id, track_id, frame_0, 0] = 1
+
+                # Assign daughter
+                daughters = self.lineages[batch][label]['daughters']
+                last_frame = frames[-1]
+
+                # WARNING: This wont work if there's a time gap between mother
+                # cell disappearing and daughter cells appearing
+                if len(daughters) > 0:
+                    for daughter in daughters:
+                        daughter_id = daughter-1
+                        temporal_adj_matrix[batch, track_id, daughter_id, last_frame, 2] = 1
+#                         temporal_adj_matrix[batch, daughter_id, track_id, last_frame, 2] = 1
+
+            # Assign different
+            temporal_adj_matrix[batch,...,1] = 1 - temporal_adj_matrix[batch,...,0] - temporal_adj_matrix[batch,...,2]
+
+            # Identify padding
+            track_ids = [label-1 for label in labels]
+            for i in range(temporal_adj_matrix.shape[1]):
+                if i not in track_ids:
+                    temporal_adj_matrix[batch,i,...] = -1
+                    temporal_adj_matrix[batch,:,i,...] = -1
+
+        # Normalize adj matrix
+        self.appearances = appearances
+        self.morphologies = morphologies
+        self.centroids = centroids
+        self.adj_matrix = adj_matrix
+        self.norm_adj_matrix = self._normalize_adj_matrix(adj_matrix)
+        self.temporal_adj_matrix = temporal_adj_matrix
+        self.mask = mask
+        self.track_length = track_length
