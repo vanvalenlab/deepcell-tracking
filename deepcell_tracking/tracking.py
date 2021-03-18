@@ -78,16 +78,15 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
     def __init__(self,
                  movie,
                  annotation,
-                 model,
-                 features={'appearance', 'distance', 'neighborhood', 'regionprop'},
-                 crop_dim=32,
+                 neighborhood_encoder,
+                 tracking_model,
+                 distance_threshold=64,
+                 appearance_dim=32,
                  death=0.99,
                  birth=0.99,
                  division=0.9,
                  max_distance=50,
-                 track_length=9,
-                 neighborhood_scale_size=30,
-                 neighborhood_true_size=100,
+                 track_length=5,
                  dtype='float32',
                  data_format='channels_last'):
 
@@ -101,11 +100,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                              ' except for the channel dimension.  Got {} and '
                              '{}'.format(movie.shape, annotation.shape))
 
-        if not features:
-            raise ValueError('`features` is empty but should be a list with any'
-                             ' or all of the following values: "appearance", '
-                             '"distance", "neighborhood" or "regionprop".')
-
         if data_format not in {'channels_first', 'channels_last'}:
             raise ValueError('The `data_format` argument must be one of '
                              '"channels_first", "channels_last". Received: ' +
@@ -114,25 +108,28 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.x = copy.copy(movie)
         self.y = copy.copy(annotation)
         self.tracks = {}
-        # TODO: Use a model that is served by tf-serving, not one on a local machine
-        self.model = model
-        self.crop_dim = crop_dim
+
+        self.neighborhood_encoder = neighborhood_encoder
+        self.tracking_model = tracking_model
+        self.distance_threshold = distance_threshold
+        self.appearance_dim = appearance_dim
         self.death = death
         self.birth = birth
         self.division = division
         self.max_distance = max_distance
-        self.neighborhood_scale_size = neighborhood_scale_size
-        self.neighborhood_true_size = neighborhood_true_size
         self.dtype = dtype
-        self.data_format = data_format
         self.track_length = track_length
+
+        self.a_matrix = []
+        self.c_matrix = []
+        self.assignments = []
+
+        self.data_format = data_format
         self.channel_axis = 0 if data_format == 'channels_first' else -1
         self.time_axis = 1 if data_format == 'channels_first' else 0
         self.logger = logging.getLogger(str(self.__class__.__name__))
 
-        self._track_cells = self.track_cells  # backwards compatibility
-
-        self.features = sorted(features)
+        self._track_cells = self.track_cells  # backwards compatibility - Is this still neccesary?
 
         # Clean up annotations
         self.y = clean_up_annotations(self.y, data_format=self.data_format)
