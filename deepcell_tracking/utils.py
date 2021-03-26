@@ -340,6 +340,21 @@ def trks_stats(filename):
     print('Average number of frames per track         - ', int(avg_num_frames_per_track))
 
 
+def get_max_cells(X, y):
+    """Helper function for fetching maximum number of cells in a frame.
+    Can be used for batches/tracks interchangeably with frames/cells
+    """
+    max_cells = 0
+    for frame in range(X.shape[0]):
+        cells = np.unique(y[frame])
+        n_cells = cells[cells != 0].shape[0]
+        if n_cells > max_cells:
+            max_cells = n_cells
+    return max_cells
+
+
+# TODO: This class contains code that could be reused for tracking.py
+#       The only difference is usually doing things by batch vs frame
 class Track(object):
     def __init__(self,
                  path,
@@ -453,35 +468,27 @@ class Track(object):
         self.y = new_y
         self.lineages = new_lineages
 
-    def _get_max_tracks(self):
-        # Get maximum number of tracks in a batch
-        max_tracks = 0
-        for batch in range(self.X.shape[0]):
-            tracks = np.unique(self.y[batch])
-            n_tracks = tracks[tracks != 0].shape[0]
-            if n_tracks > max_tracks:
-                max_tracks = n_tracks
-        return max_tracks
-
     def _normalize_adj_matrix(self, adj, epsilon=1e-5):
         # adj is (batch, node, node, time)
         # get degree matrix
+
         normed_adj = np.zeros(adj.shape, dtype='float32')
         for t in range(adj.shape[-1]):
-            adj_frame = adj[...,t]
+            adj_frame = adj[..., t]
             degrees = np.sum(adj_frame, axis=1)
             degree_matrix = np.zeros(adj_frame.shape, dtype=np.float32)
+
             for batch, degree in enumerate(degrees):
                 degree = (degree + epsilon) ** -0.5
                 degree_matrix[batch] = np.diagflat(degree)
 
             norm_adj = np.matmul(degree_matrix, adj_frame)
             norm_adj = np.matmul(norm_adj, degree_matrix)
-            normed_adj[...,t] = norm_adj
+            normed_adj[..., t] = norm_adj
         return normed_adj
 
     def _create_features(self):
-        max_tracks = self._get_max_tracks()
+        max_tracks = get_max_cells(self.X, self.y)
         n_batches = self.X.shape[0]
         n_frames = self.X.shape[1]
         n_channels = self.X.shape[-1]

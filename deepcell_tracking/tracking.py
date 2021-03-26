@@ -48,6 +48,7 @@ import pandas as pd
 
 from deepcell_tracking.utils import resize
 from deepcell_tracking.utils import clean_up_annotations
+from deepcell_tracking.utils import get_max_cells
 
 
 class CellTracker(object):  # pylint: disable=useless-object-inheritance
@@ -140,16 +141,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Compute_embeddings
         self._compute_embeddings()
 
-    def _get_max_cells(self):
-        """Helper function for fectchin maximum number of cells in a frame
-        """
-        max_cells = 0
-        for frame in range(self.X.shape[0]):
-            cells = np.unique(self.y[frame])
-            n_cells = cells[cells != 0].shape[0]
-            if n_cells > max_cells:
-                max_cells = n_cells
-        return max_cells
 
     def _get_frame(self, tensor, frame):
         """Helper function for fetching a frame of a tensor.
@@ -202,7 +193,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Extract the relevant features from the label movie
         # Appearance, morphologies, centroids, and adjacency matrices
 
-        max_cells = self._get_max_cells()
+        max_cells = get_max_cells(self.X, self.y)
         n_frames = self.X.shape[0]
         n_channels = self.X.shape[-1]
 
