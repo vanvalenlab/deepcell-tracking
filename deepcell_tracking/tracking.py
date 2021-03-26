@@ -65,7 +65,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         birth (float): paramter used to fill the birth matrix in the LAP,
             (bottom left of the cost matrix).
         division (float): probability threshold for assigning daughter cells.
-        max_distance (int): maximum distance to compare cells with the model.
+        distance_threshold (int): maximum distance to compare cells with the model.
         track_length (int): the track length used for the model.
         neighborhood_scale_size (int): neighborhood feature size to pass to the
             model.
@@ -79,14 +79,13 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
     def __init__(self,
                  movie,
                  annotation,
-                 neighborhood_encoder,
                  tracking_model,
+                 neighborhood_encoder,
                  distance_threshold=64,
                  appearance_dim=32,
                  death=0.99,
                  birth=0.99,
                  division=0.9,
-                 max_distance=50,
                  track_length=5,
                  dtype='float32',
                  data_format='channels_last'):
@@ -117,7 +116,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.death = death
         self.birth = birth
         self.division = division
-        self.max_distance = max_distance
         self.dtype = dtype
         self.track_length = track_length
 
@@ -408,7 +406,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         ], axis=0)
 
         l2 = np.linalg.norm(distances, axis=0)
-        is_cell_in_range = np.all(l2 <= self.max_distance)
+        is_cell_in_range = np.all(l2 <= self.distance_threshold)
 
         return distances[0:-1, :], distances[-1, :], is_cell_in_range
 
