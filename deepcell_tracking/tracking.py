@@ -49,6 +49,7 @@ import pandas as pd
 from deepcell_tracking.utils import resize
 from deepcell_tracking.utils import clean_up_annotations
 from deepcell_tracking.utils import get_max_cells
+from deepcell_tracking.utils import normalize_adj_matrix
 
 
 class CellTracker(object):  # pylint: disable=useless-object-inheritance
@@ -134,12 +135,11 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Clean up annotations
         self.y = clean_up_annotations(self.y, data_format=self.data_format)
 
-        # Should change to self.features = _get_create_features() same w/ comput_embeddings
         # Create features
-        self._create_features()
+        self.adj_matrices, self.appearances, self.morphologies, self.centroids = self._get_features()
 
         # Compute_embeddings
-        self._compute_embeddings()
+        self.embeddings = self._get_embeddings()
 
 
     def _get_frame(self, tensor, frame):
@@ -171,25 +171,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         cells = np.delete(cells, np.where(cells == 0))  # remove the background
         return list(cells)
 
-    def _normalize_adj_matrix(self, adj, epsilon=1e-5):
-        # Normalize the adjacency matrix
-        # adj is (cells, cells, time)
-
-        normed_adj = np.zeros(adj.shape, dtype='float32')
-        for t in range(adj.shape[-1]):
-            adj_frame = adj[..., t]
-            degree = np.sum(adj_frame, axis=0)
-            degree_matrix = np.zeros(adj_frame.shape, dtype=np.float32)
-
-            degree = (degree + epsilon) ** -0.5
-            degree_matrix = np.diagflat(degree)
-
-            norm_adj = np.matmul(degree_matrix, adj_frame)
-            norm_adj = np.matmul(norm_adj, degree_matrix)
-            normed_adj[..., t] = norm_adj
-        return normed_adj
-
-    def _create_features(self):
+    # TODO: Can this function be adapted to use _create_features from utils.py?
+    def _get_features(self):
         # Extract the relevant features from the label movie
         # Appearance, morphologies, centroids, and adjacency matrices
 
@@ -248,12 +231,11 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             adj_matrix[:, :, frame] = distance.astype(np.float32)
 
         # Normalize adj matrix
-        self.appearances = appearances
-        self.morphologies = morphologies
-        self.centroids = centroids
-        self.adj_matrices = self._normalize_adj_matrix(adj_matrix)
+        adj_matrices = normalize_adj_matrix(adj_matrix)
 
-    def _compute_embeddings(self):
+        return adj_matrices, appearances, morphologies, centroids
+
+    def _get_embeddings(self):
         # Compute the embeddings using the neighborhood encoder
 
         # Move the time dimension to the batch dimension
@@ -276,7 +258,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Reorder the time dimension
         embeddings = np.transpose(embeddings, axes=(1, 0, 2))
 
-        self.embeddings = embeddings
+        return embeddings
 
     def _check_feature(self, feature_name):
         # Should this be wrapped in a try/except?
@@ -421,8 +403,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                               for n, d in self.tracks.items())
         tracks_with_frames = [(n, f) for n, f in track_valid_frames if len(f) > 0]
 
-        batches = len(tracks_with_frames)
-
         tracked_features = {}
         for i, (n, valid_frames) in enumerate(tracks_with_frames):
             frame_dict = {frame: j for j, frame in enumerate(valid_frames)}
@@ -462,106 +442,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                                                    feature_name=feature_name)
 
         return current_features, future_features
-
-    # def _get_input_pairs(self, frame):
-    #     """Get all input pairs, inputs, and invalid pairs.
-
-    #     Args:
-    #         frame (int): Returns input pairs for only the given frame.
-
-    #     Returns:
-    #         list: input_pairs, list of tuples of frame and cell to use as input.
-    #         dict: inputs for the given input pairs.
-    #         list: invalid pairs of tracks and cells to ignore in assignment.
-    #     """
-    #     cells_in_frame = self.get_cells_in_frame(frame)
-
-    #     # Get the features for previously tracked data
-    #     track_features = self.fetch_tracked_features()
-
-    #     # Get the features for the current frame
-    #     self.frame_features = self.get_frame_features(frame, cells_in_frame)
-
-    #     t = timeit.default_timer()  # don't time the other functions
-    #     # Call model.predict only on inputs that are near each other
-    #     inputs = {feature: ([], []) for feature in self.features}
-    #     input_pairs, invalid_pairs = [], []
-
-    #     # Fill the input matrices
-    #     for track in range(len(self.tracks)):
-    #         # capped tracks are not allowed to have assignments
-    #         if self.tracks[track]['capped']:
-    #             bad_pairs = [(track, c) for c in range(len(cells_in_frame))]
-    #             invalid_pairs.extend(bad_pairs)
-    #             continue
-
-    #         # we need to get the future frame for the track we are comparing to
-    #         try:
-    #             frame_idx = self.tracks[track]['frames'].index(frame - 1)
-    #             track_frame_features = {f: self.tracks[track][f][[frame_idx]]
-    #                                     for f in self.frame_features}
-    #         except ValueError:  # track may not exist in previous frame
-    #             # if this happens, default to the cell's neighborhood
-    #             track_frame_features = dict()
-
-    #         for cell, _ in enumerate(cells_in_frame):
-    #             feature_vals = {}
-
-    #             # If distance is a feature it is used to exclude
-    #             # impossible pairings from the get_feature call
-    #             if 'distance' in self.features:
-    #                 track_feature = track_features['distance'][track]
-    #                 frame_feature = self.frame_features['distance'][cell]
-
-    #                 track_feature, frame_feature, is_cell_in_range = \
-    #                     self.compute_distance(track_feature, frame_feature)
-
-    #                 # Set the distance feature
-    #                 feature_vals['distance'] = (track_feature, frame_feature)
-    #             else:
-    #                 # not worried about distance, just calculate features
-    #                 is_cell_in_range = True
-
-    #             if not is_cell_in_range:
-    #                 # Cell is outside of range, set cost to max and move on
-    #                 invalid_pairs.append((track, cell))
-    #                 continue
-
-    #             # The cell is within range so we should add
-    #             # all the information for all features
-    #             for feature in self.features:
-    #                 if feature == 'distance':
-    #                     continue  # already calculated distance feature
-
-    #                 track_feature = track_features[feature][track]
-    #                 frame_feature = self.frame_features[feature][cell]
-
-    #                 # this condition changes `frame_feature`
-    #                 if feature == 'neighborhood':
-    #                     if '~future area' in track_frame_features:
-    #                         frame_feature = self._get_frame(
-    #                             track_frame_features['~future area'], 0)
-
-    #                 feature_vals[feature] = (track_feature, frame_feature)
-
-    #             input_pairs.append((track, cell))
-    #             for feature, (track_feature, frame_feature) in feature_vals.items():
-    #                 inputs[feature][0].append(track_feature)
-    #                 inputs[feature][1].append(frame_feature)
-
-    #     for feature in self.features:
-    #         in1, in2 = inputs[feature]
-    #         feature_shape = self.get_feature_shape(feature)
-    #         in1 = np.reshape(np.stack(in1),
-    #                          tuple([len(input_pairs), self.track_length] +
-    #                                list(feature_shape)))
-    #         in2 = np.reshape(np.stack(in2), tuple([len(input_pairs), 1] +
-    #                                               list(feature_shape)))
-    #         inputs[feature] = (in1, in2)
-
-    #     self.logger.debug('Got %s input pairs for frame %s in %s s.',
-    #                       len(input_pairs), frame, timeit.default_timer() - t)
-    #     return input_pairs, inputs, invalid_pairs
 
     def _build_cost_matrix(self, assignment_matrix):
         """Build the full cost matrix based on the assignment_matrix.
@@ -614,9 +494,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         future_emb_array = np.stack([future_embeddings[k] for k in future_embeddings.keys()],
                                     axis=0)
         current_cent_array = np.stack([current_centroids[k] for k in current_centroids.keys()],
-                                     axis=0)
+                                      axis=0)
         future_cent_array = np.stack([future_centroids[k] for k in future_centroids.keys()],
-                                    axis=0)
+                                     axis=0)
 
         assignment_shape = (len(current_embeddings), len(future_embeddings))
         assignment_matrix = np.zeros(assignment_shape, dtype=self.dtype)
@@ -636,7 +516,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                   'future_embeddings': future_emb_array,
                   'future_centroids': future_cent_array}
 
-        # Would allow for distance exclusion
+        # TODO: The following was used to support distance exclusion
         # input_pairs, inputs, invalid_pairs = self._get_input_pairs(frame)
 
         t = timeit.default_timer()
@@ -1148,6 +1028,107 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             self.logger.error('Error: More than 2 neighbor nodes')
 
         return lineage, tracked
+
+
+    # def _get_input_pairs(self, frame):
+    #     """Get all input pairs, inputs, and invalid pairs.
+
+    #     Args:
+    #         frame (int): Returns input pairs for only the given frame.
+
+    #     Returns:
+    #         list: input_pairs, list of tuples of frame and cell to use as input.
+    #         dict: inputs for the given input pairs.
+    #         list: invalid pairs of tracks and cells to ignore in assignment.
+    #     """
+    #     cells_in_frame = self.get_cells_in_frame(frame)
+
+    #     # Get the features for previously tracked data
+    #     track_features = self.fetch_tracked_features()
+
+    #     # Get the features for the current frame
+    #     self.frame_features = self.get_frame_features(frame, cells_in_frame)
+
+    #     t = timeit.default_timer()  # don't time the other functions
+    #     # Call model.predict only on inputs that are near each other
+    #     inputs = {feature: ([], []) for feature in self.features}
+    #     input_pairs, invalid_pairs = [], []
+
+    #     # Fill the input matrices
+    #     for track in range(len(self.tracks)):
+    #         # capped tracks are not allowed to have assignments
+    #         if self.tracks[track]['capped']:
+    #             bad_pairs = [(track, c) for c in range(len(cells_in_frame))]
+    #             invalid_pairs.extend(bad_pairs)
+    #             continue
+
+    #         # we need to get the future frame for the track we are comparing to
+    #         try:
+    #             frame_idx = self.tracks[track]['frames'].index(frame - 1)
+    #             track_frame_features = {f: self.tracks[track][f][[frame_idx]]
+    #                                     for f in self.frame_features}
+    #         except ValueError:  # track may not exist in previous frame
+    #             # if this happens, default to the cell's neighborhood
+    #             track_frame_features = dict()
+
+    #         for cell, _ in enumerate(cells_in_frame):
+    #             feature_vals = {}
+
+    #             # If distance is a feature it is used to exclude
+    #             # impossible pairings from the get_feature call
+    #             if 'distance' in self.features:
+    #                 track_feature = track_features['distance'][track]
+    #                 frame_feature = self.frame_features['distance'][cell]
+
+    #                 track_feature, frame_feature, is_cell_in_range = \
+    #                     self.compute_distance(track_feature, frame_feature)
+
+    #                 # Set the distance feature
+    #                 feature_vals['distance'] = (track_feature, frame_feature)
+    #             else:
+    #                 # not worried about distance, just calculate features
+    #                 is_cell_in_range = True
+
+    #             if not is_cell_in_range:
+    #                 # Cell is outside of range, set cost to max and move on
+    #                 invalid_pairs.append((track, cell))
+    #                 continue
+
+    #             # The cell is within range so we should add
+    #             # all the information for all features
+    #             for feature in self.features:
+    #                 if feature == 'distance':
+    #                     continue  # already calculated distance feature
+
+    #                 track_feature = track_features[feature][track]
+    #                 frame_feature = self.frame_features[feature][cell]
+
+    #                 # this condition changes `frame_feature`
+    #                 if feature == 'neighborhood':
+    #                     if '~future area' in track_frame_features:
+    #                         frame_feature = self._get_frame(
+    #                             track_frame_features['~future area'], 0)
+
+    #                 feature_vals[feature] = (track_feature, frame_feature)
+
+    #             input_pairs.append((track, cell))
+    #             for feature, (track_feature, frame_feature) in feature_vals.items():
+    #                 inputs[feature][0].append(track_feature)
+    #                 inputs[feature][1].append(frame_feature)
+
+    #     for feature in self.features:
+    #         in1, in2 = inputs[feature]
+    #         feature_shape = self.get_feature_shape(feature)
+    #         in1 = np.reshape(np.stack(in1),
+    #                          tuple([len(input_pairs), self.track_length] +
+    #                                list(feature_shape)))
+    #         in2 = np.reshape(np.stack(in2), tuple([len(input_pairs), 1] +
+    #                                               list(feature_shape)))
+    #         inputs[feature] = (in1, in2)
+
+    #     self.logger.debug('Got %s input pairs for frame %s in %s s.',
+    #                       len(input_pairs), frame, timeit.default_timer() - t)
+    #     return input_pairs, inputs, invalid_pairs
 
 
 cell_tracker = CellTracker  # allow backwards compatibility imports

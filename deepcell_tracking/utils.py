@@ -46,7 +46,8 @@ from scipy.spatial.distance import cdist
 
 import cv2
 
-from deepcell_toolbox.utils import resize
+# TODO: see if resize utils (exists here on line 90) could be generalized into 1
+# from deepcell_toolbox.utils import resize
 
 
 def clean_up_annotations(y, uid=None, data_format='channels_last'):
@@ -353,6 +354,34 @@ def get_max_cells(X, y):
     return max_cells
 
 
+def normalize_adj_matrix(adj, epsilon=1e-5):
+    # Normalize the adjacency matrix
+
+    normed_adj = np.zeros(adj.shape, dtype='float32')
+    for t in range(adj.shape[-1]):
+        adj_frame = adj[..., t]
+        # setup degree matrix
+        degree_matrix = np.zeros(adj_frame.shape, dtype=np.float32)
+        # determine whether multiple batches being normalized
+        if len(adj.shape) == 4:
+            # adj is (batch, node, node, time)
+            degrees = np.sum(adj_frame, axis=1)
+            for batch, degree in enumerate(degrees):
+                degree = (degree + epsilon) ** -0.5
+                degree_matrix[batch] = np.diagflat(degree)
+
+        elif len(adj.shape) == 3:
+            # adj is (cells, cells, time)
+            norm_adj = np.matmul(degree_matrix, adj_frame)
+            norm_adj = np.matmul(norm_adj, degree_matrix)
+            normed_adj[..., t] = norm_adj
+
+        else:
+            raise ValueError('Only 3 & 4 dim adjacency matrices are supported')
+
+    return normed_adj
+
+
 # TODO: This class contains code that could be reused for tracking.py
 #       The only difference is usually doing things by batch vs frame
 class Track(object):
@@ -468,26 +497,11 @@ class Track(object):
         self.y = new_y
         self.lineages = new_lineages
 
-    def _normalize_adj_matrix(self, adj, epsilon=1e-5):
-        # adj is (batch, node, node, time)
-        # get degree matrix
-
-        normed_adj = np.zeros(adj.shape, dtype='float32')
-        for t in range(adj.shape[-1]):
-            adj_frame = adj[..., t]
-            degrees = np.sum(adj_frame, axis=1)
-            degree_matrix = np.zeros(adj_frame.shape, dtype=np.float32)
-
-            for batch, degree in enumerate(degrees):
-                degree = (degree + epsilon) ** -0.5
-                degree_matrix[batch] = np.diagflat(degree)
-
-            norm_adj = np.matmul(degree_matrix, adj_frame)
-            norm_adj = np.matmul(norm_adj, degree_matrix)
-            normed_adj[..., t] = norm_adj
-        return normed_adj
-
+    # TODO: Can this function be adapted to use _create_features from tracking.py?
     def _create_features(self):
+        # Extract the relevant features from the label movie
+        # Appearance, morphologies, centroids, and adjacency matrices
+
         max_tracks = get_max_cells(self.X, self.y)
         n_batches = self.X.shape[0]
         n_frames = self.X.shape[1]
@@ -531,7 +545,7 @@ class Track(object):
 
         for batch in range(n_batches):
             for frame in range(n_frames):
-                y = self.y[batch, frame,...,0]
+                y = self.y[batch, frame, ..., 0]
                 props = regionprops(y)
                 for prop in props:
                     track_id = prop.label - 1
@@ -540,7 +554,9 @@ class Track(object):
                     centroids[batch, track_id, frame] = np.array(prop.centroid)
 
                     # Get morphology
-                    morphologies[batch, track_id, frame] = np.array([prop.area, prop.perimeter, prop.eccentricity])
+                    morphologies[batch, track_id, frame] = np.array([prop.area,
+                                                                     prop.perimeter,
+                                                                     prop.eccentricity])
 
                     # Get appearance
                     minr, minc, maxr, maxc = prop.bbox
@@ -557,7 +573,7 @@ class Track(object):
                 adj_matrix[batch, :, :, frame] = distance.astype(np.float32)
 
             # Get track length
-            labels = np.unique(self.y[batch,...,0])
+            labels = np.unique(self.y[batch, ..., 0])
             labels = labels[labels != 0]
             for label in labels:
                 track_id = label-1
@@ -592,21 +608,22 @@ class Track(object):
 #                         temporal_adj_matrix[batch, daughter_id, track_id, last_frame, 2] = 1
 
             # Assign different
-            temporal_adj_matrix[batch,...,1] = 1 - temporal_adj_matrix[batch,...,0] - temporal_adj_matrix[batch,...,2]
+            temporal_adj_matrix[batch, ..., 1] = 1 - temporal_adj_matrix[batch, ..., 0] - \
+                                                                temporal_adj_matrix[batch, ..., 2]
 
             # Identify padding
             track_ids = [label-1 for label in labels]
             for i in range(temporal_adj_matrix.shape[1]):
                 if i not in track_ids:
-                    temporal_adj_matrix[batch,i,...] = -1
-                    temporal_adj_matrix[batch,:,i,...] = -1
+                    temporal_adj_matrix[batch, i, ...] = -1
+                    temporal_adj_matrix[batch, :, i, ...] = -1
 
         # Normalize adj matrix
         self.appearances = appearances
         self.morphologies = morphologies
         self.centroids = centroids
         self.adj_matrix = adj_matrix
-        self.norm_adj_matrix = self._normalize_adj_matrix(adj_matrix)
+        self.norm_adj_matrix = normalize_adj_matrix(adj_matrix)
         self.temporal_adj_matrix = temporal_adj_matrix
         self.mask = mask
         self.track_length = track_length
