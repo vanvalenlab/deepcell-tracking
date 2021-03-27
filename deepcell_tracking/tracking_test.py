@@ -77,6 +77,15 @@ class DummyModel(object):  # pylint: disable=useless-object-inheritance
         return np.random.random((batches, 3))
 
 
+class DummyEncoder(object):  # pylint: disable=useless-object-inheritance
+
+    def predict(self, data):
+        # Grab a random value from the data dict and select batch dim
+        batches = 0 if not data else next(iter(data.values())).shape[0]
+
+        return np.random.random((batches, 64, 2))
+
+
 class TestTracking(object):  # pylint: disable=useless-object-inheritance
 
     def test_simple(self):
@@ -85,10 +94,11 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
         x, y = _get_dummy_tracking_data(length, frames=frames)
         num_objects = len(np.unique(y)) - 1
         model = DummyModel()
+        encoder = DummyEncoder()
 
         _ = tracking.CellTracker(x, y,
                                  tracking_model=model,
-                                 neighborhood_encoder=model)
+                                 neighborhood_encoder=encoder)
 
         # test data with bad rank
         with pytest.raises(ValueError):
@@ -96,7 +106,7 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                 np.random.random((32, 32, 1)),
                 np.random.randint(num_objects, size=(32, 32, 1)),
                 tracking_model=model,
-                neighborhood_encoder=model)
+                neighborhood_encoder=encoder)
 
         # test mismatched x and y shape
         with pytest.raises(ValueError):
@@ -104,13 +114,13 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                 np.random.random((3, 32, 32, 1)),
                 np.random.randint(num_objects, size=(2, 32, 32, 1)),
                 tracking_model=model,
-                neighborhood_encoder=model)
+                neighborhood_encoder=encoder)
 
         # test bad data_format
         with pytest.raises(ValueError):
             tracking.CellTracker(x, y,
                                  tracking_model=model,
-                                 neighborhood_encoder=model,
+                                 neighborhood_encoder=encoder,
                                  data_format='invalid')
 
     # def test_get_feature_shape(self):
@@ -146,7 +156,7 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
             tracker = tracking.CellTracker(
                 x, y,
                 tracking_model=DummyModel(),
-                neighborhood_encoder=DummyModel(),
+                neighborhood_encoder=DummyEncoder(),
                 track_length=track_length,
                 data_format=data_format)
 

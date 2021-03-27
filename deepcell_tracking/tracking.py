@@ -136,11 +136,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.y = clean_up_annotations(self.y, data_format=self.data_format)
 
         # Create features
-        self.adj_matrices, self.appearances, self.morphologies, self.centroids = self._get_features()
+        self.adj_matrices, self.appearances, self.morphologies, self.centroids = self._get_feats()
 
         # Compute_embeddings
         self.embeddings = self._get_embeddings()
-
 
     def _get_frame(self, tensor, frame):
         """Helper function for fetching a frame of a tensor.
@@ -172,7 +171,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         return list(cells)
 
     # TODO: Can this function be adapted to use _create_features from utils.py?
-    def _get_features(self):
+    def _get_feats(self):
         # Extract the relevant features from the label movie
         # Appearance, morphologies, centroids, and adjacency matrices
 
@@ -419,7 +418,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         return tracked_features
 
-    def _get_curr_and_futr_feats(self, frame, feature_name='embedding'):
+    def _get_curr_futr_feats(self, frame, feature_name='embedding'):
         """Get embeddings for tracks and candidate cells.
 
         Args:
@@ -485,10 +484,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         Returns:
             tuple: the assignment matrix and the predictions used to build it.
         """
-        current_embeddings, future_embeddings = self._get_curr_and_futr_feats(frame,
-                                                                              feature_name='embedding')
-        current_centroids, future_centroids = self._get_curr_and_futr_feats(frame,
-                                                                            feature_name='centroid')
+        current_embeddings, future_embeddings = self._get_curr_futr_feats(frame,
+                                                                          feature_name='embedding')
+        current_centroids, future_centroids = self._get_curr_futr_feats(frame,
+                                                                        feature_name='centroid')
         current_emb_array = np.stack([current_embeddings[k] for k in current_embeddings.keys()],
                                      axis=0)
         future_emb_array = np.stack([future_embeddings[k] for k in future_embeddings.keys()],
@@ -527,7 +526,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Perform inference
         predictions = self.tracking_model.predict(inputs)
-        predictions = predictions[0, :, :, 0, ...] # Remove the batch and time dimension
+        predictions = predictions[0, :, :, 0, ...]  # Remove the batch and time dimension
         assignment_matrix = 1 - predictions[..., 0]
 
         for track_id in current_embeddings.keys():
@@ -1028,7 +1027,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             self.logger.error('Error: More than 2 neighbor nodes')
 
         return lineage, tracked
-
 
     # def _get_input_pairs(self, frame):
     #     """Get all input pairs, inputs, and invalid pairs.
