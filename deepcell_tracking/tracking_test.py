@@ -82,9 +82,12 @@ class DummyEncoder(object):  # pylint: disable=useless-object-inheritance
     def predict(self, data):
         # Grab a random value from the data dict and select batch dim
         if data:
-            print(next(iter(data.values())).shape)
-        batches = 0 if not data else next(iter(data.values())).shape[1]
-        cells = 0 if not data else next(iter(data.values())).shape[0]
+            pred_shape = next(iter(data.values())).shape
+            batches = pred_shape[1]
+            cells = pred_shape[0]
+        else:
+            batches = 0
+            cells = 0
 
         return [np.random.random((batches, cells, 64)),
                 np.random.random((batches, cells, 2))]
