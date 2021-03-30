@@ -72,14 +72,17 @@ class DummyModel(object):  # pylint: disable=useless-object-inheritance
 
     def predict(self, data):
         # Grab a random value from the data dict and select batch dim
-
         if data:
+            batches = 1
+            frames = 1
             pred_shape = next(iter(data.values())).shape
-            print(pred_shape)
+            cells = pred_shape[1]
+        else:
+            batches = 0
+            frames = 0
+            cells = 0
 
-        batches = 0 if not data else next(iter(data.values())).shape[0]
-
-        return np.random.random((batches, 3))
+        return np.random.random((batches, cells, cells, frames, 3))
 
 
 class DummyEncoder(object):  # pylint: disable=useless-object-inheritance
@@ -91,7 +94,7 @@ class DummyEncoder(object):  # pylint: disable=useless-object-inheritance
         # so grab a random value from the data dict and store correct dim
         if data:
             pred_shape = next(iter(data.values())).shape
-            frames = pred_shape[0] # track length
+            frames = pred_shape[0]  # track length
             cells = pred_shape[1]
         else:
             frames = 0
