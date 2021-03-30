@@ -44,7 +44,7 @@ from deepcell_tracking import tracking
 from deepcell_tracking import utils
 
 
-def _get_dummy_tracking_data(length=128, frames=3,
+def _get_dummy_tracking_data(length=128, frames=6,
                              data_format='channels_last'):
     if data_format == 'channels_last':
         channel_axis = -1
@@ -72,6 +72,11 @@ class DummyModel(object):  # pylint: disable=useless-object-inheritance
 
     def predict(self, data):
         # Grab a random value from the data dict and select batch dim
+
+        if data:
+            pred_shape = next(iter(data.values())).shape
+            print(pred_shape)
+
         batches = 0 if not data else next(iter(data.values())).shape[0]
 
         return np.random.random((batches, 3))
