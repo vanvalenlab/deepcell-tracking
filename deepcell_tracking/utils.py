@@ -467,7 +467,8 @@ class Track(object):
                 if len(daughters) == 0:
                     daughter_frames = None
                 else:
-                    daughter_frames = [self.lineages[batch][daughter]['frames'] for daughter in daughters]
+                    daughter_frames = [self.lineages[batch][daughter]['frames']
+                                       for daughter in daughters]
                     # Check that daughter's start frame is one larger than parent end frame
                     parent_end = parent_frames[-1]
                     daughters_start = [d[0] for d in daughter_frames]
@@ -532,7 +533,7 @@ class Track(object):
         temporal_adj_matrix = np.zeros((n_batches,
                                         max_tracks,
                                         max_tracks,
-                                        n_frames-1,
+                                        n_frames - 1,
                                         3), dtype=np.float32)
 
         mask = np.zeros((n_batches,
@@ -576,7 +577,7 @@ class Track(object):
             labels = np.unique(self.y[batch, ..., 0])
             labels = labels[labels != 0]
             for label in labels:
-                track_id = label-1
+                track_id = label - 1
                 start_frame = self.lineages[batch][label]['frames'][0]
                 end_frame = self.lineages[batch][label]['frames'][-1]
 
@@ -585,14 +586,14 @@ class Track(object):
 
             # Get temporal adjacency matrix
             for label in labels:
-                track_id = label-1
+                track_id = label - 1
 
                 # Assign same
                 frames = self.lineages[batch][label]['frames']
                 frames_0 = frames[0:-1]
                 frames_1 = frames[1:]
                 for frame_0, frame_1 in zip(frames_0, frames_1):
-                    if frame_1-frame_0 == 1:
+                    if frame_1 - frame_0 == 1:
                         temporal_adj_matrix[batch, track_id, track_id, frame_0, 0] = 1
 
                 # Assign daughter
@@ -603,16 +604,16 @@ class Track(object):
                 # cell disappearing and daughter cells appearing
                 if len(daughters) > 0:
                     for daughter in daughters:
-                        daughter_id = daughter-1
+                        daughter_id = daughter - 1
                         temporal_adj_matrix[batch, track_id, daughter_id, last_frame, 2] = 1
 #                         temporal_adj_matrix[batch, daughter_id, track_id, last_frame, 2] = 1
 
             # Assign different
             temporal_adj_matrix[batch, ..., 1] = 1 - temporal_adj_matrix[batch, ..., 0] - \
-                                                                temporal_adj_matrix[batch, ..., 2]
+                                                     temporal_adj_matrix[batch, ..., 2]
 
             # Identify padding
-            track_ids = [label-1 for label in labels]
+            track_ids = [label - 1 for label in labels]
             for i in range(temporal_adj_matrix.shape[1]):
                 if i not in track_ids:
                     temporal_adj_matrix[batch, i, ...] = -1

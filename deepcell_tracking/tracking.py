@@ -251,7 +251,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                   'encoder_centroid_input': cent,
                   'encoder_adj_input': adj}
 
-        embeddings = self.neighborhood_encoder(inputs)[0]
+        embeddings = self.neighborhood_encoder.predict(inputs)[0]
         embeddings = np.array(embeddings)
 
         # Reorder the time dimension
