@@ -44,7 +44,7 @@ from deepcell_tracking import tracking
 from deepcell_tracking import utils
 
 
-def _get_dummy_tracking_data(length=128, frames=6,
+def _get_dummy_tracking_data(length=128, frames=3,
                              data_format='channels_last'):
     if data_format == 'channels_last':
         channel_axis = -1
@@ -208,7 +208,7 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                 data = utils.load_trks(post_saved_path)
                 assert isinstance(data['lineages'], list)
                 assert all(isinstance(d, dict) for d in data['lineages'])
-                np.testing.assert_equal(data['X'], tracker.x)
+                np.testing.assert_equal(data['X'], tracker.X)
                 np.testing.assert_equal(data['y'], tracker.y_tracked)
                 # load trks instead of trk
                 data = utils.load_trks(os.path.join(tempdir, 'all.trks'))
