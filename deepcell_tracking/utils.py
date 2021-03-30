@@ -609,9 +609,9 @@ class Track(object):
 #                         temporal_adj_matrix[batch, daughter_id, track_id, last_frame, 2] = 1
 
             # Assign different
-            temporal_adj_matrix[batch, ..., 1] = 1 - \
-                                                 temporal_adj_matrix[batch, ..., 0] - \
-                                                 temporal_adj_matrix[batch, ..., 2]
+            temporal_adj_matrix[batch, ..., 1] = (1 -
+                                                  temporal_adj_matrix[batch, ..., 0] -
+                                                  temporal_adj_matrix[batch, ..., 2])
 
             # Identify padding
             track_ids = [label - 1 for label in labels]

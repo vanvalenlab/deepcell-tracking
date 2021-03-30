@@ -81,6 +81,8 @@ class DummyEncoder(object):  # pylint: disable=useless-object-inheritance
 
     def predict(self, data):
         # Grab a random value from the data dict and select batch dim
+        if data:
+            print(next(iter(data.values())).shape)
         batches = 0 if not data else next(iter(data.values())).shape[0]
         frames = 0 if not data else next(iter(data.values())).shape[1]
 
