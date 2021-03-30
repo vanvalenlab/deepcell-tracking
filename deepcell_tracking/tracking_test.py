@@ -85,17 +85,20 @@ class DummyModel(object):  # pylint: disable=useless-object-inheritance
 class DummyEncoder(object):  # pylint: disable=useless-object-inheritance
 
     def predict(self, data):
-        # Grab a random value from the data dict and select batch dim
+        # Data should be of the shape (frames, cells, 32, 32, 1)
+        # Where frames = number of images in the movie or X.shape[0]
+        # and   cells = number of cells (unique IDs) in the movie
+        # so grab a random value from the data dict and store correct dim
         if data:
             pred_shape = next(iter(data.values())).shape
-            batches = pred_shape[1]
-            cells = pred_shape[0]
+            frames = pred_shape[0] # track length
+            cells = pred_shape[1]
         else:
-            batches = 0
+            frames = 0
             cells = 0
 
-        return [np.random.random((batches, cells, 64)),
-                np.random.random((batches, cells, 2))]
+        return [np.random.random((frames, cells, 64)),
+                np.random.random((frames, cells, 2))]
 
 
 class TestTracking(object):  # pylint: disable=useless-object-inheritance
