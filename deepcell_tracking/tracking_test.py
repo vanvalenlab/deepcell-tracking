@@ -83,11 +83,11 @@ class DummyEncoder(object):  # pylint: disable=useless-object-inheritance
         # Grab a random value from the data dict and select batch dim
         if data:
             print(next(iter(data.values())).shape)
-        batches = 0 if not data else next(iter(data.values())).shape[0]
-        frames = 0 if not data else next(iter(data.values())).shape[1]
+        batches = 0 if not data else next(iter(data.values())).shape[1]
+        cells = 0 if not data else next(iter(data.values())).shape[0]
 
-        return [np.random.random((batches, frames, 64)),
-                np.random.random((batches, frames, 2))]
+        return [np.random.random((batches, cells, 64)),
+                np.random.random((batches, cells, 2))]
 
 
 class TestTracking(object):  # pylint: disable=useless-object-inheritance
