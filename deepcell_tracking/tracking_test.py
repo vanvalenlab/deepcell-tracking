@@ -82,8 +82,10 @@ class DummyEncoder(object):  # pylint: disable=useless-object-inheritance
     def predict(self, data):
         # Grab a random value from the data dict and select batch dim
         batches = 0 if not data else next(iter(data.values())).shape[0]
+        frames = 0 if not data else next(iter(data.values())).shape[1]
 
-        return np.random.random((batches, 64, 2))
+        return [np.random.random((batches, frames, 64)),
+                np.random.random((batches, frames, 2))]
 
 
 class TestTracking(object):  # pylint: disable=useless-object-inheritance
