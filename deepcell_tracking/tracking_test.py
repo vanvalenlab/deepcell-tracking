@@ -141,24 +141,27 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                                  neighborhood_encoder=encoder,
                                  data_format='invalid')
 
-    # def test_get_feature_shape(self):
-    #     length = 128
-    #     frames = 3
-    #     x, y = _get_dummy_tracking_data(length, frames=frames)
-    #     model = DummyModel()
+    def test_get_feats(self):
+        length = 128
+        frames = 3
+        x, y = _get_dummy_tracking_data(length, frames=frames)
+        model = DummyModel()
+        encoder = DummyEncoder()
 
-    #     for data_format in ('channels_first', 'channels_last'):
-    #         tracker = tracking.CellTracker(x, y,
-    #                                        tracking_model=model,
-    #                                        neighborhood_encoder=model,
-    #                                        data_format=data_format)
+        # TODO: Fix for channels_first
+        for data_format in ('channels_last',):  # 'channels_first'):
 
-    #         for f in tracker.features:
-    #             shape = tracker.get_feature_shape(f)
-    #             assert isinstance(shape, tuple)
+            tracker = tracking.CellTracker(x, y,
+                                           tracking_model=model,
+                                           neighborhood_encoder=encoder,
+                                           data_format=data_format)
 
-    #         with pytest.raises(ValueError):
-    #             tracker.get_feature_shape('bad feature name')
+            for f in tracker.features:
+                shape = tracker.get_feature_shape(f)
+                assert isinstance(shape, tuple)
+
+            with pytest.raises(ValueError):
+                tracker.get_feature_shape('bad feature name')
 
     def test_track_cells(self):
         length = 128

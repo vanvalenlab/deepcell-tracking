@@ -342,8 +342,15 @@ def trks_stats(filename):
 
 
 def get_max_cells(X, y):
-    """Helper function for fetching maximum number of cells in a frame.
+    """Helper function for finding maximum number of cells in a frame.
     Can be used for batches/tracks interchangeably with frames/cells
+
+    Args:
+        X (np.array): Raw images data
+        y (np.array): Annotated image data
+
+    Returns:
+        max_cells (int): The maximum number of cells across all frames
     """
     max_cells = 0
     for frame in range(X.shape[0]):
@@ -403,8 +410,15 @@ class Track(object):
         # Remove bad batches
         self._check_lineages()
 
-        # Create dictionaries
-        self._create_features()
+        # Create feature dictionaries
+        features_dict = self._get_features()
+        self.norm_adj_matrix = features_dict['norm_adj_matrix']
+        self.appearances = features_dict['appearances']
+        self.morphologies = features_dict['morphologies']
+        self.centroids = features_dict['centroids']
+        self.temporal_adj_matrix = features_dict['temporal_adj_matrix']
+        self.mask = features_dict['mask']
+        self.track_length = features_dict['track_length']
 
     def _correct_lineages(self):
         n_batches = self.y.shape[0]
@@ -499,7 +513,7 @@ class Track(object):
         self.lineages = new_lineages
 
     # TODO: Can this function be adapted to use _create_features from tracking.py?
-    def _create_features(self):
+    def _get_features(self):
         # Extract the relevant features from the label movie
         # Appearance, morphologies, centroids, and adjacency matrices
 
@@ -621,11 +635,15 @@ class Track(object):
                     temporal_adj_matrix[batch, :, i, ...] = -1
 
         # Normalize adj matrix
-        self.appearances = appearances
-        self.morphologies = morphologies
-        self.centroids = centroids
-        self.adj_matrix = adj_matrix
-        self.norm_adj_matrix = normalize_adj_matrix(adj_matrix)
-        self.temporal_adj_matrix = temporal_adj_matrix
-        self.mask = mask
-        self.track_length = track_length
+        norm_adj_matrix = normalize_adj_matrix(adj_matrix)
+
+        feature_dict = {}
+        feature_dict['norm_adj_matrix'] = norm_adj_matrix
+        feature_dict['appearances'] = appearances
+        feature_dict['morphologies'] = morphologies
+        feature_dict['centroids'] = centroids
+        feature_dict['temporal_adj_matrix'] = temporal_adj_matrix
+        feature_dict['mask'] = mask
+        feature_dict['track_length'] = track_length
+
+        return feature_dict

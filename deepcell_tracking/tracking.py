@@ -158,10 +158,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         return tensor[frame]
 
     def _get_cells_in_frame(self, frame):
-        """Count the number of cells in the given frame.
+        """Find the labels of cells in the given frame.
 
         Args:
-            frame (int): counts cells in this frame.
+            frame (int): Frame of interest.
 
         Returns:
             list: All cell labels in the frame.
@@ -207,6 +207,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             for cell_idx, prop in enumerate(props):
                 cell_id = prop.label
 
+                # These dictionaries are never used
                 self.id_to_idx[cell_id] = cell_idx
                 self.idx_to_id[cell_idx] = cell_id
 
@@ -230,9 +231,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             adj_matrix[:, :, frame] = distance.astype(np.float32)
 
         # Normalize adj matrix
-        adj_matrices = normalize_adj_matrix(adj_matrix)
+        norm_adj_matrices = normalize_adj_matrix(adj_matrix)
 
-        return adj_matrices, appearances, morphologies, centroids
+        return norm_adj_matrices, appearances, morphologies, centroids
 
     def _get_embeddings(self):
         # Compute the embeddings using the neighborhood encoder
