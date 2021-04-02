@@ -54,7 +54,7 @@ class TestTrackingUtils(object):
         img = sk.measure.label(sk.data.binary_blobs(length=256, n_dim=2)) * 3
         img = np.expand_dims(img, axis=-1)
         img = np.expand_dims(img, axis=0)  # time axis
-        uid = 100
+        uid = 1
 
         cleaned = utils.clean_up_annotations(
             img, uid=uid, data_format='channels_last')

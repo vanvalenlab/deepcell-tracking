@@ -141,7 +141,7 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                                  neighborhood_encoder=encoder,
                                  data_format='invalid')
 
-    def test_get_feats(self):
+    def test_est_feats(self):
         length = 128
         frames = 3
         x, y = _get_dummy_tracking_data(length, frames=frames)

@@ -135,11 +135,14 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Clean up annotations
         self.y = clean_up_annotations(self.y, data_format=self.data_format)
 
-        # Create features
-        self.adj_matrices, self.appearances, self.morphologies, self.centroids = self._get_feats()
+        # Accounting for 0 (background) label with 0-indexing for tracks
+        self.id_to_idx = {}
+        self.idx_to_id = {}
+        # Establish features for every instance of every cell in the movie
+        self.adj_matrices, self.appearances, self.morphologies, self.centroids = self._est_feats()
 
-        # Compute_embeddings
-        self.embeddings = self._get_embeddings()
+        # Compute_embeddings for every instance of every cell in the movie
+        self.embeddings = self._calc_embeddings()
 
     def _get_frame(self, tensor, frame):
         """Helper function for fetching a frame of a tensor.
@@ -171,7 +174,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         return list(cells)
 
     # TODO: Can this function be adapted to use _create_features from utils.py?
-    def _get_feats(self):
+    def _est_feats(self):
         # Extract the relevant features from the label movie
         # Appearance, morphologies, centroids, and adjacency matrices
 
@@ -197,19 +200,16 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                                max_cells,
                                n_frames), dtype=np.float32)
 
-        self.id_to_idx = {}
-        self.idx_to_id = {}
-
+        cell_idx = 0  # could be replaced by tuple of (cell_dix, frame) in loop
         for frame in range(n_frames):
             y = self.y[frame, ..., 0]
             props = regionprops(y)
 
-            for cell_idx, prop in enumerate(props):
+            for prop in props:
                 cell_id = prop.label
 
-                # These dictionaries are never used
                 self.id_to_idx[cell_id] = cell_idx
-                self.idx_to_id[cell_idx] = cell_id
+                self.idx_to_id[cell_idx] = cell_id  # CELL_IDX IS CLASHING HERE - it will end up being 0 at every new frame
 
                 # Get centroid
                 centroids[cell_idx, frame] = np.array(prop.centroid)
@@ -225,6 +225,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 resize_shape = (self.appearance_dim, self.appearance_dim)
                 appearances[cell_idx, frame] = resize(appearance, resize_shape)
 
+                cell_idx += 1
+
             # Get adjacency matrix
             cent = centroids[:, frame, :]
             distance = cdist(cent, cent, metric='euclidean') < self.distance_threshold
@@ -235,7 +237,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         return norm_adj_matrices, appearances, morphologies, centroids
 
-    def _get_embeddings(self):
+    def _calc_embeddings(self):
         # Compute the embeddings using the neighborhood encoder
 
         # Move the time dimension to the batch dimension
@@ -489,13 +491,13 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                                                                           feature_name='embedding')
         current_centroids, future_centroids = self._get_curr_futr_feats(frame,
                                                                         feature_name='centroid')
-        current_emb_array = np.stack([current_embeddings[k] for k in current_embeddings.keys()],
+        current_emb_array = np.stack([current_embeddings[k] for k in current_embeddings],
                                      axis=0)
-        future_emb_array = np.stack([future_embeddings[k] for k in future_embeddings.keys()],
+        future_emb_array = np.stack([future_embeddings[k] for k in future_embeddings],
                                     axis=0)
-        current_cent_array = np.stack([current_centroids[k] for k in current_centroids.keys()],
+        current_cent_array = np.stack([current_centroids[k] for k in current_centroids],
                                       axis=0)
-        future_cent_array = np.stack([future_centroids[k] for k in future_centroids.keys()],
+        future_cent_array = np.stack([future_centroids[k] for k in future_centroids],
                                      axis=0)
 
         assignment_shape = (len(current_embeddings), len(future_embeddings))
@@ -530,7 +532,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         predictions = predictions[0, :, :, 0, ...]  # Remove the batch and time dimension
         assignment_matrix = 1 - predictions[..., 0]
 
-        for track_id in current_embeddings.keys():
+        for track_id in current_embeddings:
             if self.tracks[track_id]['capped']:
                 assignment_matrix[track_id, :] = 1
 

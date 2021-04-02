@@ -342,7 +342,7 @@ def trks_stats(filename):
 
 
 def get_max_cells(X, y):
-    """Helper function for finding maximum number of cells in a frame.
+    """Helper function for finding maximum number of cells in a movie.
     Can be used for batches/tracks interchangeably with frames/cells
 
     Args:
