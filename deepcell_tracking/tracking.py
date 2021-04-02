@@ -200,16 +200,15 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                                max_cells,
                                n_frames), dtype=np.float32)
 
-        cell_idx = 0  # could be replaced by tuple of (cell_dix, frame) in loop
         for frame in range(n_frames):
             y = self.y[frame, ..., 0]
             props = regionprops(y)
 
-            for prop in props:
+            for cell_idx, prop in enumerate(props):
                 cell_id = prop.label
 
                 self.id_to_idx[cell_id] = cell_idx
-                self.idx_to_id[cell_idx] = cell_id  # CELL_IDX IS CLASHING HERE - it will end up being 0 at every new frame
+#                self.idx_to_id[cell_idx] = cell_id  # CELL_IDX IS CLASHING HERE - it will end up being 0 at every new frame
 
                 # Get centroid
                 centroids[cell_idx, frame] = np.array(prop.centroid)
@@ -224,8 +223,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 appearance = np.copy(self.X[frame, minr:maxr, minc:maxc, :])
                 resize_shape = (self.appearance_dim, self.appearance_dim)
                 appearances[cell_idx, frame] = resize(appearance, resize_shape)
-
-                cell_idx += 1
 
             # Get adjacency matrix
             cent = centroids[:, frame, :]
