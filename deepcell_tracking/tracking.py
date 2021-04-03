@@ -354,7 +354,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             self._create_new_track(frame, cell_id)
 
         # Start a tracked label array
-        self.y_tracked = self.y[[frame]].astype('int32')
+        self.y_tracked = self.y[[frame]].astype('int32')  # TODO: This could be a source of error - we are assigning a pointer not instantiating a new object
 
     def compute_distance(self, track_centroids, frame_centroids):
         """Computes the distance between two centroids.
