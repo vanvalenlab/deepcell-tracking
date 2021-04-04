@@ -208,7 +208,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 cell_id = prop.label
 
                 self.id_to_idx[cell_id] = cell_idx
-#                self.idx_to_id[cell_idx] = cell_id  # CELL_IDX IS CLASHING HERE - it will end up being 0 at every new frame
+#                self.idx_to_id[cell_idx] = cell_id
+                # CELL_IDX IS CLASHING HERE - it will end up being 0 at every new frame
 
                 # Get centroid
                 centroids[cell_idx, frame] = np.array(prop.centroid)

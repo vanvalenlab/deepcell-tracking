@@ -47,16 +47,25 @@ def _get_image(img_h=300, img_w=300):
     img = np.random.rand(img_w, img_h) * variance + bias
     return img
 
+
 def _get_annotated_image(img_size=256, num_labels=3, sequential=True, seed=1):
     np.random.seed(seed)
-    im = np.zeros((img_size, img_size))
-    points = img_size * np.random.random((2, num_labels))
-    im[(points[0]).astype(np.int), (points[1]).astype(np.int)] = 1
-    im = sk.filters.gaussian(im, sigma=5)
-    blobs = im > 0.7 * im.mean()
-    all_labels, num_labels_act = sk.measure.label(blobs, return_num=True)
-    assert num_labels == num_labels_act, 'Labels have merged. Increase image ' \
-                                         'size or reduce the number of labels'
+    num_labels_act = False
+    trial = 0
+    while(num_labels != num_labels_act):
+        if trial > 10:
+            raise Exception('Labels have merged despite 10 different random seeds.'
+                            ' Increase image size or reduce the number of labels')
+        im = np.zeros((img_size, img_size))
+        points = img_size * np.random.random((2, num_labels))
+        im[(points[0]).astype(np.int), (points[1]).astype(np.int)] = 1
+        im = filters.gaussian(im, sigma=5)
+        blobs = im > 0.7 * im.mean()
+        all_labels, num_labels_act = measure.label(blobs, return_num=True)
+        if num_labels != num_labels_act:
+            seed += 1
+            np.random.seed(seed)
+            trial += 1
 
     if not sequential:
         labels_in_frame = np.unique(all_labels)
@@ -70,6 +79,7 @@ def _get_annotated_image(img_size=256, num_labels=3, sequential=True, seed=1):
             all_labels[:, :][label_loc] = new_label
 
     return all_labels.astype('int32')
+
 
 def _get_annotated_movie(img_size=256, labels_per_frame=3, frames=3,
                          mov_type='sequential', seed=1,
