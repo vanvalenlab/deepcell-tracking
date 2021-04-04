@@ -140,6 +140,23 @@ class TestTrackingUtils(object):
         expected[0] = 0  # background shouldn't get added
         np.testing.assert_equal(expected, unique)
 
+        # Correctness check
+        for mov_type in ('random', 'repeated'):
+            labels_per_frame = 3
+            frames = 3
+            movie = _get_annotated_movie(img_size=256,
+                                         labels_per_frame=labels_per_frame,
+                                         frames=frames,
+                                         mov_type=mov_type, seed=1,
+                                         data_format='channels_last')
+            cleaned = utils.clean_up_annotations(movie)
+            for frame in range(frames):
+                unique = np.unique(cleaned[frame, :, :, 0])
+                start = (frame*labels_per_frame) + 1
+                end = labels_per_frame * (frame + 1)
+                expected = np.arange(start, end + 1, 1, dtype='int32')
+                np.testing.assert_array_equal(unique, expected)
+
     def test_resize(self):
         channel_sizes = (3, 1)  # skimage used for multi-channel, cv2 otherwise
         for c in channel_sizes:
@@ -203,3 +220,15 @@ class TestTrackingUtils(object):
             except OSError as exc:
                 if exc.errno != errno.ENOENT:  # no such file or directory
                     raise  # re-raise exception
+
+    def test_get_max_cells(self):
+        labels_per_frame = 5
+        frames = 5
+        expected_max = labels_per_frame * frames
+        y = _get_annotated_movie(img_size=256,
+                                 labels_per_frame=labels_per_frame,
+                                 frames=frames,
+                                 mov_type='sequential', seed=1,
+                                 data_format='channels_last')
+        calculated_max = utils.get_max_cells(y)
+        assert expected_max == calculated_max

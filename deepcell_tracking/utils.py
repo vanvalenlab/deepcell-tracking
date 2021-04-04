@@ -341,19 +341,18 @@ def trks_stats(filename):
     print('Average number of frames per track         - ', int(avg_num_frames_per_track))
 
 
-def get_max_cells(X, y):
+def get_max_cells(y):
     """Helper function for finding maximum number of cells in a movie.
     Can be used for batches/tracks interchangeably with frames/cells
 
     Args:
-        X (np.array): Raw images data
         y (np.array): Annotated image data
 
     Returns:
         max_cells (int): The maximum number of cells across all frames
     """
     max_cells = 0
-    for frame in range(X.shape[0]):
+    for frame in range(y.shape[0]):
         cells = np.unique(y[frame])
         n_cells = cells[cells != 0].shape[0]
         if n_cells > max_cells:
@@ -517,7 +516,7 @@ class Track(object):
         # Extract the relevant features from the label movie
         # Appearance, morphologies, centroids, and adjacency matrices
 
-        max_tracks = get_max_cells(self.X, self.y)
+        max_tracks = get_max_cells(self.y)
         n_batches = self.X.shape[0]
         n_frames = self.X.shape[1]
         n_channels = self.X.shape[-1]
