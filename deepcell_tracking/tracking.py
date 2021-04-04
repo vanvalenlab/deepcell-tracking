@@ -178,7 +178,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Extract the relevant features from the label movie
         # Appearance, morphologies, centroids, and adjacency matrices
 
-        max_cells = get_max_cells(self.y)
+        max_cells = get_max_cells(self.X, self.y)
         n_frames = self.X.shape[0]
         n_channels = self.X.shape[-1]
 
