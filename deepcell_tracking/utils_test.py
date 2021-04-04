@@ -155,6 +155,8 @@ class TestTrackingUtils(object):
                 start = (frame*labels_per_frame) + 1
                 end = labels_per_frame * (frame + 1)
                 expected = np.arange(start, end + 1, 1, dtype='int32')
+                if start != 0:
+                    expected = np.append(0, expected)
                 np.testing.assert_array_equal(unique, expected)
 
     def test_resize(self):
