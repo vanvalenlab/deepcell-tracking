@@ -149,10 +149,10 @@ class TestTrackingUtils(object):
                                          frames=frames,
                                          mov_type=mov_type, seed=1,
                                          data_format='channels_last')
-            cleaned = utils.clean_up_annotations(movie)
+            cleaned = utils.clean_up_annotations(movie, uid=uid)
             for frame in range(frames):
                 unique = np.unique(cleaned[frame, :, :, 0])
-                start = (frame*labels_per_frame) + 1
+                start = (frame * labels_per_frame) + 1
                 end = labels_per_frame * (frame + 1)
                 expected = np.arange(start, end + 1, 1, dtype='int32')
                 if start != 0:
