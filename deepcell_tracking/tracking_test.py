@@ -141,20 +141,20 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                                  neighborhood_encoder=encoder,
                                  data_format='invalid')
 
-    def test_est_feats(self):
-        length = 128
-        frames = 3
-        x, y = _get_dummy_tracking_data(length, frames=frames)
-        model = DummyModel()
-        encoder = DummyEncoder()
+    # def test_est_feats(self):
+    #     length = 128
+    #     frames = 3
+    #     x, y = _get_dummy_tracking_data(length, frames=frames)
+    #     model = DummyModel()
+    #     encoder = DummyEncoder()
 
-        # TODO: Fix for channels_first
-        for data_format in ('channels_last',):  # 'channels_first'):
+    #     # TODO: Fix for channels_first
+    #     for data_format in ('channels_last',):  # 'channels_first'):
 
-            tracker = tracking.CellTracker(x, y,
-                                           tracking_model=model,
-                                           neighborhood_encoder=encoder,
-                                           data_format=data_format)
+    #         tracker = tracking.CellTracker(x, y,
+    #                                        tracking_model=model,
+    #                                        neighborhood_encoder=encoder,
+    #                                        data_format=data_format)
 
             # for f in tracker.features:
             #     shape = tracker.get_feature_shape(f)
