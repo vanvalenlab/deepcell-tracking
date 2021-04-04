@@ -135,9 +135,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Clean up annotations
         self.y = clean_up_annotations(self.y, data_format=self.data_format)
 
-        # Accounting for 0 (background) label with 0-indexing for tracks
-        self.id_to_idx = {}
-        self.idx_to_id = {}
         # Establish features for every instance of every cell in the movie
         self.adj_matrices, self.appearances, self.morphologies, self.centroids = self._est_feats()
 
@@ -200,6 +197,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                                max_cells,
                                n_frames), dtype=np.float32)
 
+        # Accounting for 0 (background) label with 0-indexing for tracks
+        self.id_to_idx = {}
+        self.idx_to_id = {}
+
         for frame in range(n_frames):
             y = self.y[frame, ..., 0]
             props = regionprops(y)
@@ -208,7 +209,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 cell_id = prop.label
 
                 self.id_to_idx[cell_id] = cell_idx
-#                self.idx_to_id[cell_idx] = cell_id
+                self.idx_to_id[cell_idx] = cell_id
                 # CELL_IDX IS CLASHING HERE - it will end up being 0 at every new frame
 
                 # Get centroid

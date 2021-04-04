@@ -411,10 +411,11 @@ class Track(object):
 
         # Create feature dictionaries
         features_dict = self._get_features()
-        self.norm_adj_matrix = features_dict['norm_adj_matrix']
         self.appearances = features_dict['appearances']
         self.morphologies = features_dict['morphologies']
         self.centroids = features_dict['centroids']
+        self.adj_matrix = features_dict['adj_matrix']
+        self.norm_adj_matrix = features_dict['norm_adj_matrix']
         self.temporal_adj_matrix = features_dict['temporal_adj_matrix']
         self.mask = features_dict['mask']
         self.track_length = features_dict['track_length']
@@ -637,6 +638,7 @@ class Track(object):
         norm_adj_matrix = normalize_adj_matrix(adj_matrix)
 
         feature_dict = {}
+        feature_dict['adj_matrix'] = adj_matrix
         feature_dict['norm_adj_matrix'] = norm_adj_matrix
         feature_dict['appearances'] = appearances
         feature_dict['morphologies'] = morphologies
