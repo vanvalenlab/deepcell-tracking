@@ -342,14 +342,14 @@ def trks_stats(filename):
 
 
 def get_max_cells(y):
-    """Helper function for finding maximum number of cells in a movie.
-    Can be used for batches/tracks interchangeably with frames/cells
+    """Helper function for finding the maximum number of cells in a frame of a movie, across
+    all frames of the movie. Can be used for batches/tracks interchangeably with frames/cells.
 
     Args:
         y (np.array): Annotated image data
 
     Returns:
-        max_cells (int): The maximum number of cells across all frames
+        max_cells (int): The maximum number of cells in any frame
     """
     max_cells = 0
     for frame in range(y.shape[0]):

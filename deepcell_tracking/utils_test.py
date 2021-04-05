@@ -235,12 +235,23 @@ class TestTrackingUtils(object):
 
     def test_get_max_cells(self):
         labels_per_frame = 5
-        frames = 5
-        expected_max = labels_per_frame * frames
-        y = _get_annotated_movie(img_size=256,
-                                 labels_per_frame=labels_per_frame,
-                                 frames=frames,
-                                 mov_type='sequential', seed=1,
-                                 data_format='channels_last')
+        frames = 2
+        expected_max = labels_per_frame * 2
+        y1 = _get_annotated_movie(img_size=256,
+                                  labels_per_frame=labels_per_frame,
+                                  frames=frames,
+                                  mov_type='sequential', seed=1,
+                                  data_format='channels_last')
+        y2 = _get_annotated_movie(img_size=256,
+                                  labels_per_frame=labels_per_frame * 2,
+                                  frames=frames,
+                                  mov_type='sequential', seed=2,
+                                  data_format='channels_last')
+        y3 = _get_annotated_movie(img_size=256,
+                                  labels_per_frame=labels_per_frame,
+                                  frames=frames,
+                                  mov_type='sequential', seed=3,
+                                  data_format='channels_last')
+        y = np.concatenate((y1, y2, y3))
         calculated_max = utils.get_max_cells(y)
         assert expected_max == calculated_max
