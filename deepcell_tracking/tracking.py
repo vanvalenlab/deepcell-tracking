@@ -137,7 +137,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Accounting for 0 (background) label with 0-indexing for tracks
         self.id_to_idx = {}
-        # self.idx_to_id = {}  # Not used in track.py outside of assignment
+        self.idx_to_id = {}  # Not used in track.py outside of assignment but causes indexerror in predictions dict if not used
 
         # Establish features for every instance of every cell in the movie
         self.adj_matrices, self.appearances, self.morphologies, self.centroids = self._est_feats()
@@ -209,7 +209,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 cell_id = prop.label
 
                 self.id_to_idx[cell_id] = cell_idx
-                # self.idx_to_id[cell_idx] = cell_id
+                self.idx_to_id[cell_idx] = cell_id
                 # CELL_IDX IS CLASHING HERE - it will end up being 0 at every new frame
 
                 # Get centroid
