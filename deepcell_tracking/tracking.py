@@ -355,7 +355,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             self._create_new_track(frame, cell_id)
 
         # Start a tracked label array
-        self.y_tracked = self.y[[frame]].astype('int32')  # TODO: This could be a source of error - we are assigning a pointer not instantiating a new object
+        # TODO: This could be a source of error!
+        # we are assigning a pointer not instantiating a new object
+        self.y_tracked = self.y[[frame]].astype('int32')
 
     def compute_distance(self, track_centroids, frame_centroids):
         """Computes the distance between two centroids.
@@ -485,18 +487,17 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         Returns:
             tuple: the assignment matrix and the predictions used to build it.
         """
-        current_embeddings, future_embeddings = self._get_curr_futr_feats(frame,
-                                                                          feature_name='embedding')
-        current_centroids, future_centroids = self._get_curr_futr_feats(frame,
-                                                                        feature_name='centroid')
-        current_emb_array = np.stack([current_embeddings[k] for k in current_embeddings],
-                                     axis=0)
-        future_emb_array = np.stack([future_embeddings[k] for k in future_embeddings],
-                                    axis=0)
-        current_cent_array = np.stack([current_centroids[k] for k in current_centroids],
-                                      axis=0)
-        future_cent_array = np.stack([future_centroids[k] for k in future_centroids],
-                                     axis=0)
+        current_embeddings, future_embeddings = self._get_curr_futr_feats(
+            frame, feature_name='embedding')
+
+        current_centroids, future_centroids = self._get_curr_futr_feats(
+            frame, feature_name='centroid')
+
+        current_emb_array = np.stack([current_embeddings[k] for k in current_embeddings], axis=0)
+        future_emb_array = np.stack([future_embeddings[k] for k in future_embeddings], axis=0)
+
+        current_cent_array = np.stack([current_centroids[k] for k in current_centroids], axis=0)
+        future_cent_array = np.stack([future_centroids[k] for k in future_centroids], axis=0)
 
         assignment_shape = (len(current_embeddings), len(future_embeddings))
         assignment_matrix = np.zeros(assignment_shape, dtype=self.dtype)
