@@ -611,7 +611,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 self.logger.info('Created new track for cell %s.', new_label)
 
                 # See if the new track has a parent
-                parent = self._get_parent(frame, cell_id, predictions)
+                parent = self._get_parent(frame, cell, predictions)
                 if parent is not None:
                     self.logger.info('Detected division! Cell %s is daughter '
                                      'of cell %s.', new_label, parent + 1)
@@ -683,13 +683,13 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         for track_id in range(predictions.shape[0]):
             for cell_idx in range(predictions.shape[1]):
-                cell_id = self.idx_to_id[(frame, cell_idx)]
+                # cell_id = self.idx_to_id[(frame, cell_idx)]
                 # prob cell is part of the track
 
                 prob = predictions_dict['predictions'][track_id, cell_idx, 2]
 
                 # Make sure capped tracks can't be assigned parents
-                if cell_id == cell and not self.tracks[track_id]['capped']:
+                if cell_idx == cell and not self.tracks[track_id]['capped']:
                     # Do not call a newly-appeared sibling of "cell" a parent
                     if self.tracks[track_id]['frames'] == [frame]:
                         continue
