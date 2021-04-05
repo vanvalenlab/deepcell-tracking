@@ -136,8 +136,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.y = clean_up_annotations(self.y, data_format=self.data_format)
 
         # Accounting for 0 (background) label with 0-indexing for tracks
-        self.id_to_idx = {}
-        # self.idx_to_id = {}  # Not used in track.py outside of assignment but causes indexerror in predictions dict if not used
+        self.id_to_idx = {}  # int: int mapping
+        self.idx_to_id = {}  # (frame, cell_idx): cell_id mapping
 
         # Establish features for every instance of every cell in the movie
         self.adj_matrices, self.appearances, self.morphologies, self.centroids = self._est_feats()
@@ -209,8 +209,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 cell_id = prop.label
 
                 self.id_to_idx[cell_id] = cell_idx
-                # self.idx_to_id[cell_idx] = cell_id
-                # CELL_IDX IS CLASHING HERE - it will end up being 0 at every new frame
+                self.idx_to_id[(frame, cell_idx)] = cell_id
 
                 # Get centroid
                 centroids[cell_idx, frame] = np.array(prop.centroid)
@@ -237,7 +236,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         return norm_adj_matrices, appearances, morphologies, centroids
 
     def _calc_embeddings(self):
-        # Compute the embeddings using the neighborhood encoder
+        """Compute the embeddings using the neighborhood encoder"""
 
         # Move the time dimension to the batch dimension
         # DVV Note - if we moved the time dimension ahead of the cells dimension
@@ -678,10 +677,15 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         """
         parent_id = None
         max_prob = self.division
-        for track_idx, track_id in enumerate(predictions_dict['current_embeddings'].keys()):
-            for cell_idx, cell_id in enumerate(predictions_dict['future_embeddings'].keys()):
+
+        predictions = predictions_dict['predictions']
+
+        for track_id in range(predictions.shape[0]):
+            for cell_idx in range(predictions.shape[1]):
+                cell_id = self.idx_to_id[(frame, cell_idx)]
                 # prob cell is part of the track
-                prob = predictions_dict['predictions'][track_idx, cell_idx, 2]
+
+                prob = predictions_dict['predictions'][track_id, cell_idx, 2]
 
                 # Make sure capped tracks can't be assigned parents
                 if cell_id == cell and not self.tracks[track_id]['capped']:
