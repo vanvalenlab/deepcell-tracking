@@ -30,14 +30,14 @@ from __future__ import division
 from __future__ import print_function
 
 from collections import Counter
+from skimage.measure import regionprops
 
 import networkx as nx
 import numpy as np
 import pandas as pd
 
-from skimage.measure import regionprops
 from deepcell.utils.compute_overlap import compute_overlap
-
+from deepcell_tracking.utils import load_trks
 
 def trk_to_isbi(track, path):
     """Convert a lineage track into an ISBI formatted text file.
@@ -265,7 +265,7 @@ def classify_divisions(G_gt, G_res):
     WARNING: This function will only work if the labels underlying both
     graphs are the same. E.G. the parents only match if the same label
     splits in the same frame - but each movie isn't guaranteed to be labeled
-    in the same way (with the same order).
+    in the same way (with the same order). Should be used with match_nodes
 
     Args:
         G_gt (networkx.Graph): Ground truth cell lineage graph.
@@ -326,3 +326,44 @@ def classify_divisions(G_gt, G_res):
         'False positive division': false_positive,
         'False negative division': missed
     }
+
+
+def benchmark_division_performance(trk_gt, trk_res, path_gt, path_res):
+    """Compare two graphs and calculate the cell division confusion matrix.
+
+    Args:
+        trk_gt (path): Path to the ground truth .trk file.
+        trk_res (path): Path to the predicted results .trk file.
+        path_gt (path): Desired destination path for the GT ISBI-style .txt file.
+        path_res (path): Desired destination path for the result ISBI-style .txt file.
+
+    Returns:
+        dict: Diciontary of all division statistics.
+    """
+    # Identify nodes with parent attribute
+    # Load both .trk
+    trks = load_trks(trk_gt)
+    lineage_gt, _, y_gt = trks['lineages'][0], trks['X'], trks['y']
+    trks = load_trks(trk_res)
+    lineage_res, raw, y_res = trks['lineages'][0], trks['X'], trks['y']
+
+    # Produce ISBI style text doc to work with
+    trk_to_isbi(lineage_gt, path_gt)
+    trk_to_isbi(lineage_res, path_res)
+
+    # Match up labels in GT to Results to allow for direct comparisons
+    cells_gt, cells_res = match_nodes(y_gt, y_res)
+
+    if len(np.unique(cells_res)) < len(np.unique(cells_gt)):
+        node_key = {r:g for g,r in zip(cells_gt,cells_res)}
+        # node_key maps gt nodes onto resnodes so must be applied to gt
+        G_res = txt_to_graph(path_res, node_key=node_key)
+        G_gt = txt_to_graph(path_gt)
+        div_results = classify_divisions(G_gt,G_res)
+    else:
+        node_key = {g:r for g,r in zip(cells_gt,cells_res)}
+        G_res = txt_to_graph(path_res)
+        G_gt = txt_to_graph(path_gt, node_key=node_key)
+        div_results = classify_divisions(G_gt,G_res)
+
+    return div_results
