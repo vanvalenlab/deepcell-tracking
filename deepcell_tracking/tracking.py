@@ -639,9 +639,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 continue  # Filter out tracks that are not in the frame
 
             # Create new track
-            if self.tracks[track]['label'] == 25:
-                import pdb
-                pdb.set_trace()
             new_track_id = len(self.tracks)
             new_label = new_track_id + 1
             self._create_new_track(frame, self.tracks[track]['frame_labels'][-1])
@@ -659,8 +656,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             self.tracks[track]['daughters'].append(new_track_id)
 
             # Change y_tracked_update
-            y_tracked_update[self.y[[frame]] == new_label] = new_track_id + 1
-            self.y[frame][self.y[frame] == new_label] = new_track_id + 1
+            old_label = self.tracks[track]['label']
+            y_tracked_update[self.y[[frame]] == old_label] = new_label
+            # TODO: Having y and y_tracked is redundant. only one should be changed
+            self.y[frame][self.y[frame] == old_label] = new_label
 
         # Update the tracked label array
         self.y_tracked = np.concatenate([self.y_tracked, y_tracked_update], axis=0)
