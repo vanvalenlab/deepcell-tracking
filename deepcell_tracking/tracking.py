@@ -639,7 +639,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 continue  # Filter out tracks that are not in the frame
 
             # Create new track
-            if track['label'] == 25:
+            if self.tracks[track]['label'] == 25:
                 import pdb
                 pdb.set_trace()
             new_track_id = len(self.tracks)
