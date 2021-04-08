@@ -199,6 +199,11 @@ def txt_to_graph(path):
 def classify_divisions(G_gt, G_res):
     """Compare two graphs and calculate the cell division confusion matrix.
 
+    WARNING: This function will only work if the labels underlying both
+    graphs are the same. E.G. the parents only match if the same label
+    splits in the same frame - but each movie isn't guaranteed to be labeled
+    in the same way (with the same order).
+
     Args:
         G_gt (networkx.Graph): Ground truth cell lineage graph.
         G_res (networkx.Graph): Predicted cell lineage graph.
