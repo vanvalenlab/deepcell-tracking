@@ -35,6 +35,9 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
+from skimage.measure import regionprops
+from deepcell.utils.compute_overlap import compute_overlap
+
 
 def trk_to_isbi(track, path):
     """Convert a lineage track into an ISBI formatted text file.
@@ -126,7 +129,64 @@ def contig_tracks(label, batch_info, batch_tracked):
     return batch_info, batch_tracked
 
 
-def txt_to_graph(path):
+def match_nodes(gt, res):
+    """Relabel predicted track to match GT track labels.
+
+    Args:
+        gt (np arr): label movie (y) from ground truth .trk file.
+        res (np arr): label movie (y) from predicted results .trk file
+        threshold (int): threshold value for IoU to count as same cell
+
+    Returns:
+        gtcells (np arr): Array of overlapping ids in the gt movie.
+        rescells (np arr): Array of overlapping ids in the res movie.
+
+    Raises:
+        ValueError: If .
+    """
+
+    num_frames = gt.shape[0]
+    iou = np.zeros((num_frames, np.max(gt)+1, np.max(res)+1))
+
+    # TODO: Compute IOUs only when neccesary
+    # If bboxs for true and pred do not overlap with each other, the assignment is immediate
+    # Otherwise use pixel-wise IOU to determine which cell is which
+
+    # Regionprops expects one frame at a time
+    for frame in range(num_frames):
+        gt_frame = gt[frame]
+        res_frame = res[frame]
+
+        gt_props = regionprops(np.squeeze(gt_frame.astype('int')))
+        gt_boxes = [np.array(gt_prop.bbox) for gt_prop in gt_props]
+        gt_boxes = np.array(gt_boxes).astype('double')
+        gt_box_labels = [int(gt_prop.label) for gt_prop in gt_props]
+
+        res_props = regionprops(np.squeeze(res_frame.astype('int')))
+        res_boxes = [np.array(res_prop.bbox) for res_prop in res_props]
+        res_boxes = np.array(res_boxes).astype('double')
+        res_box_labels = [int(res_prop.label) for res_prop in res_props]
+
+        overlaps = compute_overlap(gt_boxes, res_boxes)    # has the form [gt_bbox, res_bbox]
+
+        # Find the bboxes that have overlap at all (ind_ corresponds to box number - starting at 0)
+        ind_gt, ind_res = np.nonzero(overlaps)
+
+        #frame_ious = np.zeros(overlaps.shape)
+        for index in range(ind_gt.shape[0]):
+
+            iou_gt_idx = gt_box_labels[ind_gt[index]]
+            iou_res_idx = res_box_labels[ind_res[index]]
+            intersection = np.logical_and(gt_frame==iou_gt_idx, res_frame==iou_res_idx)
+            union = np.logical_or(gt_frame==iou_gt_idx, res_frame==iou_res_idx)
+            iou[frame, iou_gt_idx, iou_res_idx] = intersection.sum() / union.sum()
+
+    gtcells, rescells = np.where(np.nansum(iou,axis=0)>=1)
+
+    return gtcells, rescells
+
+
+def txt_to_graph(path, node_key=None):
     """Read the ISBI text file and create a Graph.
 
     Args:
@@ -140,6 +200,9 @@ def txt_to_graph(path):
     """
     names = ['Cell_ID', 'Start', 'End', 'Parent_ID']
     df = pd.read_csv(path, header=None, sep=' ', names=names)
+
+    if node_key != None:
+        df[['Cell_ID','Parent_ID']] = df[['Cell_ID','Parent_ID']].replace(node_key)
 
     edges = pd.DataFrame()
 
