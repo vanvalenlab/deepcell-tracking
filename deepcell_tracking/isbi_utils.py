@@ -329,7 +329,11 @@ def classify_divisions(G_gt, G_res):
 
 
 def benchmark_division_performance(trk_gt, trk_res, path_gt, path_res):
-    """Compare two graphs and calculate the cell division confusion matrix.
+    """Compare two related .trk files (one being the GT of the other) and meaasure
+    performance on the the divisions in the GT file. This function produces two .txt
+    documents as a by-product (ISBI-style lineage documents)
+
+    # TODO: there should be an option to not write the files but compare in memory
 
     Args:
         trk_gt (path): Path to the ground truth .trk file.
@@ -345,7 +349,7 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt, path_res):
     trks = load_trks(trk_gt)
     lineage_gt, _, y_gt = trks['lineages'][0], trks['X'], trks['y']
     trks = load_trks(trk_res)
-    lineage_res, raw, y_res = trks['lineages'][0], trks['X'], trks['y']
+    lineage_res, _, y_res = trks['lineages'][0], trks['X'], trks['y']
 
     # Produce ISBI style text doc to work with
     trk_to_isbi(lineage_gt, path_gt)
@@ -355,15 +359,15 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt, path_res):
     cells_gt, cells_res = match_nodes(y_gt, y_res)
 
     if len(np.unique(cells_res)) < len(np.unique(cells_gt)):
-        node_key = {r:g for g,r in zip(cells_gt,cells_res)}
+        node_key = {r:g for g, r in zip(cells_gt, cells_res)}
         # node_key maps gt nodes onto resnodes so must be applied to gt
         G_res = txt_to_graph(path_res, node_key=node_key)
         G_gt = txt_to_graph(path_gt)
-        div_results = classify_divisions(G_gt,G_res)
+        div_results = classify_divisions(G_gt, G_res)
     else:
-        node_key = {g:r for g,r in zip(cells_gt,cells_res)}
+        node_key = {g:r for g, r in zip(cells_gt, cells_res)}
         G_res = txt_to_graph(path_res)
         G_gt = txt_to_graph(path_gt, node_key=node_key)
-        div_results = classify_divisions(G_gt,G_res)
+        div_results = classify_divisions(G_gt, G_res)
 
     return div_results
