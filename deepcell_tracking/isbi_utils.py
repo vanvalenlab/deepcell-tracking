@@ -39,6 +39,7 @@ import pandas as pd
 from deepcell_toolbox import compute_overlap
 from deepcell_tracking.utils import load_trks
 
+
 def trk_to_isbi(track, path):
     """Convert a lineage track into an ISBI formatted text file.
 
@@ -146,7 +147,7 @@ def match_nodes(gt, res):
     """
 
     num_frames = gt.shape[0]
-    iou = np.zeros((num_frames, np.max(gt)+1, np.max(res)+1))
+    iou = np.zeros((num_frames, np.max(gt) + 1, np.max(res) + 1))
 
     # TODO: Compute IOUs only when neccesary
     # If bboxs for true and pred do not overlap with each other, the assignment is immediate
@@ -172,16 +173,16 @@ def match_nodes(gt, res):
         # Find the bboxes that have overlap at all (ind_ corresponds to box number - starting at 0)
         ind_gt, ind_res = np.nonzero(overlaps)
 
-        #frame_ious = np.zeros(overlaps.shape)
+        # frame_ious = np.zeros(overlaps.shape)
         for index in range(ind_gt.shape[0]):
 
             iou_gt_idx = gt_box_labels[ind_gt[index]]
             iou_res_idx = res_box_labels[ind_res[index]]
-            intersection = np.logical_and(gt_frame==iou_gt_idx, res_frame==iou_res_idx)
-            union = np.logical_or(gt_frame==iou_gt_idx, res_frame==iou_res_idx)
+            intersection = np.logical_and(gt_frame == iou_gt_idx, res_frame == iou_res_idx)
+            union = np.logical_or(gt_frame == iou_gt_idx, res_frame == iou_res_idx)
             iou[frame, iou_gt_idx, iou_res_idx] = intersection.sum() / union.sum()
 
-    gtcells, rescells = np.where(np.nansum(iou,axis=0)>=1)
+    gtcells, rescells = np.where(np.nansum(iou, axis=0) > =1)
 
     return gtcells, rescells
 
@@ -201,8 +202,8 @@ def txt_to_graph(path, node_key=None):
     names = ['Cell_ID', 'Start', 'End', 'Parent_ID']
     df = pd.read_csv(path, header=None, sep=' ', names=names)
 
-    if node_key != None:
-        df[['Cell_ID','Parent_ID']] = df[['Cell_ID','Parent_ID']].replace(node_key)
+    if node_key is not None:
+        df[['Cell_ID', 'Parent_ID']] = df[['Cell_ID', 'Parent_ID']].replace(node_key)
 
     edges = pd.DataFrame()
 
@@ -359,13 +360,13 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt, path_res):
     cells_gt, cells_res = match_nodes(y_gt, y_res)
 
     if len(np.unique(cells_res)) < len(np.unique(cells_gt)):
-        node_key = {r:g for g, r in zip(cells_gt, cells_res)}
+        node_key = {r: g for g, r in zip(cells_gt, cells_res)}
         # node_key maps gt nodes onto resnodes so must be applied to gt
         G_res = txt_to_graph(path_res, node_key=node_key)
         G_gt = txt_to_graph(path_gt)
         div_results = classify_divisions(G_gt, G_res)
     else:
-        node_key = {g:r for g, r in zip(cells_gt, cells_res)}
+        node_key = {g: r for g, r in zip(cells_gt, cells_res)}
         G_res = txt_to_graph(path_res)
         G_gt = txt_to_graph(path_gt, node_key=node_key)
         div_results = classify_divisions(G_gt, G_res)
