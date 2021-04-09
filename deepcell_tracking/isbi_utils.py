@@ -182,7 +182,7 @@ def match_nodes(gt, res):
             union = np.logical_or(gt_frame == iou_gt_idx, res_frame == iou_res_idx)
             iou[frame, iou_gt_idx, iou_res_idx] = intersection.sum() / union.sum()
 
-    gtcells, rescells = np.where(np.nansum(iou, axis=0) > =1)
+    gtcells, rescells = np.where(np.nansum(iou, axis=0) >= 1)
 
     return gtcells, rescells
 
