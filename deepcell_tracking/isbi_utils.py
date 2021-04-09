@@ -36,7 +36,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
-from deepcell.utils.compute_overlap import compute_overlap
+from deepcell_toolbox import compute_overlap
 from deepcell_tracking.utils import load_trks
 
 def trk_to_isbi(track, path):
