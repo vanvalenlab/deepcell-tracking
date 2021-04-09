@@ -666,7 +666,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.logger.debug('Updated tracks for frame %s in %s s.',
                           frame, timeit.default_timer() - t)
 
-    def _get_parent(self, frame, cell, predictions_dict):
+    def _get_parent(self, frame, cell, predictions):
         """Searches the tracks for the parent of a given cell.
 
         Args:
@@ -681,14 +681,14 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         parent_id = None
         max_prob = self.division
 
-        predictions = predictions_dict['predictions']
+        predictions = predictions['predictions']
 
         for track_id in range(predictions.shape[0]):
             for cell_idx in range(predictions.shape[1]):
                 # cell_id = self.idx_to_id[(frame, cell_idx)]
                 # prob cell is part of the track
 
-                prob = predictions_dict['predictions'][track_id, cell_idx, 2]
+                prob = predictions[track_id, cell_idx, 2]
 
                 # Make sure capped tracks can't be assigned parents
                 if cell_idx == cell and not self.tracks[track_id]['capped']:
