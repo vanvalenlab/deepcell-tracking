@@ -568,8 +568,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         cells_in_frame = self._get_cells_in_frame(frame)
 
         # Number of lables present in the current frame (needed to build cost matrix)
-        y_tracked_update = np.zeros((1, self.y.shape[1], self.y.shape[2], 1),
-                                    dtype='int32')
+        y_tracked_update = np.zeros((1, self.y.shape[1], self.y.shape[2], 1), dtype='int32')
 
         self.assignments.append(assignments)
 
@@ -593,12 +592,14 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             if track in self.tracks:  # Add cell and frame to track
                 self.tracks[track]['frames'].append(frame)
                 self.tracks[track]['frame_labels'].append(cell_id)
-                new_embedding = np.concatenate([self.tracks[track]['embedding'],
-                                                cell_embedding], axis=0)
-                self.tracks[track]['embedding'] = new_embedding
-                new_centroid = np.concatenate([self.tracks[track]['centroid'],
-                                               cell_centroid], axis=0)
-                self.tracks[track]['centroid'] = new_centroid
+                self.tracks[track]['embedding'] = np.concatenate([
+                    self.tracks[track]['embedding'],
+                    cell_embedding
+                ], axis=0)
+                self.tracks[track]['centroid'] = np.concatenate([
+                    self.tracks[track]['centroid'],
+                    cell_centroid
+                ], axis=0)
 
                 # Labels and indices differ by 1
                 y_tracked_update[self.y[[frame]] == cell_id] = track + 1
@@ -647,12 +648,14 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             # Remove features and frame from old track
             del self.tracks[track]['frames'][frame_idx]
             del self.tracks[track]['frame_labels'][frame_idx]
-            self.tracks[track]['embedding'] = np.delete(self.tracks[track]['embedding'],
-                                                        frame_idx,
-                                                        axis=0)
-            self.tracks[track]['centroid'] = np.delete(self.tracks[track]['centroid'],
-                                                       frame_idx,
-                                                       axis=0)
+            self.tracks[track]['embedding'] = np.delete(
+                self.tracks[track]['embedding'],
+                frame_idx, axis=0
+            )
+            self.tracks[track]['centroid'] = np.delete(
+                self.tracks[track]['centroid'],
+                frame_idx, axis=0
+            )
             self.tracks[track]['daughters'].append(new_track_id)
 
             # Change y_tracked_update
