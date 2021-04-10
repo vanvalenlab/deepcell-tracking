@@ -267,30 +267,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                              'Use one of embedding or centroid'.format(
                                  feature_name))
 
-    def get_feature_shape(self, feature_name):
-        """Return the shape of the requested feature.
-
-        Args:
-            feature_name (str): The name of the feature.
-
-        Returns:
-            tuple: The shape of the feature.
-
-        Raises:
-            ValueError: feature_name is invalid.
-        """
-        self._check_feature(feature_name)
-
-        if feature_name == 'embedding':
-            return self.embeddings.shape[self.channel_axis]
-        if feature_name == 'centroid':
-            return self.centroids.shape[self.channel_axis]
-
-        # # shift the channel axis (it is channels_last by default)
-        # if len(shape) > 1 and self.data_format == 'channels_first':
-        #     shape = tuple([shape[-1]] + list(shape[:-1]))
-        # return shape
-
     def _get_feature(self, frame, cell_id, feature_name='embedding'):
         # Get the feature for a cell in the frame
         self._check_feature(feature_name)
