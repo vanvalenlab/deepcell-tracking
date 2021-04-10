@@ -138,10 +138,19 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.idx_to_id = {}  # (frame, cell_idx): cell_id mapping
 
         # Establish features for every instance of every cell in the movie
-        self.adj_matrices, self.appearances, self.morphologies, self.centroids = self._est_feats()
+        adj_matrices, appearances, morphologies, centroids = self._est_feats()
 
         # Compute_embeddings for every instance of every cell in the movie
-        self.embeddings = self._calc_embeddings()
+        embeddings = self._calc_embeddings(
+            appearances=appearances,
+            morphologies=morphologies,
+            centroids=centroids,
+            adj_matrices=adj_matrices)
+
+        self.features = {
+            'embeddings': embeddings,
+            'centroids': centroids,
+        }
 
     def _get_frame(self, tensor, frame):
         """Helper function for fetching a frame of a tensor.
@@ -233,16 +242,16 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         return norm_adj_matrices, appearances, morphologies, centroids
 
-    def _calc_embeddings(self):
+    def _calc_embeddings(self, appearances, morphologies, centroids, adj_matrices):
         """Compute the embeddings using the neighborhood encoder"""
 
         # Move the time dimension to the batch dimension
         # DVV Note - if we moved the time dimension ahead of the cells dimension
         # we wouldnt need to do all of this
-        app = np.transpose(self.appearances, axes=(1, 0, 2, 3, 4))
-        morph = np.transpose(self.morphologies, axes=(1, 0, 2))
-        cent = np.transpose(self.centroids, axes=(1, 0, 2))
-        adj = np.transpose(self.adj_matrices, axes=(2, 0, 1))
+        app = np.transpose(appearances, axes=(1, 0, 2, 3, 4))
+        morph = np.transpose(morphologies, axes=(1, 0, 2))
+        cent = np.transpose(centroids, axes=(1, 0, 2))
+        adj = np.transpose(adj_matrices, axes=(2, 0, 1))
 
         # Compute embedding
         inputs = {'encoder_app_input': app,
@@ -258,28 +267,23 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         return embeddings
 
-    def _check_feature(self, feature_name):
-        # Should this be wrapped in a try/except?
-        if feature_name not in ['embedding', 'centroid']:
+    def _validate_feature_name(self, feature_name):
+        if feature_name not in self.features:
             raise ValueError('{} is an invalid feature name. '
                              'Use one of embedding or centroid'.format(
                                  feature_name))
 
     def _get_feature(self, frame, cell_id, feature_name='embedding'):
-        # Get the feature for a cell in the frame
-        self._check_feature(feature_name)
-
+        """Get the feature for a cell in the frame"""
+        self._validate_feature_name(feature_name)
         cell_idx = self.id_to_idx[cell_id]
-        if feature_name == 'embedding':
-            f = self.embeddings[cell_idx, frame, :]
-        elif feature_name == 'centroid':
-            f = self.centroids[cell_idx, frame, :]
+        return self.features[feature_name][cell_idx, frame, :]
 
-        return f
+    def _get_frame_features(self, frame, feature_name='embedding'):
+        """Get the feature for the specified cells in a frame"""
+        self._validate_feature_name(feature_name)
 
-    def _get_frame_features(self, frame, cells_in_frame, feature_name='embedding'):
-        # Get the feature for the specified cells in a frame
-        self._check_feature(feature_name)
+        cells_in_frame = self._get_cells_in_frame(frame)
 
         frame_features = {}
         for cell_id in cells_in_frame:
@@ -370,7 +374,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         Returns:
             dict: dictionary of feature name to np.array of feature data.
         """
-        self._check_feature(feature_name)
+        self._validate_feature_name(feature_name)
 
         if before_frame is None:
             before_frame = self.X.shape[0] + 1  # all frames
