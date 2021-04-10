@@ -130,8 +130,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.time_axis = 1 if data_format == 'channels_first' else 0
         self.logger = logging.getLogger(str(self.__class__.__name__))
 
-        self._track_cells = self.track_cells  # backwards compatibility - Is this still neccesary?
-
         # Clean up annotations
         self.y = clean_up_annotations(self.y, data_format=self.data_format)
 
