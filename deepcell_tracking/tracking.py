@@ -443,7 +443,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             tuple: the assignment matrix and the predictions used to build it.
         """
         inputs = {}
-        relevant_tracks = set()
+        relevant_tracks = []
         for feature_name in self.features:
             # Get the embeddings for previously tracked cells
             current_feature = self._fetch_tracked_features(
@@ -456,7 +456,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             # Get a collection of all the track_ids
             if not relevant_tracks:
                 for track_id in current_feature:
-                    relevant_tracks.add(track_id)
+                    relevant_tracks.append(track_id)
 
             # Convert from dict to arrays
             current_feature_arr = np.stack([
@@ -498,6 +498,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         predictions_dict = {}
         predictions_dict['predictions'] = predictions
+        predictions_dict['track_ids'] = relevant_tracks
 
         return cost_matrix, predictions_dict
 
@@ -635,18 +636,15 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         parent_id = None
         max_prob = self.division
 
+        track_ids = predictions['track_ids']
         predictions = predictions['predictions']
 
-        for track_id in range(predictions.shape[0]):
+        for i, track_id in enumerate(track_ids):
             for cell_idx in range(predictions.shape[1]):
                 # cell_id = self.idx_to_id[(frame, cell_idx)]
                 # prob cell is part of the track
 
-                prob = predictions[track_id, cell_idx, 2]
-
-                if track_id not in self.tracks:
-                    import json
-                    print(json.dumps(self.tracks, indent=4))
+                prob = predictions[i, cell_idx, 2]
 
                 # Make sure capped tracks can't be assigned parents
                 if cell_idx == cell and not self.tracks[track_id]['capped']:
