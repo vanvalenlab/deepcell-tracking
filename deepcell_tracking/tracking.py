@@ -647,7 +647,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 prob = predictions[track_id, cell_idx, 2]
 
                 # Make sure capped tracks can't be assigned parents
-                if cell_idx == cell and not self.tracks[track_id]['capped']:
+                if cell_idx == cell and not self.tracks[track_ids[track_id]]['capped']:
                     # Do not call a newly-appeared sibling of "cell" a parent
                     if self.tracks[track_id]['frames'] == [frame]:
                         continue
