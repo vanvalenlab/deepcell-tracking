@@ -484,9 +484,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         predictions = predictions[0, :, :, 0, ...]  # Remove the batch and time dimension
         assignment_matrix = 1 - predictions[..., 0]
 
-        for track_id in relevant_tracks:
+        for i, track_id in relevant_tracks:
             if self.tracks[track_id]['capped']:
-                assignment_matrix[track_id, :] = 1
+                assignment_matrix[i, :] = 1
 
         self.a_matrix.append(predictions)
 
@@ -639,12 +639,12 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         track_ids = predictions['track_ids']
         predictions = predictions['predictions']
 
-        for track_id in range(predictions.shape[0]):
+        for track_idx in range(predictions.shape[0]):
             for cell_idx in range(predictions.shape[1]):
                 # cell_id = self.idx_to_id[(frame, cell_idx)]
                 # probability cell is part of the track
-
-                prob = predictions[track_id, cell_idx, 2]
+                prob = predictions[track_idx, cell_idx, 2]
+                track_id = track_ids[track_idx]
 
                 # Make sure capped tracks can't be assigned parents
                 if cell_idx == cell and not self.tracks[track_ids[track_id]]['capped']:
