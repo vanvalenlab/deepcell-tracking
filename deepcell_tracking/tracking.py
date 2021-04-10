@@ -148,8 +148,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             adj_matrices=adj_matrices)
 
         self.features = {
-            'embeddings': embeddings,
-            'centroids': centroids,
+            'embedding': embeddings,
+            'centroid': centroids,
         }
 
     def _get_frame(self, tensor, frame):
@@ -181,11 +181,12 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         cells = np.delete(cells, np.where(cells == 0))  # remove the background
         return list(cells)
 
-    # TODO: Can this function be adapted to use _create_features from utils.py?
     def _est_feats(self):
-        # Extract the relevant features from the label movie
-        # Appearance, morphologies, centroids, and adjacency matrices
-
+        """
+        Extract the relevant features from the label movie
+        Appearance, morphologies, centroids, and adjacency matrices
+        """
+        # TODO: Can this function be adapted to use _create_features from utils.py?
         max_cells = get_max_cells(self.y)
         n_frames = self.X.shape[0]
         n_channels = self.X.shape[-1]
@@ -399,30 +400,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         return tracked_features
 
-    def _get_curr_futr_feats(self, frame, feature_name='embedding'):
-        """Get embeddings for tracks and candidate cells.
-
-        Args:
-            frame (int): The frame from which to fetch feature data.
-            feature_name (str): Name of feature to fetch from tracked data.
-
-        Returns:
-            dict: dictionary of feature name to np.array of feature data.
-        """
-        self._check_feature(feature_name)
-
-        cells_in_frame = self._get_cells_in_frame(frame)
-
-        # Get the embeddings for previously tracked cells
-        current_features = self._fetch_tracked_features(before_frame=frame,
-                                                        feature_name=feature_name)
-
-        # Get the embeddings for the current frame
-        future_features = self._get_frame_features(frame, cells_in_frame,
-                                                   feature_name=feature_name)
-
-        return current_features, future_features
-
     def _build_cost_matrix(self, assignment_matrix):
         """Build the full cost matrix based on the assignment_matrix.
 
@@ -465,51 +442,49 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         Returns:
             tuple: the assignment matrix and the predictions used to build it.
         """
-        current_embeddings, future_embeddings = self._get_curr_futr_feats(
-            frame, feature_name='embedding')
+        inputs = {}
+        relevant_tracks = set()
+        for feature_name in self.features:
+            # Get the embeddings for previously tracked cells
+            current_feature = self._fetch_tracked_features(
+                before_frame=frame, feature_name=feature_name)
 
-        current_centroids, future_centroids = self._get_curr_futr_feats(
-            frame, feature_name='centroid')
+            # Get the embeddings for the current frame
+            future_feature = self._get_frame_features(
+                frame=frame, feature_name=feature_name)
 
-        current_emb_array = np.stack([current_embeddings[k] for k in current_embeddings], axis=0)
-        future_emb_array = np.stack([future_embeddings[k] for k in future_embeddings], axis=0)
+            # Get a collection of all the track_ids
+            if not relevant_tracks:
+                for track_id in current_feature:
+                    relevant_tracks.add(track_id)
 
-        current_cent_array = np.stack([current_centroids[k] for k in current_centroids], axis=0)
-        future_cent_array = np.stack([future_centroids[k] for k in future_centroids], axis=0)
+            # Convert from dict to arrays
+            current_feature_arr = np.stack([
+                current_feature[k] for k in current_feature
+            ], axis=0)
+            future_feature_arr = np.stack([
+                future_feature[k] for k in future_feature
+            ], axis=0)
 
-        assignment_shape = (len(current_embeddings), len(future_embeddings))
-        assignment_matrix = np.zeros(assignment_shape, dtype=self.dtype)
+            # Add time dimension
+            future_feature_arr = np.expand_dims(future_feature_arr, axis=1)
 
-        # Add time dimension
-        future_emb_array = np.expand_dims(future_emb_array, axis=1)
-        future_cent_array = np.expand_dims(future_cent_array, axis=1)
+            # Add batch dimension
+            current_feature_arr = np.expand_dims(current_feature_arr, axis=0)
+            future_feature_arr = np.expand_dims(future_feature_arr, axis=0)
 
-        # Add batch dimension
-        current_emb_array = np.expand_dims(current_emb_array, axis=0)
-        future_emb_array = np.expand_dims(future_emb_array, axis=0)
-        current_cent_array = np.expand_dims(current_cent_array, axis=0)
-        future_cent_array = np.expand_dims(future_cent_array, axis=0)
-
-        inputs = {'current_embeddings': current_emb_array,
-                  'current_centroids': current_cent_array,
-                  'future_embeddings': future_emb_array,
-                  'future_centroids': future_cent_array}
-
-        # TODO: The following was used to support distance exclusion
-        # input_pairs, inputs, invalid_pairs = self._get_input_pairs(frame)
+            # Add feature to inputs
+            inputs['current_{}'.format(feature_name)] = current_feature_arr
+            inputs['future_{}'.format(feature_name)] = future_feature_arr
 
         t = timeit.default_timer()
-        # if not input_pairs:  # frame is empty
-        #     predictions = []
-        #     assignment_matrix.fill(1)
-        # else:
 
         # Perform inference
         predictions = self.tracking_model.predict(inputs)
         predictions = predictions[0, :, :, 0, ...]  # Remove the batch and time dimension
         assignment_matrix = 1 - predictions[..., 0]
 
-        for track_id in current_embeddings:
+        for track_id in relevant_tracks:
             if self.tracks[track_id]['capped']:
                 assignment_matrix[track_id, :] = 1
 
@@ -522,8 +497,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.c_matrix.append(cost_matrix)
 
         predictions_dict = {}
-        predictions_dict['current_embeddings'] = current_embeddings
-        predictions_dict['future_embeddings'] = future_embeddings
         predictions_dict['predictions'] = predictions
 
         return cost_matrix, predictions_dict
