@@ -640,7 +640,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         track_ids = predictions['track_ids']
         predictions = predictions['predictions']
 
-        for track_id in track_ids:
+        for track_idx, track_id in enumerate(track_ids):
             # Make sure capped tracks can't be assigned parents
             if self.tracks[track_id]['capped']:
                 continue
@@ -651,7 +651,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             for cell_idx in range(num_cells):
 
                 # probability cell is part of the track
-                prob = predictions[track_id, cell_idx, 2]
+                prob = predictions[track_idx, cell_idx, 2]
 
                 if self.idx_to_id[(frame, cell_idx)] == cell:
                     # Do not call a newly-appeared sibling of "cell" a parent
