@@ -34,6 +34,7 @@ import json
 import logging
 import os
 import pathlib
+import random
 import tarfile
 import tempfile
 import timeit
@@ -443,7 +444,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             tuple: the assignment matrix and the predictions used to build it.
         """
         inputs = {}
-        relevant_tracks = []
+
         for feature_name in self.features:
             # Get the embeddings for previously tracked cells
             current_feature = self._fetch_tracked_features(
@@ -452,11 +453,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             # Get the embeddings for the current frame
             future_feature = self._get_frame_features(
                 frame=frame, feature_name=feature_name)
-
-            # Get a collection of all the track_ids
-            if not relevant_tracks:
-                for track_id in current_feature:
-                    relevant_tracks.append(track_id)
 
             # Convert from dict to arrays
             current_feature_arr = np.stack([
@@ -484,7 +480,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         predictions = predictions[0, :, :, 0, ...]  # Remove the batch and time dimension
         assignment_matrix = 1 - predictions[..., 0]
 
-        for i, track_id in enumerate(relevant_tracks):
+        random_feature = random.choice(list(self.features.keys()))
+        cell_ids = list(inputs['future_{}'.format(random_feature)].keys())
+        track_ids = list(inputs['current_{}'.format(random_feature)].keys())
+        for i, track_id in enumerate(track_ids):
             if self.tracks[track_id]['capped']:
                 assignment_matrix[i, :] = 1
 
@@ -498,7 +497,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         predictions_dict = {}
         predictions_dict['predictions'] = predictions
-        predictions_dict['track_ids'] = relevant_tracks
+        predictions_dict['track_ids'] = track_ids
+        predictions_dict['cell_ids'] = cell_ids
 
         return cost_matrix, predictions_dict
 
@@ -637,14 +637,14 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         max_prob = self.division
 
         track_ids = predictions['track_ids']
+        cell_ids = predictions['cell_ids']
         predictions = predictions['predictions']
 
-        for track_idx in range(predictions.shape[0]):
-            for cell_idx in range(predictions.shape[1]):
+        for track_idx, track_id in enumerate(track_ids):
+            for cell_idx, cell_id in enumerate(cell_ids):
                 # cell_id = self.idx_to_id[(frame, cell_idx)]
                 # probability cell is part of the track
                 prob = predictions[track_idx, cell_idx, 2]
-                track_id = track_ids[track_idx]
 
                 # Make sure capped tracks can't be assigned parents
                 if cell_idx == cell and not self.tracks[track_ids[track_id]]['capped']:
