@@ -443,6 +443,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             tuple: the assignment matrix and the predictions used to build it.
         """
         inputs = {}
+        relevant_tracks = []
         for feature_name in self.features:
             # Get the embeddings for previously tracked cells
             current_feature = self._fetch_tracked_features(
@@ -451,6 +452,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             # Get the embeddings for the current frame
             future_feature = self._get_frame_features(
                 frame=frame, feature_name=feature_name)
+
+            if not relevant_tracks:
+                for track_id in current_feature:
+                    relevant_tracks.append(track_id)
 
             # Convert from dict to arrays
             current_feature_arr = np.stack([
@@ -494,6 +499,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         predictions_dict = {}
         predictions_dict['predictions'] = predictions
+        predictions_dict['track_ids'] = relevant_tracks
 
         return cost_matrix, predictions_dict
 
@@ -632,14 +638,15 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         max_prob = self.division
 
         predictions = predictions['predictions']
+        track_ids = predictions['track_ids']
 
-        for track_id in self.tracks:
+        for track_id in track_ids:
             # Make sure capped tracks can't be assigned parents
             if self.tracks[track_id]['capped']:
                 continue
 
             # predictions are of shape (tracks+cells, cells+tracks, 3)
-            num_cells = predictions.shape[1] - len(self.tracks)
+            num_cells = predictions.shape[1] - len(track_ids)
 
             for cell_idx in range(num_cells):
 
