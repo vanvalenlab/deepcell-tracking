@@ -637,8 +637,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         parent_id = None
         max_prob = self.division
 
-        predictions = predictions['predictions']
         track_ids = predictions['track_ids']
+        predictions = predictions['predictions']
 
         for track_id in track_ids:
             # Make sure capped tracks can't be assigned parents
