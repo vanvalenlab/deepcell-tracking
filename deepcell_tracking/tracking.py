@@ -468,8 +468,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             future_feature_arr = np.expand_dims(future_feature_arr, axis=0)
 
             # Add feature to inputs
-            inputs['current_{}'.format(feature_name)] = current_feature_arr
-            inputs['future_{}'.format(feature_name)] = future_feature_arr
+            # model expects "current_embeddings" but feature_name is "embedding"
+            # TODO: this name is hardcoded based on a model from deepcell-tf
+            inputs['current_{}s'.format(feature_name)] = current_feature_arr
+            inputs['future_{}s'.format(feature_name)] = future_feature_arr
 
         t = timeit.default_timer()
 
