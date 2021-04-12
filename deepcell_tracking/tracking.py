@@ -485,7 +485,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         predictions = predictions[0, :, :, 0, ...]  # Remove the batch and time dimension
         assignment_matrix = 1 - predictions[..., 0]
 
-        for track_id in self.tracks:
+        for track_id in relevant_tracks:
             if self.tracks[track_id]['capped']:
                 assignment_matrix[track_id, :] = 1
 
