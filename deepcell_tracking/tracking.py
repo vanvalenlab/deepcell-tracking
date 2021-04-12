@@ -34,7 +34,6 @@ import json
 import logging
 import os
 import pathlib
-import random
 import tarfile
 import tempfile
 import timeit
@@ -444,7 +443,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             tuple: the assignment matrix and the predictions used to build it.
         """
         inputs = {}
-
         for feature_name in self.features:
             # Get the embeddings for previously tracked cells
             current_feature = self._fetch_tracked_features(
@@ -480,10 +478,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         predictions = predictions[0, :, :, 0, ...]  # Remove the batch and time dimension
         assignment_matrix = 1 - predictions[..., 0]
 
-        random_feature = random.choice(list(self.features.keys()))
-        cell_ids = list(inputs['future_{}'.format(random_feature)].keys())
-        track_ids = list(inputs['current_{}'.format(random_feature)].keys())
-        for i, track_id in enumerate(track_ids):
+        for track_id in self.tracks:
             if self.tracks[track_id]['capped']:
                 assignment_matrix[i, :] = 1
 
@@ -497,8 +492,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         predictions_dict = {}
         predictions_dict['predictions'] = predictions
-        predictions_dict['track_ids'] = track_ids
-        predictions_dict['cell_ids'] = cell_ids
 
         return cost_matrix, predictions_dict
 
@@ -564,7 +557,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 self.logger.info('Created new track for cell %s.', new_label)
 
                 # See if the new track has a parent
-                parent = self._get_parent(frame, cell, predictions)
+                parent = self._get_parent(frame, cell_id, predictions)
                 if parent is not None:
                     self.logger.info('Detected division! Cell %s is daughter '
                                      'of cell %s.', new_label, parent + 1)
@@ -636,18 +629,22 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         parent_id = None
         max_prob = self.division
 
-        track_ids = predictions['track_ids']
-        cell_ids = predictions['cell_ids']
         predictions = predictions['predictions']
 
-        for track_idx, track_id in enumerate(track_ids):
-            for cell_idx, cell_id in enumerate(cell_ids):
-                # cell_id = self.idx_to_id[(frame, cell_idx)]
-                # probability cell is part of the track
-                prob = predictions[track_idx, cell_idx, 2]
+        for track_id in self.tracks:
+            # Make sure capped tracks can't be assigned parents
+            if self.tracks[track_id]['capped']:
+                continue
 
-                # Make sure capped tracks can't be assigned parents
-                if cell_idx == cell and not self.tracks[track_ids[track_id]]['capped']:
+            # predictions are of shape (tracks+cells, cells+tracks, 3)
+            num_cells = predictions.shape[1] - len(self.tracks)
+
+            for cell_idx in range(num_cells):
+
+                # probability cell is part of the track
+                prob = predictions[track_id, cell_idx, 2]
+
+                if self.idx_to_id[(frame, cell_idx)] == cell:
                     # Do not call a newly-appeared sibling of "cell" a parent
                     if self.tracks[track_id]['frames'] == [frame]:
                         continue
