@@ -646,9 +646,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 continue
 
             # only interested in the cells/tracks comparison.
-            num_cells = predictions.shape[1] - len(track_ids)
+            # num_cells = predictions.shape[1] - len(track_ids)
 
-            for cell_idx in range(num_cells):
+            for cell_idx in range(predictions.shape[1]):
                 cell_id = self.idx_to_id[(frame, cell_idx)]
 
                 # probability cell is part of the track
