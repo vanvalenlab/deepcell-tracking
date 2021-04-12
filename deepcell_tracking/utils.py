@@ -620,7 +620,7 @@ class Track(object):
                     for daughter in daughters:
                         daughter_id = daughter - 1
                         temporal_adj_matrix[batch, track_id, daughter_id, last_frame, 2] = 1
-#                         temporal_adj_matrix[batch, daughter_id, track_id, last_frame, 2] = 1
+                        # temporal_adj_matrix[batch, daughter_id, track_id, last_frame, 2] = 1
 
             # Assign different
             temporal_adj_matrix[batch, ..., 1] = (1 -
