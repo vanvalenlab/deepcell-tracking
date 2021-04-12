@@ -480,7 +480,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         for track_id in self.tracks:
             if self.tracks[track_id]['capped']:
-                assignment_matrix[i, :] = 1
+                assignment_matrix[track_id, :] = 1
 
         self.a_matrix.append(predictions)
 
