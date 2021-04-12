@@ -645,21 +645,20 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             if self.tracks[track_id]['capped']:
                 continue
 
-            # only interested in the cells/tracks comparison.
-            # num_cells = predictions.shape[1] - len(track_ids)
-
             for cell_idx in range(predictions.shape[1]):
                 cell_id = self.idx_to_id[(frame, cell_idx)]
-
-                # probability cell is part of the track
-                prob = predictions[track_idx, cell_idx, 2]
 
                 if cell_id == cell:
                     # Do not call a newly-appeared sibling of "cell" a parent
                     if self.tracks[track_id]['frames'] == [frame]:
                         continue
+
+                    # probability cell is part of the track
+                    prob = predictions[track_idx, cell_idx, 2]
+
                     if prob > max_prob:
                         parent_id, max_prob = track_id, prob
+
         return parent_id
 
     def _track_frame(self, frame):
