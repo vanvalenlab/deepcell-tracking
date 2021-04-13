@@ -46,10 +46,10 @@ from skimage.measure import regionprops
 import networkx as nx
 import pandas as pd
 
-from deepcell_tracking.utils import resize
 from deepcell_tracking.utils import clean_up_annotations
 from deepcell_tracking.utils import get_max_cells
 from deepcell_tracking.utils import normalize_adj_matrix
+from deepcell_tracking.utils import get_cell_features_from_frame
 
 
 class CellTracker(object):  # pylint: disable=useless-object-inheritance
@@ -210,33 +210,21 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                                n_frames), dtype=np.float32)
 
         for frame in range(n_frames):
-            y = self.y[frame, ..., 0]
-            props = regionprops(y)
 
-            for cell_idx, prop in enumerate(props):
-                cell_id = prop.label
+            frame_features = get_cell_features_from_frame(
+                self.X[frame], self.y[frame],
+                appearance_dim=self.appearance_dim,
+                distance_threshold=self.distance_threshold)
 
+            for cell_idx, cell_id in enumerate(frame_features['labels']):
                 self.id_to_idx[cell_id] = cell_idx
                 self.idx_to_id[(frame, cell_idx)] = cell_id
 
-                # Get centroid
-                centroids[cell_idx, frame] = np.array(prop.centroid)
-
-                # Get morphology
-                morphologies[cell_idx, frame] = np.array([prop.area,
-                                                          prop.perimeter,
-                                                          prop.eccentricity])
-
-                # Get appearance
-                minr, minc, maxr, maxc = prop.bbox
-                appearance = np.copy(self.X[frame, minr:maxr, minc:maxc, :])
-                resize_shape = (self.appearance_dim, self.appearance_dim)
-                appearances[cell_idx, frame] = resize(appearance, resize_shape)
-
-            # Get adjacency matrix
-            cent = centroids[:, frame, :]
-            distance = cdist(cent, cent, metric='euclidean') < self.distance_threshold
-            adj_matrix[:, :, frame] = distance.astype(np.float32)
+            numtracks = len(frame_features['labels'])
+            centroids[:numtracks, frame] = frame_features['centroids']
+            morphologies[:numtracks, frame] = frame_features['morphologies']
+            appearances[:numtracks, frame] = frame_features['appearances']
+            adj_matrix[:numtracks, :numtracks, frame] = frame_features['adj_matrix']
 
         # Normalize adj matrix
         norm_adj_matrices = normalize_adj_matrix(adj_matrix)
