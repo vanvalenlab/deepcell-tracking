@@ -494,8 +494,8 @@ class Track(object):  # pylint: disable=useless-object-inheritance
 
     def __init__(self, path, appearance_dim=32, distance_threshold=64):
         training_data = load_trks(path)
-        self.X = training_data['X'].astype(np.float32)
-        self.y = training_data['y'].astype(np.int)
+        self.X = training_data['X'].astype('float32')
+        self.y = training_data['y'].astype('int32')
         self.lineages = training_data['lineages']
         self.appearance_dim = appearance_dim
         self.distance_threshold = distance_threshold
@@ -653,15 +653,3 @@ class Track(object):  # pylint: disable=useless-object-inheritance
         feature_dict['track_length'] = track_length
 
         return feature_dict
-
-
-class Lineage(object):
-    """A class representing a single cell lineage"""
-
-    def __init__(self):
-        self.frames = []  # a list of frames this cell exists in
-        self.daughters = []  # a list of cell IDs
-        self.frame_div = None  # the frame in which the cell divides
-        self.parent = None  # the cell ID of the parent cell, if it exists
-        self.frame_labels = []  # the label of the cell in the given frame
-        self.capped = False  # if the track divided or died, cap it
