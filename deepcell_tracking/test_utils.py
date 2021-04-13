@@ -23,22 +23,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Tests for tracking_utils"""
+"""Utilities for testing deepcell-tracking"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import errno
-import os
-import shutil
-import tempfile
-
 import numpy as np
 import skimage as sk
-
-import pytest
-
-from deepcell_tracking import utils
 
 
 def _get_image(img_h=300, img_w=300):
