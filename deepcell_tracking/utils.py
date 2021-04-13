@@ -310,7 +310,7 @@ def get_max_cells(y):
         y (np.array): Annotated image data
 
     Returns:
-        max_cells (int): The maximum number of cells in any frame
+        int: The maximum number of cells in any frame
     """
     max_cells = 0
     for frame in range(y.shape[0]):
@@ -322,8 +322,15 @@ def get_max_cells(y):
 
 
 def normalize_adj_matrix(adj, epsilon=1e-5):
-    # Normalize the adjacency matrix
+    """Normalize the adjacency matrix
 
+    Args:
+        adj (np.array): Adjacency matrix
+        epsilon (float): Used to create the degree matrix
+    
+    Returns:
+        np.array: Normalized adjacency matrix
+    """
     normed_adj = np.zeros(adj.shape, dtype='float32')
     for t in range(adj.shape[-1]):
         adj_frame = adj[..., t]
