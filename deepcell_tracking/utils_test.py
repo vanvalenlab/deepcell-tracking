@@ -40,9 +40,9 @@ import skimage as sk
 import pytest
 
 from deepcell_tracking import utils
-from deepcell_tracking.test_utils import _get_image
-from deepcell_tracking.test_utils import _get_annotated_image
-from deepcell_tracking.test_utils import _get_annotated_movie
+from deepcell_tracking.test_utils import get_image
+from deepcell_tracking.test_utils import get_annotated_image
+from deepcell_tracking.test_utils import get_annotated_movie
 
 
 class TestTrackingUtils(object):
@@ -77,11 +77,11 @@ class TestTrackingUtils(object):
         for mov_type in ('random', 'repeated'):
             labels_per_frame = 3
             frames = 3
-            movie = _get_annotated_movie(img_size=256,
-                                         labels_per_frame=labels_per_frame,
-                                         frames=frames,
-                                         mov_type=mov_type, seed=1,
-                                         data_format='channels_last')
+            movie = get_annotated_movie(img_size=256,
+                                        labels_per_frame=labels_per_frame,
+                                        frames=frames,
+                                        mov_type=mov_type, seed=1,
+                                        data_format='channels_last')
             cleaned = utils.clean_up_annotations(movie, uid=uid)
             for frame in range(frames):
                 unique = np.unique(cleaned[frame, :, :, 0])
@@ -113,7 +113,7 @@ class TestTrackingUtils(object):
         assert pairs == expected
 
     def test_save_trks(self):
-        X = _get_image(30, 30)
+        X = get_image(30, 30)
         y = np.random.randint(low=0, high=10, size=X.shape)
         lineage = [dict()]
 
@@ -144,29 +144,29 @@ class TestTrackingUtils(object):
         labels_per_frame = 5
         frames = 2
         expected_max = labels_per_frame * 2
-        y1 = _get_annotated_movie(img_size=256,
-                                  labels_per_frame=labels_per_frame,
-                                  frames=frames,
-                                  mov_type='sequential', seed=1,
-                                  data_format='channels_last')
-        y2 = _get_annotated_movie(img_size=256,
-                                  labels_per_frame=labels_per_frame * 2,
-                                  frames=frames,
-                                  mov_type='sequential', seed=2,
-                                  data_format='channels_last')
-        y3 = _get_annotated_movie(img_size=256,
-                                  labels_per_frame=labels_per_frame,
-                                  frames=frames,
-                                  mov_type='sequential', seed=3,
-                                  data_format='channels_last')
+        y1 = get_annotated_movie(img_size=256,
+                                 labels_per_frame=labels_per_frame,
+                                 frames=frames,
+                                 mov_type='sequential', seed=1,
+                                 data_format='channels_last')
+        y2 = get_annotated_movie(img_size=256,
+                                 labels_per_frame=labels_per_frame * 2,
+                                 frames=frames,
+                                 mov_type='sequential', seed=2,
+                                 data_format='channels_last')
+        y3 = get_annotated_movie(img_size=256,
+                                 labels_per_frame=labels_per_frame,
+                                 frames=frames,
+                                 mov_type='sequential', seed=3,
+                                 data_format='channels_last')
         y = np.concatenate((y1, y2, y3))
         calculated_max = utils.get_max_cells(y)
         assert expected_max == calculated_max
 
     def test_relabel_sequential_lineage(self):
         # create dummy movie
-        image1 = _get_annotated_image(num_labels=1, sequential=False)
-        image2 = _get_annotated_image(num_labels=2, sequential=False)
+        image1 = get_annotated_image(num_labels=1, sequential=False)
+        image2 = get_annotated_image(num_labels=2, sequential=False)
         movie = np.stack([image1, image2], axis=0)
 
         # create dummy lineage

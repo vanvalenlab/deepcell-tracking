@@ -32,14 +32,14 @@ import numpy as np
 import skimage as sk
 
 
-def _get_image(img_h=300, img_w=300):
+def get_image(img_h=300, img_w=300):
     bias = np.random.rand(img_w, img_h) * 64
     variance = np.random.rand(img_w, img_h) * (255 - 64)
     img = np.random.rand(img_w, img_h) * variance + bias
     return img
 
 
-def _get_annotated_image(img_size=256, num_labels=3, sequential=True, seed=1):
+def get_annotated_image(img_size=256, num_labels=3, sequential=True, seed=1):
     np.random.seed(seed)
     num_labels_act = False
     trial = 0
@@ -72,9 +72,9 @@ def _get_annotated_image(img_size=256, num_labels=3, sequential=True, seed=1):
     return all_labels.astype('int32')
 
 
-def _get_annotated_movie(img_size=256, labels_per_frame=3, frames=3,
-                         mov_type='sequential', seed=1,
-                         data_format='channels_last'):
+def get_annotated_movie(img_size=256, labels_per_frame=3, frames=3,
+                        mov_type='sequential', seed=1,
+                        data_format='channels_last'):
     if mov_type in ('sequential', 'repeated'):
         sequential = True
     elif mov_type == 'random':
