@@ -90,8 +90,8 @@ def get_annotated_movie(img_size=256, labels_per_frame=3, frames=3,
 
     y = []
     while len(y) < frames:
-        _y = _get_annotated_image(img_size=img_size, num_labels=labels_per_frame,
-                                  sequential=sequential, seed=seed)
+        _y = get_annotated_image(img_size=img_size, num_labels=labels_per_frame,
+                                 sequential=sequential, seed=seed)
         y.append(_y)
         seed += 1
 

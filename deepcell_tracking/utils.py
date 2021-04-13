@@ -327,7 +327,7 @@ def normalize_adj_matrix(adj, epsilon=1e-5):
     Args:
         adj (np.array): Adjacency matrix
         epsilon (float): Used to create the degree matrix
-    
+
     Returns:
         np.array: Normalized adjacency matrix
     """
@@ -490,7 +490,7 @@ def get_image_features(X, y, appearance_dim=32, distance_threshold=6):
 
 # TODO: This class contains code that could be reused for tracking.py
 #       The only difference is usually doing things by batch vs frame
-class Track(object):
+class Track(object):  # pylint: disable=useless-object-inheritance
 
     def __init__(self, path, appearance_dim=32, distance_threshold=64):
         training_data = load_trks(path)

@@ -229,8 +229,7 @@ class TestTrackingUtils(object):
                 'daughters': [],
                 'capped': False,
                 'frame_div': 1,
-                'parent': 0,
-            }
+                'parent': 0},
         }
         assert utils.is_valid_lineage(lineage)
 
@@ -238,3 +237,40 @@ class TestTrackingUtils(object):
         bad_lineage = copy.copy(lineage)
         bad_lineage[2]['frames'] = [2]
         assert not utils.is_valid_lineage(bad_lineage)
+
+    def test_get_image_features(self):
+        num_labels = 3
+        y = get_annotated_image(num_labels=num_labels, sequential=True)
+        y = np.expand_dims(y, axis=-1)
+        X = np.random.random(y.shape)
+
+        appearance_dim = 16
+        distance_threshold = 64
+        features = utils.get_image_features(
+            X, y, appearance_dim, distance_threshold)
+
+        # test appearance
+        appearances = features['appearances']
+        expected_shape = (num_labels, appearance_dim, appearance_dim, X.shape[-1])
+        assert appearances.shape == expected_shape
+
+        # test centroids
+        centroids = features['centroids']
+        expected_shape = (num_labels, 2)
+        assert centroids.shape == expected_shape
+
+        # test centroids
+        centroids = features['centroids']
+        expected_shape = (num_labels, 2)
+        assert centroids.shape == expected_shape
+
+        # test morphologies
+        morphologies = features['morphologies']
+        expected_shape = (num_labels, 3)
+        assert morphologies.shape == expected_shape
+
+        # test labels
+        labels = features['labels']
+        expected_shape = (num_labels,)
+        assert labels.shape == expected_shape
+        np.testing.assert_array_equal(labels, np.array(list(range(1, num_labels + 1))))
