@@ -456,7 +456,7 @@ def is_valid_lineage(lineage):
     return True  # all cell lineages are valid!
 
 
-def get_cell_features_from_frame(X, y, appearance_dim=32, distance_threshold=6):
+def get_image_features(X, y, appearance_dim=32, distance_threshold=6):
     """Return features for every object in the array.
 
     Args:
@@ -623,7 +623,7 @@ class Track(object):
         for batch in range(n_batches):
             for frame in range(n_frames):
 
-                frame_features = get_cell_features_from_frame(
+                frame_features = get_image_features(
                     self.X[batch, frame], self.y[batch, frame],
                     appearance_dim=self.appearance_dim,
                     distance_threshold=self.distance_threshold)
@@ -636,7 +636,7 @@ class Track(object):
                 adj_matrix[batch, :numtracks, :numtracks, frame] = frame_features['adj_matrix']
                 mask[batch, :numtracks, frame] = 1
 
-            # Get track length
+            # Get track length and temporal adjacency matrix
             for label in self.lineages[batch]:
                 # Get track length
                 start_frame = self.lineages[batch][label]['frames'][0]
@@ -655,15 +655,13 @@ class Track(object):
                         temporal_adj_matrix[batch, track_id, track_id, f0, 0] = 1
 
                 # Assign daughter
-                daughters = self.lineages[batch][label]['daughters']
-                last_frame = frames[-1]
-
                 # WARNING: This wont work if there's a time gap between mother
                 # cell disappearing and daughter cells appearing
+                last_frame = frames[-1]
+                daughters = self.lineages[batch][label]['daughters']
                 for daughter in daughters:
                     daughter_id = daughter - 1
                     temporal_adj_matrix[batch, track_id, daughter_id, last_frame, 2] = 1
-                    # temporal_adj_matrix[batch, daughter_id, track_id, last_frame, 2] = 1
 
             # Assign different
             same_prob = temporal_adj_matrix[batch, ..., 0]

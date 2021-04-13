@@ -49,7 +49,7 @@ import pandas as pd
 from deepcell_tracking.utils import clean_up_annotations
 from deepcell_tracking.utils import get_max_cells
 from deepcell_tracking.utils import normalize_adj_matrix
-from deepcell_tracking.utils import get_cell_features_from_frame
+from deepcell_tracking.utils import get_image_features
 
 
 class CellTracker(object):  # pylint: disable=useless-object-inheritance
@@ -211,7 +211,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         for frame in range(n_frames):
 
-            frame_features = get_cell_features_from_frame(
+            frame_features = get_image_features(
                 self.X[frame], self.y[frame],
                 appearance_dim=self.appearance_dim,
                 distance_threshold=self.distance_threshold)

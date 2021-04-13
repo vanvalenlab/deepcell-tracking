@@ -176,3 +176,12 @@ class TestTrackingUtils(object):
         y = np.concatenate((y1, y2, y3))
         calculated_max = utils.get_max_cells(y)
         assert expected_max == calculated_max
+
+    def test_relabel_sequential_lineage(self):
+        pass
+
+    def test_is_valid_lineage(self):
+        pass
+
+    def test_get_image_features(self):
+        pass
