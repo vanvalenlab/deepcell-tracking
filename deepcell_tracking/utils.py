@@ -29,21 +29,19 @@ from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
 
+import io
 import json
 import os
 import re
 import tarfile
 import tempfile
-from io import BytesIO
 
-import cv2
 import numpy as np
-from skimage import transform
+
+from scipy.spatial.distance import cdist
 
 from skimage.measure import regionprops
 from skimage.segmentation import relabel_sequential
-
-from scipy.spatial.distance import cdist
 
 from deepcell_toolbox.utils import resize
 
@@ -142,13 +140,13 @@ def load_trks(filename):
     with tarfile.open(filename, 'r') as trks:
 
         # numpy can't read these from disk...
-        array_file = BytesIO()
+        array_file = io.BytesIO()
         array_file.write(trks.extractfile('raw.npy').read())
         array_file.seek(0)
         raw = np.load(array_file)
         array_file.close()
 
-        array_file = BytesIO()
+        array_file = io.BytesIO()
         array_file.write(trks.extractfile('tracked.npy').read())
         array_file.seek(0)
         tracked = np.load(array_file)
