@@ -42,30 +42,7 @@ import pytest
 
 from deepcell_tracking import tracking
 from deepcell_tracking import utils
-
-
-def _get_dummy_tracking_data(length=128, frames=3,
-                             data_format='channels_last'):
-    if data_format == 'channels_last':
-        channel_axis = -1
-    else:
-        channel_axis = 0
-
-    x, y = [], []
-    while len(x) < frames:
-        _x = sk.data.binary_blobs(length=length, n_dim=2)
-        _y = sk.measure.label(_x)
-        if len(np.unique(_y)) > 3:
-            x.append(_x)
-            y.append(_y)
-
-    x = np.stack(x, axis=0)  # expand to 3D
-    y = np.stack(y, axis=0)  # expand to 3D
-
-    x = np.expand_dims(x, axis=channel_axis)
-    y = np.expand_dims(y, axis=channel_axis)
-
-    return x.astype('float32'), y.astype('int32')
+from deepcell_tracking.test_utils import _get_annotated_movie
 
 
 class DummyModel(object):  # pylint: disable=useless-object-inheritance
@@ -107,9 +84,15 @@ class DummyEncoder(object):  # pylint: disable=useless-object-inheritance
 class TestTracking(object):  # pylint: disable=useless-object-inheritance
 
     def test_simple(self):
-        length = 128
+        data_format = 'channels_last'
         frames = 3
-        x, y = _get_dummy_tracking_data(length, frames=frames)
+        labels_per_frame = 5
+        y = _get_annotated_movie(img_size=256,
+                                 labels_per_frame=labels_per_frame,
+                                 frames=frames,
+                                 mov_type='sequential', seed=0,
+                                 data_format=data_format)
+        x = np.random.random(y.shape)
         num_objects = len(np.unique(y)) - 1
         model = DummyModel()
         encoder = DummyEncoder()
@@ -164,15 +147,34 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
             #     tracker.get_feature_shape('bad feature name')
 
     def test_track_cells(self):
-        length = 128
         frames = 5
         track_length = 2
 
         # TODO: Fix for channels_first
         for data_format in ('channels_last',):  # 'channels_first'):
 
-            x, y = _get_dummy_tracking_data(
-                length, frames=frames, data_format=data_format)
+            labels_per_frame = 5
+            frames = 2
+
+            y1 = _get_annotated_movie(img_size=256,
+                                      labels_per_frame=labels_per_frame,
+                                      frames=frames,
+                                      mov_type='sequential', seed=1,
+                                      data_format=data_format)
+            y2 = _get_annotated_movie(img_size=256,
+                                      labels_per_frame=labels_per_frame * 2,
+                                      frames=frames,
+                                      mov_type='sequential', seed=2,
+                                      data_format=data_format)
+            y3 = _get_annotated_movie(img_size=256,
+                                      labels_per_frame=labels_per_frame,
+                                      frames=frames,
+                                      mov_type='sequential', seed=3,
+                                      data_format=data_format)
+
+            y = np.concatenate((y1, y2, y3))
+
+            x = np.random.random(y.shape)
 
             tracker = tracking.CellTracker(
                 x, y,
@@ -230,74 +232,3 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                 except OSError as exc:
                     if exc.errno != errno.ENOENT:  # no such file or directory
                         raise  # re-raise exception
-
-    # def test_fetch_tracked_features(self):
-    #     length = 128
-    #     frames = 5
-
-    #     # TODO: Fix for channels_first
-    #     for data_format in ('channels_last',):  # 'channels_first'):
-
-    #         x, y = _get_dummy_tracking_data(
-    #             length, frames=frames, data_format=data_format)
-
-    #         for track_length in (1, frames // 2 + 1, frames + 1):
-    #             tracker = tracking.CellTracker(
-    #                 x, y,
-    #                 tracking_model=DummyModel(),
-    #                 neighborhood_encoder=DummyModel(,
-    #                 track_length=track_length,
-    #                 data_format=data_format)
-
-    #             tracker._initialize_tracks()
-
-    #             axis = tracker.channel_axis
-
-    #             tracked_features = tracker.fetch_tracked_features()
-
-    #             for feature_name in tracker.features:
-    #                 feature_shape = tracker.get_feature_shape(feature_name)
-    #                 feature = tracked_features[feature_name]
-
-    #                 axis = tracker.channel_axis
-    #                 assert feature.shape[axis] == feature_shape[axis]
-    #                 assert feature.shape[0] == len(tracker.tracks)
-    #                 assert feature.shape[tracker.time_axis + 1] == track_length
-
-    #             tracked_features = tracker.fetch_tracked_features(
-    #                 before_frame=frames // 2 + 1)
-
-    #             for feature_name in tracker.features:
-    #                 feature_shape = tracker.get_feature_shape(feature_name)
-    #                 feature = tracked_features[feature_name]
-
-    #                 axis = tracker.channel_axis
-    #                 assert feature.shape[axis] == feature_shape[axis]
-    #                 assert feature.shape[0] == len(tracker.tracks)
-    #                 assert feature.shape[tracker.time_axis + 1] == track_length
-
-    # def test__sub_area(self):
-    #     length = 128
-    #     frames = 3
-    #     model = DummyModel()
-
-    #     # TODO: Fix for channels_first
-    #     for data_format in ('channels_last',):  # 'channels_first'):
-    #         x, y = _get_dummy_tracking_data(
-    #             length, frames=frames, data_format=data_format)
-
-    #         tracker = tracking.CellTracker(
-    #             x, y, tracking_model=model,
-    #             neighborhood_encoder=model, data_format=data_format)
-
-    #         for f in range(frames):
-    #             if data_format == 'channels_first':
-    #                 xf = x[:, f]
-    #                 yf = y[:, f]
-    #             else:
-    #                 xf = x[f]
-    #                 yf = y[f]
-
-    #                 sub = tracker._sub_area(xf, yf, 1)
-    #                 expected_shape = tracker.get_feature_shape('neighborhood')
-    #                 assert sub.shape == expected_shape
