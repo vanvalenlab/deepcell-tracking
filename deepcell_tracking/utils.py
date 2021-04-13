@@ -36,6 +36,7 @@ import tarfile
 import tempfile
 from io import BytesIO
 
+import cv2
 import numpy as np
 from skimage import transform
 
@@ -44,10 +45,7 @@ from skimage.segmentation import relabel_sequential
 
 from scipy.spatial.distance import cdist
 
-import cv2
-
-# TODO: see if resize utils (exists here on line 90) could be generalized into 1
-# from deepcell_toolbox.utils import resize
+from deepcell_toolbox.utils import resize
 
 
 def clean_up_annotations(y, uid=None, data_format='channels_last'):
@@ -85,41 +83,6 @@ def clean_up_annotations(y, uid=None, data_format='channels_last'):
         else:
             y[frame] = y_frame_new
     return y
-
-
-def resize(data, shape, data_format='channels_last'):
-    """Resize the data to the given shape.
-
-    Uses openCV to resize the data if the data is a single channel, as it
-    is very fast. However, openCV does not support multi-channel resizing,
-    so if the data has multiple channels, use skimage.
-
-    Args:
-        data (np.array): data to be reshaped.
-        shape (tuple): shape of the output data.
-        data_format (str): determines the order of the channel axis,
-            one of 'channels_first' and 'channels_last'.
-
-    Returns:
-        numpy.array: data reshaped to new shape.
-    """
-    # cv2 resize is faster but does not support multi-channel data
-    # If the data is multi-channel, use skimage.transform.resize
-    channel_axis = 0 if data_format == 'channels_first' else -1
-    if data.shape[channel_axis] > 1:  # multichannel data, use skimage
-        # resize with skimage
-        if data_format == 'channels_first':
-            shape = tuple([data.shape[channel_axis]] + list(shape))
-        else:
-            shape = tuple(list(shape) + [data.shape[channel_axis]])
-        resized = transform.resize(data, shape,
-                                   mode='constant',
-                                   preserve_range=True)
-    else:  # single channel image, resize with cv2
-        resized = cv2.resize(np.squeeze(data), shape)  # pylint: disable=E1101
-        resized = np.expand_dims(resized, axis=channel_axis)
-
-    return resized
 
 
 def count_pairs(y, same_probability=0.5, data_format='channels_last'):
