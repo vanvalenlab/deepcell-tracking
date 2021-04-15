@@ -435,7 +435,8 @@ def get_image_features(X, y, appearance_dim=32, distance_threshold=6):
             considered to be adjacent.
 
     Returns:
-        dict: A dictionary of feature names to np.arrays.
+        dict: A dictionary of feature names to np.arrays of shape
+            (n, c) or (n, x, y, c) where n is the number of objects.
     """
     appearance_dim = int(appearance_dim)
 
@@ -484,6 +485,108 @@ def get_image_features(X, y, appearance_dim=32, distance_threshold=6):
         'morphologies': morphologies,
         'adj_matrix': adj_matrix,
     }
+
+
+def _pad_array(arr, max_nodes, max_frames,
+               node_axes=(1,), time_axes=(2,),
+               pad_value=0):
+    """Pad the given array.
+
+    Args:
+        arr (np.array): A feature array to pad of shape.
+        max_nodes (int): Maximum number of objects for any batch.
+        max_frames (int): Maximum number of frames of any batch.
+        node_axes (tuple or int): Axes of ``arr`` for nodes.
+        time_axes (tuple or int): Axes of ``arr`` for frames.
+        pad_value (int): Constant value to pad with.
+
+    Returns:
+        np.array: The padded array.
+
+    Raises:
+        ValueError: ``pad_value`` is a tuple and length is not 2.
+    """
+    # TODO: encapsulate as part of Track object
+    # this could improve the node_axes/time_axes issues.
+    def _convert_to_tuple(x):
+        try:
+            return tuple(x)
+        except TypeError:
+            return tuple([x])
+
+    node_axes = set(_convert_to_tuple(node_axes))
+    time_axes = set(_convert_to_tuple(time_axes))
+
+    pad_value = _convert_to_tuple(pad_value)
+    if len(pad_value) != 2:
+        raise ValueError('pad_value should be an int or a tuple of length 2')
+
+    pads = []
+    for i, dim in enumerate(arr.shape):
+        if i in node_axes:
+            pads.append((0, max_nodes - dim))
+        elif i in time_axes:
+            pads.append((0, max_frames - dim))
+        else:
+            pads.append((0, 0))
+
+    arr = np.pad(arr, pads, mode='constant', constant_values=pad_value)
+    return arr
+
+
+def concatenate_tracks(tracks):
+    """Join an iterable of Track objects into a single Track.
+
+    Args:
+        tracks (iterable): Iterable of tracks.
+
+    Returns:
+        dict: A dictionary of tracked features.
+
+    Raises:
+        TypeError: ``tracks`` is not iterable.
+    """
+    # TODO: encapsulate as part of Track object
+    # this could improve the node_axes/time_axes issues.
+
+    try:
+        list(tracks)  # check if iterable
+    except TypeError:
+        raise TypeError('concatenate_tracks requires an iterable input.')
+
+    def get_array_of_max_shape(lst):
+        # find max dimensions of all arrs in lst.
+        shape = [0] * len(lst[0].shape)
+        for arr in lst:
+            for i, dim in enumerate(arr.shape):
+                if dim > shape[i]:
+                    shape[i] = dim
+        # add batch dimension
+        shape = [len(lst)] + shape
+        return np.zeros(shape, dtype='float32')
+
+    # TODO: these keys must match the Track attributes.
+    track_info = {
+        'appearances': get_array_of_max_shape((t.appearances for t in tracks)),
+        'centroids': get_array_of_max_shape((t.centroids for t in tracks)),
+        'morphologies': get_array_of_max_shape((t.morphologies for t in tracks)),
+        'adj_matrices': get_array_of_max_shape((t.adj_matrices for t in tracks)),
+        'norm_adj_matrices': get_array_of_max_shape(
+            (t.norm_adj_matrices for t in tracks)),
+        'temporal_adj_matrices': get_array_of_max_shape(
+            (t.temporal_adj_matrices for t in tracks))
+    }
+
+    def get_indices(x):
+        return [list(range(x.shape[s])) for s in range(len(x.shape))]
+
+    for i, track in enumerate(tracks):
+        for k in track_info:
+            feature = getattr(track, k)
+            idx = [i] + get_indices(feature)
+            track_info[k][idx] = feature
+
+    return track_info
 
 
 # TODO: This class contains code that could be reused for tracking.py
