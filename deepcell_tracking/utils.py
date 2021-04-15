@@ -556,8 +556,10 @@ def concatenate_tracks(tracks):
 
     def get_array_of_max_shape(lst):
         # find max dimensions of all arrs in lst.
-        shape = [0] * len(lst[0].shape)
+        shape = None
         for arr in lst:
+            if shape is None:
+                shape = [0] * len(arr.shape)
             for i, dim in enumerate(arr.shape):
                 if dim > shape[i]:
                     shape[i] = dim
