@@ -510,14 +510,16 @@ def concat_tracks(tracks):
     def get_array_of_max_shape(lst):
         # find max dimensions of all arrs in lst.
         shape = None
+        size = 0
         for arr in lst:
             if shape is None:
                 shape = [0] * len(arr.shape)
             for i, dim in enumerate(arr.shape):
                 if dim > shape[i]:
                     shape[i] = dim
+            size += 1
         # add batch dimension
-        shape = [len(lst)] + shape
+        shape = [size] + shape
         return np.zeros(shape, dtype='float32')
 
     # TODO: these keys must match the Track attributes.
