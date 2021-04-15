@@ -487,54 +487,7 @@ def get_image_features(X, y, appearance_dim=32, distance_threshold=6):
     }
 
 
-def _pad_array(arr, max_nodes, max_frames,
-               node_axes=(1,), time_axes=(2,),
-               pad_value=0):
-    """Pad the given array.
-
-    Args:
-        arr (np.array): A feature array to pad of shape.
-        max_nodes (int): Maximum number of objects for any batch.
-        max_frames (int): Maximum number of frames of any batch.
-        node_axes (tuple or int): Axes of ``arr`` for nodes.
-        time_axes (tuple or int): Axes of ``arr`` for frames.
-        pad_value (int): Constant value to pad with.
-
-    Returns:
-        np.array: The padded array.
-
-    Raises:
-        ValueError: ``pad_value`` is a tuple and length is not 2.
-    """
-    # TODO: encapsulate as part of Track object
-    # this could improve the node_axes/time_axes issues.
-    def _convert_to_tuple(x):
-        try:
-            return tuple(x)
-        except TypeError:
-            return tuple([x])
-
-    node_axes = set(_convert_to_tuple(node_axes))
-    time_axes = set(_convert_to_tuple(time_axes))
-
-    pad_value = _convert_to_tuple(pad_value)
-    if len(pad_value) != 2:
-        raise ValueError('pad_value should be an int or a tuple of length 2')
-
-    pads = []
-    for i, dim in enumerate(arr.shape):
-        if i in node_axes:
-            pads.append((0, max_nodes - dim))
-        elif i in time_axes:
-            pads.append((0, max_frames - dim))
-        else:
-            pads.append((0, 0))
-
-    arr = np.pad(arr, pads, mode='constant', constant_values=pad_value)
-    return arr
-
-
-def concatenate_tracks(tracks):
+def concat_tracks(tracks):
     """Join an iterable of Track objects into a single Track.
 
     Args:
