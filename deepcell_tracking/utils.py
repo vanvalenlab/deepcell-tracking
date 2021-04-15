@@ -513,11 +513,11 @@ def concat_tracks(tracks):
         size = 0
         for arr in lst:
             if shape is None:
-                shape = [0] * len(arr.shape)
-            for i, dim in enumerate(arr.shape):
+                shape = [0] * len(arr.shape[1:])
+            for i, dim in enumerate(arr.shape[1:]):
                 if dim > shape[i]:
                     shape[i] = dim
-            size += 1
+            size += arr.shape[0]
         # add batch dimension
         shape = [size] + shape
         return np.zeros(shape, dtype='float32')
@@ -550,10 +550,10 @@ def concat_tracks(tracks):
             (t.temporal_adj_matrices for t in tracks))
     }
 
-    for i, track in enumerate(tracks):
+    for track in tracks:
         for k in track_info:
             feature = getattr(track, k)
-            paste(track_info[k][i], feature, (0,) * len(feature.shape))
+            paste(track_info[k], feature, (0,) * len(feature.shape))
 
     return track_info
 
