@@ -449,7 +449,8 @@ def get_image_features(X, y, appearance_dim=32, distance_threshold=6):
                             appearance_dim, X.shape[-1]))
 
     # iterate over all objects in y
-    for i, prop in enumerate(regionprops(y[..., 0])):
+    props = regionprops(y[..., 0], cache=False)
+    for i, prop in enumerate(props):
         # Get label
         labels[i] = prop.label
 
