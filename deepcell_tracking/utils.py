@@ -488,7 +488,7 @@ def get_image_features(X, y, appearance_dim=32, distance_threshold=6):
 
 
 def concat_tracks(tracks):
-    """Join an iterable of Track objects into a single Track.
+    """Join an iterable of Track objects into a single dictionary of features.
 
     Args:
         tracks (iterable): Iterable of tracks.
@@ -522,6 +522,22 @@ def concat_tracks(tracks):
         shape = [size] + shape
         return np.zeros(shape, dtype='float32')
 
+    # insert small array into larger array
+    # https://stackoverflow.com/a/50692782
+    def paste_slices(tup):
+        pos, w, max_w = tup
+        wall_min = max(pos, 0)
+        wall_max = min(pos+w, max_w)
+        block_min = -min(pos, 0)
+        block_max = max_w-max(pos+w, max_w)
+        block_max = block_max if block_max != 0 else None
+        return slice(wall_min, wall_max), slice(block_min, block_max)
+
+    def paste(wall, block, loc):
+        loc_zip = zip(loc, block.shape, wall.shape)
+        wall_slices, block_slices = zip(*map(paste_slices, loc_zip))
+        wall[wall_slices] = block[block_slices]
+
     # TODO: these keys must match the Track attributes.
     track_info = {
         'appearances': get_array_of_max_shape((t.appearances for t in tracks)),
@@ -534,14 +550,10 @@ def concat_tracks(tracks):
             (t.temporal_adj_matrices for t in tracks))
     }
 
-    def get_indices(x):
-        return [list(range(x.shape[s])) for s in range(len(x.shape))]
-
     for i, track in enumerate(tracks):
         for k in track_info:
             feature = getattr(track, k)
-            idx = [i] + get_indices(feature)
-            track_info[k][idx] = feature
+            paste(track_info[k][i], feature, (0,) * len(feature.shape))
 
     return track_info
 
