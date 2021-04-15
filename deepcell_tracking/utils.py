@@ -558,9 +558,8 @@ def concat_tracks(tracks):
     return track_info
 
 
-# TODO: This class contains code that could be reused for tracking.py
-#       The only difference is usually doing things by batch vs frame
 class Track(object):  # pylint: disable=useless-object-inheritance
+    # TODO: Consolidate Track._get_features and CellTracker._get_features
 
     def __init__(self, path, appearance_dim=32, distance_threshold=64):
         training_data = load_trks(path)
