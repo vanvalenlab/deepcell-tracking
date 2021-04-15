@@ -441,18 +441,21 @@ def get_image_features(X, y, appearance_dim=32, distance_threshold=6):
 
     # each feature will be ordered based on the label.
     # labels are also stored and can be fetched by index.
-    labels = []
-    centroids = []
-    appearances = []
-    morphologies = []
+    num_labels = len(np.unique(y)) - 1
+    labels = np.zeros((num_labels,))
+    centroids = np.zeros((num_labels, 2))
+    morphologies = np.zeros((num_labels, 3))
+    appearances = np.zeros((num_labels, appearance_dim,
+                            appearance_dim, X.shape[-1]))
 
-    for prop in regionprops(y[..., 0]):  # iterate over all objects in y
+    # iterate over all objects in y
+    for i, prop in enumerate(regionprops(y[..., 0])):
         # Get label
-        labels.append(prop.label)
+        labels[i] = prop.label
 
         # Get centroid
         centroid = np.array(prop.centroid)
-        centroids.append(centroid)
+        centroids[i] = centroid
 
         # Get morphology
         morphology = np.array([
@@ -460,20 +463,14 @@ def get_image_features(X, y, appearance_dim=32, distance_threshold=6):
             prop.perimeter,
             prop.eccentricity
         ])
-        morphologies.append(morphology)
+        morphologies[i] = morphology
 
         # Get appearance
         minr, minc, maxr, maxc = prop.bbox
         appearance = np.copy(X[minr:maxr, minc:maxc, :])
         resize_shape = (appearance_dim, appearance_dim)
         appearance = resize(appearance, resize_shape)
-        appearances.append(appearance)
-
-    # now that we have the data, convert to numpy arrays
-    labels = np.stack(labels, axis=0)
-    centroids = np.stack(centroids, axis=0)
-    morphologies = np.stack(morphologies, axis=0)
-    appearances = np.stack(appearances, axis=0)
+        appearances[i] = appearance
 
     # Get adjacency matrix
     distance = cdist(centroids, centroids, metric='euclidean') < distance_threshold
