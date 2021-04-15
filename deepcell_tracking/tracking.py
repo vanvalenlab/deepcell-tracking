@@ -137,16 +137,17 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.id_to_idx = {}  # int: int mapping
         self.idx_to_id = {}  # (frame, cell_idx): cell_id mapping
 
-        # Establish features for every instance of every cell in the movie
-        adj_matrices, appearances, morphologies, centroids = self._est_feats()
+        # Get features for every instance of every cell in the movie
+        adj_matrices, appearances, morphologies, centroids = self._get_features()
 
-        # Compute_embeddings for every instance of every cell in the movie
-        embeddings = self._calc_embeddings(
+        # Compute embeddings for every instance of every cell in the movie
+        embeddings = self._get_neighborhood_embeddings(
             appearances=appearances,
             morphologies=morphologies,
             centroids=centroids,
             adj_matrices=adj_matrices)
 
+        # TODO: immutable dict for safety? these values should never change.
         self.features = {
             'embedding': embeddings,
             'centroid': centroids,
@@ -181,12 +182,11 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         cells = np.delete(cells, np.where(cells == 0))  # remove the background
         return list(cells)
 
-    def _est_feats(self):
+    def _get_features(self):
         """
         Extract the relevant features from the label movie
         Appearance, morphologies, centroids, and adjacency matrices
         """
-        # TODO: Can this function be adapted to use _create_features from utils.py?
         max_cells = get_max_cells(self.y)
         n_frames = self.X.shape[0]
         n_channels = self.X.shape[-1]
@@ -231,7 +231,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         return norm_adj_matrices, appearances, morphologies, centroids
 
-    def _calc_embeddings(self, appearances, morphologies, centroids, adj_matrices):
+    def _get_neighborhood_embeddings(self, appearances, morphologies,
+                                     centroids, adj_matrices):
         """Compute the embeddings using the neighborhood encoder"""
 
         # Move the time dimension to the batch dimension
