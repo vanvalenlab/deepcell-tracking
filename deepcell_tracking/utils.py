@@ -435,7 +435,8 @@ def get_image_features(X, y, appearance_dim=32, distance_threshold=6):
             considered to be adjacent.
 
     Returns:
-        dict: A dictionary of feature names to np.arrays.
+        dict: A dictionary of feature names to np.arrays of shape
+            (n, c) or (n, x, y, c) where n is the number of objects.
     """
     appearance_dim = int(appearance_dim)
 
@@ -486,9 +487,79 @@ def get_image_features(X, y, appearance_dim=32, distance_threshold=6):
     }
 
 
-# TODO: This class contains code that could be reused for tracking.py
-#       The only difference is usually doing things by batch vs frame
+def concat_tracks(tracks):
+    """Join an iterable of Track objects into a single dictionary of features.
+
+    Args:
+        tracks (iterable): Iterable of tracks.
+
+    Returns:
+        dict: A dictionary of tracked features.
+
+    Raises:
+        TypeError: ``tracks`` is not iterable.
+    """
+    # TODO: encapsulate as part of Track object
+    # this could improve the node_axes/time_axes issues.
+
+    try:
+        list(tracks)  # check if iterable
+    except TypeError:
+        raise TypeError('concatenate_tracks requires an iterable input.')
+
+    def get_array_of_max_shape(lst):
+        # find max dimensions of all arrs in lst.
+        shape = None
+        size = 0
+        for arr in lst:
+            if shape is None:
+                shape = [0] * len(arr.shape[1:])
+            for i, dim in enumerate(arr.shape[1:]):
+                if dim > shape[i]:
+                    shape[i] = dim
+            size += arr.shape[0]
+        # add batch dimension
+        shape = [size] + shape
+        return np.zeros(shape, dtype='float32')
+
+    # insert small array into larger array
+    # https://stackoverflow.com/a/50692782
+    def paste_slices(tup):
+        pos, w, max_w = tup
+        wall_min = max(pos, 0)
+        wall_max = min(pos + w, max_w)
+        block_min = -min(pos, 0)
+        block_max = max_w - max(pos + w, max_w)
+        block_max = block_max if block_max != 0 else None
+        return slice(wall_min, wall_max), slice(block_min, block_max)
+
+    def paste(wall, block, loc):
+        loc_zip = zip(loc, block.shape, wall.shape)
+        wall_slices, block_slices = zip(*map(paste_slices, loc_zip))
+        wall[wall_slices] = block[block_slices]
+
+    # TODO: these keys must match the Track attributes.
+    track_info = {
+        'appearances': get_array_of_max_shape((t.appearances for t in tracks)),
+        'centroids': get_array_of_max_shape((t.centroids for t in tracks)),
+        'morphologies': get_array_of_max_shape((t.morphologies for t in tracks)),
+        'adj_matrices': get_array_of_max_shape((t.adj_matrices for t in tracks)),
+        'norm_adj_matrices': get_array_of_max_shape(
+            (t.norm_adj_matrices for t in tracks)),
+        'temporal_adj_matrices': get_array_of_max_shape(
+            (t.temporal_adj_matrices for t in tracks))
+    }
+
+    for track in tracks:
+        for k in track_info:
+            feature = getattr(track, k)
+            paste(track_info[k], feature, (0,) * len(feature.shape))
+
+    return track_info
+
+
 class Track(object):  # pylint: disable=useless-object-inheritance
+    # TODO: Consolidate Track._get_features and CellTracker._get_features
 
     def __init__(self, path, appearance_dim=32, distance_threshold=64):
         training_data = load_trks(path)
@@ -509,9 +580,9 @@ class Track(object):  # pylint: disable=useless-object-inheritance
         self.appearances = features_dict['appearances']
         self.morphologies = features_dict['morphologies']
         self.centroids = features_dict['centroids']
-        self.adj_matrix = features_dict['adj_matrix']
-        self.norm_adj_matrix = normalize_adj_matrix(self.adj_matrix)
-        self.temporal_adj_matrix = features_dict['temporal_adj_matrix']
+        self.adj_matrices = features_dict['adj_matrix']
+        self.norm_adj_matrices = normalize_adj_matrix(self.adj_matrices)
+        self.temporal_adj_matrices = features_dict['temporal_adj_matrix']
         self.mask = features_dict['mask']
         self.track_length = features_dict['track_length']
         self.time_axis = 2  # TODO: convert to 1 to resolve reshape issues.
