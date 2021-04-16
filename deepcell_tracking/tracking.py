@@ -137,8 +137,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.id_to_idx = {}  # int: int mapping
         self.idx_to_id = {}  # (frame, cell_idx): cell_id mapping
 
-        # Get features for every instance of every cell in the movie
-        adj_matrices, appearances, morphologies, centroids = self._est_features()
+        # Establish features for every instance of every cell in the movie
+        adj_matrices, appearances, morphologies, centroids = self._est_feats()
 
         # Compute embeddings for every instance of every cell in the movie
         embeddings = self._get_neighborhood_embeddings(
@@ -182,7 +182,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         cells = np.delete(cells, np.where(cells == 0))  # remove the background
         return list(cells)
 
-    def _est_features(self):
+    def _est_feats(self):
         """
         Extract the relevant features from the label movie
         Appearance, morphologies, centroids, and adjacency matrices
