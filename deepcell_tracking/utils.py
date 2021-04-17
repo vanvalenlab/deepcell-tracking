@@ -561,8 +561,14 @@ def concat_tracks(tracks):
 class Track(object):  # pylint: disable=useless-object-inheritance
     # TODO: Consolidate Track._get_features and CellTracker._get_features
 
-    def __init__(self, path, appearance_dim=32, distance_threshold=64):
-        training_data = load_trks(path)
+    def __init__(self, path=None, tracked_data=None,
+                 appearance_dim=32, distance_threshold=64):
+        if tracked_data:
+            training_data = tracked_data
+        elif path:
+            training_data = load_trks(path)
+        else:
+            raise ValueError('One of `tracked_data` or `path` is required')
         self.X = training_data['X'].astype('float32')
         self.y = training_data['y'].astype('int32')
         self.lineages = training_data['lineages']
