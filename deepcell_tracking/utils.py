@@ -424,7 +424,7 @@ def is_valid_lineage(lineage):
     return True  # all cell lineages are valid!
 
 
-def get_image_features(X, y, appearance_dim=32, distance_threshold=6):
+def get_image_features(X, y, appearance_dim=32, distance_threshold=64):
     """Return features for every object in the array.
 
     Args:
