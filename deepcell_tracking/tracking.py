@@ -260,6 +260,11 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                   'encoder_centroid_input': cent,
                   'encoder_adj_input': adj}
 
+        embeddings_for_log = self.neighborhood_encoder.predict(inputs)
+        self.logger.info('emeddings: ', embeddings_for_log)
+        self.logger.info('emeddings len: ', len(embeddings_for_log))
+        self.logger.info('emeddings shape: ', embeddings_for_log.shape)
+
         embeddings = self.neighborhood_encoder.predict(inputs)[0]
         embeddings = np.array(embeddings)
 
