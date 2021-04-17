@@ -443,11 +443,11 @@ def get_image_features(X, y, appearance_dim=32, distance_threshold=64):
     # each feature will be ordered based on the label.
     # labels are also stored and can be fetched by index.
     num_labels = len(np.unique(y)) - 1
-    labels = np.zeros((num_labels,))
-    centroids = np.zeros((num_labels, 2))
-    morphologies = np.zeros((num_labels, 3))
+    labels = np.zeros((num_labels,), dtype='int32')
+    centroids = np.zeros((num_labels, 2), dtype='float32')
+    morphologies = np.zeros((num_labels, 3), dtype='float32')
     appearances = np.zeros((num_labels, appearance_dim,
-                            appearance_dim, X.shape[-1]))
+                            appearance_dim, X.shape[-1]), dtype='float32')
 
     # iterate over all objects in y
     props = regionprops(y[..., 0], cache=False)
