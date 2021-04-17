@@ -666,12 +666,12 @@ class Track(object):  # pylint: disable=useless-object-inheritance
                     distance_threshold=self.distance_threshold)
 
                 # TODO: convert to (batch, frame, track_id)
-                numtracks = len(frame_features['labels'])
-                centroids[batch, :numtracks, frame] = frame_features['centroids']
-                morphologies[batch, :numtracks, frame] = frame_features['morphologies']
-                appearances[batch, :numtracks, frame] = frame_features['appearances']
-                adj_matrix[batch, :numtracks, :numtracks, frame] = frame_features['adj_matrix']
-                mask[batch, :numtracks, frame] = 1
+                track_ids = frame_features['labels'] - 1
+                centroids[batch, track_ids, frame] = frame_features['centroids']
+                morphologies[batch, track_ids, frame] = frame_features['morphologies']
+                appearances[batch, track_ids, frame] = frame_features['appearances']
+                adj_matrix[batch, track_ids, track_ids, frame] = frame_features['adj_matrix']
+                mask[batch, track_ids, frame] = 1
 
             # Get track length and temporal adjacency matrix
             for label in self.lineages[batch]:
