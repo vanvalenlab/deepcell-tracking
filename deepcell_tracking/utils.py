@@ -676,7 +676,8 @@ class Track(object):  # pylint: disable=useless-object-inheritance
                 centroids[batch, track_ids, frame] = frame_features['centroids']
                 morphologies[batch, track_ids, frame] = frame_features['morphologies']
                 appearances[batch, track_ids, frame] = frame_features['appearances']
-                adj_matrix[batch, track_ids, track_ids, frame] = frame_features['adj_matrix']
+                adj_matrix[batch, track_ids[:, None], track_ids, frame] = \
+                    frame_features['adj_matrix']
                 mask[batch, track_ids, frame] = 1
 
             # Get track length and temporal adjacency matrix
