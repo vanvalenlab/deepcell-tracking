@@ -221,11 +221,14 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 self.id_to_idx[cell_id] = cell_idx
                 self.idx_to_id[(frame, cell_idx)] = cell_id
 
-            numtracks = len(frame_features['labels'])
-            centroids[:numtracks, frame] = frame_features['centroids']
-            morphologies[:numtracks, frame] = frame_features['morphologies']
-            appearances[:numtracks, frame] = frame_features['appearances']
-            adj_matrix[:numtracks, :numtracks, frame] = frame_features['adj_matrix']
+            track_ids = frame_features['labels']
+            centroids[track_ids, frame] = frame_features['centroids']
+            morphologies[track_ids, frame] = frame_features['morphologies']
+            appearances[track_ids, frame] = frame_features['appearances']
+
+            cent = centroids[:, frame]
+            distance = cdist(cent, cent, metric='euclidean') < self.distance_threshold
+            adj_matrix[..., frame] = distance.astype('float32')
 
         # Normalize adj matrix
         norm_adj_matrices = normalize_adj_matrix(adj_matrix)

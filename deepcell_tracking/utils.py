@@ -475,15 +475,15 @@ def get_image_features(X, y, appearance_dim=32, distance_threshold=64):
         appearances[i] = appearance
 
     # Get adjacency matrix
-    distance = cdist(centroids, centroids, metric='euclidean') < distance_threshold
-    adj_matrix = distance.astype('float32')
+    # distance = cdist(centroids, centroids, metric='euclidean') < distance_threshold
+    # adj_matrix = distance.astype('float32')
 
     return {
         'appearances': appearances,
         'centroids': centroids,
         'labels': labels,
         'morphologies': morphologies,
-        'adj_matrix': adj_matrix,
+        # 'adj_matrix': adj_matrix,
     }
 
 
