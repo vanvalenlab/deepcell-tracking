@@ -246,8 +246,7 @@ class TestTrackingUtils(object):
 
         appearance_dim = 16
         distance_threshold = 64
-        features = utils.get_image_features(
-            X, y, appearance_dim, distance_threshold)
+        features = utils.get_image_features(X, y, appearance_dim)
 
         # test appearance
         appearances = features['appearances']
