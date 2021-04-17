@@ -214,8 +214,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
             frame_features = get_image_features(
                 self.X[frame], self.y[frame],
-                appearance_dim=self.appearance_dim,
-                distance_threshold=self.distance_threshold)
+                appearance_dim=self.appearance_dim)
 
             for cell_idx, cell_id in enumerate(frame_features['labels']):
                 self.id_to_idx[cell_id] = cell_idx
