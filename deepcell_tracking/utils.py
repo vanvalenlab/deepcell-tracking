@@ -424,15 +424,13 @@ def is_valid_lineage(lineage):
     return True  # all cell lineages are valid!
 
 
-def get_image_features(X, y, appearance_dim=32, distance_threshold=64):
+def get_image_features(X, y, appearance_dim=32):
     """Return features for every object in the array.
 
     Args:
         X (np.array): a 3D numpy array of raw data of shape (x, y, c).
         y (np.array): a 3D numpy array of integer labels of shape (x, y, 1).
         appearance_dim (int): The resized shape of the appearance feature.
-        distance_threshold (int): Objects further than the threshold are not
-            considered to be adjacent.
 
     Returns:
         dict: A dictionary of feature names to np.arrays of shape
@@ -668,17 +666,21 @@ class Track(object):  # pylint: disable=useless-object-inheritance
 
                 frame_features = get_image_features(
                     self.X[batch, frame], self.y[batch, frame],
-                    appearance_dim=self.appearance_dim,
-                    distance_threshold=self.distance_threshold)
+                    appearance_dim=self.appearance_dim)
 
                 # TODO: convert to (batch, frame, track_id)
                 track_ids = frame_features['labels'] - 1
                 centroids[batch, track_ids, frame] = frame_features['centroids']
                 morphologies[batch, track_ids, frame] = frame_features['morphologies']
                 appearances[batch, track_ids, frame] = frame_features['appearances']
-                adj_matrix[batch, track_ids[:, None], track_ids, frame] = \
-                    frame_features['adj_matrix']
                 mask[batch, track_ids, frame] = 1
+
+                # Get adjacency matrix, cannot filter on track ids.
+                # TODO: different results if calculated in get_frame_features.
+                cent = centroids[:, frame, :]
+                distance = cdist(cent, cent, metric='euclidean')
+                distance = distance < self.distance_threshold
+                adj_matrix[..., frame] = distance.astype(np.float32)
 
             # Get track length and temporal adjacency matrix
             for label in self.lineages[batch]:
