@@ -677,7 +677,7 @@ class Track(object):  # pylint: disable=useless-object-inheritance
 
                 # Get adjacency matrix, cannot filter on track ids.
                 # TODO: different results if calculated in get_frame_features.
-                cent = centroids[:, frame, :]
+                cent = centroids[batch, :, frame, :]
                 distance = cdist(cent, cent, metric='euclidean')
                 distance = distance < self.distance_threshold
                 adj_matrix[..., frame] = distance.astype(np.float32)
