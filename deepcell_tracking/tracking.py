@@ -221,7 +221,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 self.id_to_idx[cell_id] = cell_idx
                 self.idx_to_id[(frame, cell_idx)] = cell_id
 
-            track_ids = frame_features['labels']
+            track_ids = frame_features['labels'] - 1
             centroids[track_ids, frame] = frame_features['centroids']
             morphologies[track_ids, frame] = frame_features['morphologies']
             appearances[track_ids, frame] = frame_features['appearances']
