@@ -82,7 +82,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                  movie,
                  annotation,
                  tracking_model,
-                 neighborhood_encoder,
+                 neighborhood_encoder=None,
                  distance_threshold=64,
                  appearance_dim=32,
                  death=0.99,
