@@ -680,7 +680,7 @@ class Track(object):  # pylint: disable=useless-object-inheritance
                 cent = centroids[batch, :, frame, :]
                 distance = cdist(cent, cent, metric='euclidean')
                 distance = distance < self.distance_threshold
-                adj_matrix[..., frame] = distance.astype(np.float32)
+                adj_matrix[batch, ..., frame] = distance.astype(np.float32)
 
             # Get track length and temporal adjacency matrix
             for label in self.lineages[batch]:
