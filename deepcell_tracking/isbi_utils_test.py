@@ -212,7 +212,7 @@ class TestIsbiUtils(object):
                                  mov_type='repeated', seed=1,
                                  data_format='channels_last')
         # test same movie
-        gtcells, rescells = match_nodes(y1, y1)
+        gtcells, rescells = isbi_utils.match_nodes(y1, y1)
         for gt_cell, res_cell in zip(gtcells, rescells):
             assert gt_cell == res_cell
 
@@ -223,10 +223,10 @@ class TestIsbiUtils(object):
                                  mov_type='sequential', seed=1,
                                  data_format='channels_last')
 
-        gtcells, rescells = match_nodes(y1, y2)
+        gtcells, rescells = isbi_utils.match_nodes(y1, y2)
 
         assert len(rescells) == len(gtcells)
         for loc, gt_cell in enumerate(np.unique(gtcells)):
             # because movies have the same first frame, every
             # iteration of unique values should match original label
-            assert gt_cell == rescells[loc*3]
+            assert gt_cell == rescells[loc * 3]
