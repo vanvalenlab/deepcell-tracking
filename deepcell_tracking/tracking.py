@@ -89,6 +89,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                  birth=0.99,
                  division=0.9,
                  track_length=5,
+                 embedding_axis=0,
                  dtype='float32',
                  data_format='channels_last'):
 
@@ -120,6 +121,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.division = division
         self.dtype = dtype
         self.track_length = track_length
+        self.embedding_axis = embedding_axis
 
         self.a_matrix = []
         self.c_matrix = []
@@ -252,7 +254,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                   'encoder_centroid_input': cent,
                   'encoder_adj_input': adj}
 
-        embeddings = self.neighborhood_encoder.predict(inputs)[0]
+        # TODO: current model doesnt organize outputs according to ordered list
+        #       patching with embedding_axis
+        embeddings = self.neighborhood_encoder.predict(inputs)[self.embedding_axis]
         embeddings = np.array(embeddings)
 
         # Reorder the time dimension
