@@ -36,13 +36,12 @@ import tempfile
 
 import numpy as np
 import pandas as pd
-import skimage as sk
 
 import pytest
 
 from deepcell_tracking import tracking
 from deepcell_tracking import utils
-from deepcell_tracking.test_utils import _get_annotated_movie
+from deepcell_tracking.test_utils import get_annotated_movie
 
 
 class DummyModel(object):  # pylint: disable=useless-object-inheritance
@@ -87,11 +86,11 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
         data_format = 'channels_last'
         frames = 3
         labels_per_frame = 5
-        y = _get_annotated_movie(img_size=256,
-                                 labels_per_frame=labels_per_frame,
-                                 frames=frames,
-                                 mov_type='sequential', seed=0,
-                                 data_format=data_format)
+        y = get_annotated_movie(img_size=256,
+                                labels_per_frame=labels_per_frame,
+                                frames=frames,
+                                mov_type='sequential', seed=0,
+                                data_format=data_format)
         x = np.random.random(y.shape)
         num_objects = len(np.unique(y)) - 1
         model = DummyModel()
@@ -156,21 +155,21 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
             labels_per_frame = 5
             frames = 2
 
-            y1 = _get_annotated_movie(img_size=256,
-                                      labels_per_frame=labels_per_frame,
-                                      frames=frames,
-                                      mov_type='sequential', seed=1,
-                                      data_format=data_format)
-            y2 = _get_annotated_movie(img_size=256,
-                                      labels_per_frame=labels_per_frame * 2,
-                                      frames=frames,
-                                      mov_type='sequential', seed=2,
-                                      data_format=data_format)
-            y3 = _get_annotated_movie(img_size=256,
-                                      labels_per_frame=labels_per_frame,
-                                      frames=frames,
-                                      mov_type='sequential', seed=3,
-                                      data_format=data_format)
+            y1 = get_annotated_movie(img_size=256,
+                                     labels_per_frame=labels_per_frame,
+                                     frames=frames,
+                                     mov_type='sequential', seed=1,
+                                     data_format=data_format)
+            y2 = get_annotated_movie(img_size=256,
+                                     labels_per_frame=labels_per_frame * 2,
+                                     frames=frames,
+                                     mov_type='sequential', seed=2,
+                                     data_format=data_format)
+            y3 = get_annotated_movie(img_size=256,
+                                     labels_per_frame=labels_per_frame,
+                                     frames=frames,
+                                     mov_type='sequential', seed=3,
+                                     data_format=data_format)
 
             y = np.concatenate((y1, y2, y3))
 

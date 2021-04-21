@@ -28,6 +28,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import copy
 import errno
 import os
 import shutil
@@ -39,8 +40,9 @@ import skimage as sk
 import pytest
 
 from deepcell_tracking import utils
-from deepcell_tracking.test_utils import _get_image
-from deepcell_tracking.test_utils import _get_annotated_movie
+from deepcell_tracking.test_utils import get_image
+from deepcell_tracking.test_utils import get_annotated_image
+from deepcell_tracking.test_utils import get_annotated_movie
 
 
 class TestTrackingUtils(object):
@@ -75,11 +77,11 @@ class TestTrackingUtils(object):
         for mov_type in ('random', 'repeated'):
             labels_per_frame = 3
             frames = 3
-            movie = _get_annotated_movie(img_size=256,
-                                         labels_per_frame=labels_per_frame,
-                                         frames=frames,
-                                         mov_type=mov_type, seed=1,
-                                         data_format='channels_last')
+            movie = get_annotated_movie(img_size=256,
+                                        labels_per_frame=labels_per_frame,
+                                        frames=frames,
+                                        mov_type=mov_type, seed=1,
+                                        data_format='channels_last')
             cleaned = utils.clean_up_annotations(movie, uid=uid)
             for frame in range(frames):
                 unique = np.unique(cleaned[frame, :, :, 0])
@@ -89,22 +91,6 @@ class TestTrackingUtils(object):
                 if start != 0:
                     expected = np.append(0, expected)
                 np.testing.assert_array_equal(unique, expected)
-
-    def test_resize(self):
-        channel_sizes = (3, 1)  # skimage used for multi-channel, cv2 otherwise
-        for c in channel_sizes:
-            for data_format in ('channels_last', 'channels_first'):
-                channel_axis = 2 if data_format == 'channels_last' else 0
-                img = np.stack([_get_image()] * c, axis=channel_axis)
-
-                resize_shape = (28, 28)
-                resized_img = utils.resize(img, resize_shape,
-                                           data_format=data_format)
-
-                if data_format == 'channels_first':
-                    assert resized_img.shape[1:] == resize_shape
-                else:
-                    assert resized_img.shape[:-1] == resize_shape
 
     def test_count_pairs(self):
         batches = 1
@@ -127,7 +113,7 @@ class TestTrackingUtils(object):
         assert pairs == expected
 
     def test_save_trks(self):
-        X = _get_image(30, 30)
+        X = get_image(30, 30)
         y = np.random.randint(low=0, high=10, size=X.shape)
         lineage = [dict()]
 
@@ -158,21 +144,132 @@ class TestTrackingUtils(object):
         labels_per_frame = 5
         frames = 2
         expected_max = labels_per_frame * 2
-        y1 = _get_annotated_movie(img_size=256,
-                                  labels_per_frame=labels_per_frame,
-                                  frames=frames,
-                                  mov_type='sequential', seed=1,
-                                  data_format='channels_last')
-        y2 = _get_annotated_movie(img_size=256,
-                                  labels_per_frame=labels_per_frame * 2,
-                                  frames=frames,
-                                  mov_type='sequential', seed=2,
-                                  data_format='channels_last')
-        y3 = _get_annotated_movie(img_size=256,
-                                  labels_per_frame=labels_per_frame,
-                                  frames=frames,
-                                  mov_type='sequential', seed=3,
-                                  data_format='channels_last')
+        y1 = get_annotated_movie(img_size=256,
+                                 labels_per_frame=labels_per_frame,
+                                 frames=frames,
+                                 mov_type='sequential', seed=1,
+                                 data_format='channels_last')
+        y2 = get_annotated_movie(img_size=256,
+                                 labels_per_frame=labels_per_frame * 2,
+                                 frames=frames,
+                                 mov_type='sequential', seed=2,
+                                 data_format='channels_last')
+        y3 = get_annotated_movie(img_size=256,
+                                 labels_per_frame=labels_per_frame,
+                                 frames=frames,
+                                 mov_type='sequential', seed=3,
+                                 data_format='channels_last')
         y = np.concatenate((y1, y2, y3))
         calculated_max = utils.get_max_cells(y)
         assert expected_max == calculated_max
+
+    def test_relabel_sequential_lineage(self):
+        # create dummy movie
+        image1 = get_annotated_image(num_labels=1, sequential=False)
+        image2 = get_annotated_image(num_labels=2, sequential=False)
+        movie = np.stack([image1, image2], axis=0)
+
+        # create dummy lineage
+        lineage = {}
+        for frame in range(movie.shape[0]):
+            unique_labels = np.unique(movie[frame])
+            unique_labels = unique_labels[unique_labels != 0]
+            for unique_label in unique_labels:
+                lineage[unique_label] = {
+                    'frames': [frame],
+                    'parent': None,
+                    'daughters': [],
+                    'label': unique_label,
+                }
+        # assign parents and daughters
+        parent_label = np.unique(movie[0])
+        parent_label = parent_label[parent_label != 0][0]
+
+        daughter_labels = np.unique(movie[1])
+        daughter_labels = [d for d in daughter_labels if d]
+
+        lineage[parent_label]['daughters'] = daughter_labels
+        for d in daughter_labels:
+            lineage[d]['parent'] = parent_label
+
+        # relabel the movie and lineage
+        new_movie, new_lineage = utils.relabel_sequential_lineage(movie, lineage)
+        new_parent_label = int(np.unique(new_movie[np.where(movie == parent_label)]))
+
+        # test parent is relabeled
+        assert new_parent_label == 1  # sequential should start at 1
+        assert new_lineage[new_parent_label]['frames'] == lineage[parent_label]['frames']
+        assert new_lineage[new_parent_label]['parent'] is None
+        assert new_lineage[new_parent_label]['label'] == new_parent_label
+
+        # test daughters are relabeled
+        new_daughter_labels = new_lineage[new_parent_label]['daughters']
+        assert len(new_daughter_labels) == 2
+
+        for d in new_daughter_labels:
+            old_label = int(np.unique(movie[np.where(new_movie == d)]))
+            assert new_lineage[d]['frames'] == lineage[old_label]['frames']
+            assert new_lineage[d]['parent'] == new_parent_label
+            assert new_lineage[d]['label'] == d
+            assert not new_lineage[d]['daughters']
+
+    def test_is_valid_lineage(self):
+        lineage = {
+            0: {'frames': [0],
+                'daughters': [1, 2],
+                'capped': True,
+                'frame_div': 1,
+                'parent': None},
+            1: {'frames': [1],
+                'daughters': [],
+                'capped': False,
+                'frame_div': 1,
+                'parent': 0},
+            2: {'frames': [1],
+                'daughters': [],
+                'capped': False,
+                'frame_div': 1,
+                'parent': 0},
+        }
+        assert utils.is_valid_lineage(lineage)
+
+        # change cell 2's daughter frame to 2, should fail
+        bad_lineage = copy.copy(lineage)
+        bad_lineage[2]['frames'] = [2]
+        assert not utils.is_valid_lineage(bad_lineage)
+
+    def test_get_image_features(self):
+        num_labels = 3
+        y = get_annotated_image(num_labels=num_labels, sequential=True)
+        y = np.expand_dims(y, axis=-1)
+        X = np.random.random(y.shape)
+
+        appearance_dim = 16
+        distance_threshold = 64
+        features = utils.get_image_features(X, y, appearance_dim)
+
+        # test appearance
+        appearances = features['appearances']
+        expected_shape = (num_labels, appearance_dim, appearance_dim, X.shape[-1])
+        assert appearances.shape == expected_shape
+
+        # test centroids
+        centroids = features['centroids']
+        expected_shape = (num_labels, 2)
+        assert centroids.shape == expected_shape
+
+        # test centroids
+        centroids = features['centroids']
+        expected_shape = (num_labels, 2)
+        assert centroids.shape == expected_shape
+
+        # test morphologies
+        morphologies = features['morphologies']
+        expected_shape = (num_labels, 3)
+        assert morphologies.shape == expected_shape
+
+        # test labels
+        labels = features['labels']
+        expected_shape = (num_labels,)
+        assert labels.shape == expected_shape
+        np.testing.assert_array_equal(labels, np.array(list(range(1, num_labels + 1))))

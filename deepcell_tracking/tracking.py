@@ -46,10 +46,10 @@ from skimage.measure import regionprops
 import networkx as nx
 import pandas as pd
 
-from deepcell_tracking.utils import resize
 from deepcell_tracking.utils import clean_up_annotations
 from deepcell_tracking.utils import get_max_cells
 from deepcell_tracking.utils import normalize_adj_matrix
+from deepcell_tracking.utils import get_image_features
 
 
 class CellTracker(object):  # pylint: disable=useless-object-inheritance
@@ -142,13 +142,14 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # Establish features for every instance of every cell in the movie
         adj_matrices, appearances, morphologies, centroids = self._est_feats()
 
-        # Compute_embeddings for every instance of every cell in the movie
-        embeddings = self._calc_embeddings(
+        # Compute embeddings for every instance of every cell in the movie
+        embeddings = self._get_neighborhood_embeddings(
             appearances=appearances,
             morphologies=morphologies,
             centroids=centroids,
             adj_matrices=adj_matrices)
 
+        # TODO: immutable dict for safety? these values should never change.
         self.features = {
             'embedding': embeddings,
             'centroid': centroids,
@@ -188,7 +189,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         Extract the relevant features from the label movie
         Appearance, morphologies, centroids, and adjacency matrices
         """
-        # TODO: Can this function be adapted to use _create_features from utils.py?
+        # TODO: consolidate with Track._get_features
         max_cells = get_max_cells(self.y)
         n_frames = self.X.shape[0]
         n_channels = self.X.shape[-1]
@@ -212,40 +213,31 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                                n_frames), dtype=np.float32)
 
         for frame in range(n_frames):
-            y = self.y[frame, ..., 0]
-            props = regionprops(y)
 
-            for cell_idx, prop in enumerate(props):
-                cell_id = prop.label
+            frame_features = get_image_features(
+                self.X[frame], self.y[frame],
+                appearance_dim=self.appearance_dim)
 
+            for cell_idx, cell_id in enumerate(frame_features['labels']):
                 self.id_to_idx[cell_id] = cell_idx
                 self.idx_to_id[(frame, cell_idx)] = cell_id
 
-                # Get centroid
-                centroids[cell_idx, frame] = np.array(prop.centroid)
+            num_tracks = len(frame_features['labels'])
+            centroids[:num_tracks, frame] = frame_features['centroids']
+            morphologies[:num_tracks, frame] = frame_features['morphologies']
+            appearances[:num_tracks, frame] = frame_features['appearances']
 
-                # Get morphology
-                morphologies[cell_idx, frame] = np.array([prop.area,
-                                                          prop.perimeter,
-                                                          prop.eccentricity])
-
-                # Get appearance
-                minr, minc, maxr, maxc = prop.bbox
-                appearance = np.copy(self.X[frame, minr:maxr, minc:maxc, :])
-                resize_shape = (self.appearance_dim, self.appearance_dim)
-                appearances[cell_idx, frame] = resize(appearance, resize_shape)
-
-            # Get adjacency matrix
-            cent = centroids[:, frame, :]
+            cent = centroids[:, frame]
             distance = cdist(cent, cent, metric='euclidean') < self.distance_threshold
-            adj_matrix[:, :, frame] = distance.astype(np.float32)
+            adj_matrix[..., frame] = distance.astype('float32')
 
         # Normalize adj matrix
         norm_adj_matrices = normalize_adj_matrix(adj_matrix)
 
         return norm_adj_matrices, appearances, morphologies, centroids
 
-    def _calc_embeddings(self, appearances, morphologies, centroids, adj_matrices):
+    def _get_neighborhood_embeddings(self, appearances, morphologies,
+                                     centroids, adj_matrices):
         """Compute the embeddings using the neighborhood encoder"""
 
         # Move the time dimension to the batch dimension
