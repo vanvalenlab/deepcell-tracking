@@ -588,7 +588,6 @@ class Track(object):  # pylint: disable=useless-object-inheritance
         self.temporal_adj_matrices = features_dict['temporal_adj_matrix']
         self.mask = features_dict['mask']
         self.track_length = features_dict['track_length']
-        self.time_axis = 2  # TODO: convert to 1 to resolve reshape issues.
 
     def _correct_lineages(self):
         """Ensure sequential labels for all batches"""
@@ -638,7 +637,7 @@ class Track(object):  # pylint: disable=useless-object-inheritance
         n_frames = self.X.shape[1]
         n_channels = self.X.shape[-1]
 
-        batch_shape = (n_batches, max_tracks, n_frames)
+        batch_shape = (n_batches, n_frames, max_tracks)
 
         appearance_shape = (self.appearance_dim, self.appearance_dim, n_channels)
 
@@ -648,7 +647,7 @@ class Track(object):  # pylint: disable=useless-object-inheritance
 
         centroids = np.zeros(batch_shape + (2,), dtype='float32')
 
-        adj_matrix = np.zeros((n_batches, max_tracks, max_tracks, n_frames), dtype='float32')
+        adj_matrix = np.zeros((n_batches, n_frames, max_tracks, max_tracks), dtype='float32')
 
         temporal_adj_matrix = np.zeros((n_batches,
                                         max_tracks,
@@ -676,10 +675,10 @@ class Track(object):  # pylint: disable=useless-object-inheritance
 
                 # Get adjacency matrix, cannot filter on track ids.
                 # TODO: different results if calculated in get_frame_features.
-                cent = centroids[batch, frame, :, :]
+                cent = centroids[batch, frame]
                 distance = cdist(cent, cent, metric='euclidean')
                 distance = distance < self.distance_threshold
-                adj_matrix[batch, frame, ...] = distance.astype(np.float32)
+                adj_matrix[batch, frame] = distance.astype(np.float32)
 
             # Get track length and temporal adjacency matrix
             for label in self.lineages[batch]:
