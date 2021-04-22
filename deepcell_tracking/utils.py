@@ -332,8 +332,7 @@ def normalize_adj_matrix(adj, epsilon=1e-5):
         np.array: Normalized adjacency matrix
     """
     normed_adj = np.zeros(adj.shape, dtype='float32')
-    for t in range(adj.shape[-1]):
-        adj_frame = adj[..., t]
+    for t, adj_frame in enumerate(adj):
         # setup degree matrix
         degree_matrix = np.zeros(adj_frame.shape, dtype=np.float32)
         # determine whether multiple batches being normalized
@@ -348,7 +347,7 @@ def normalize_adj_matrix(adj, epsilon=1e-5):
             # adj is (cells, cells, time)
             norm_adj = np.matmul(degree_matrix, adj_frame)
             norm_adj = np.matmul(norm_adj, degree_matrix)
-            normed_adj[..., t] = norm_adj
+            normed_adj[t] = norm_adj
 
         else:
             raise ValueError('Only 3 & 4 dim adjacency matrices are supported')
@@ -670,17 +669,17 @@ class Track(object):  # pylint: disable=useless-object-inheritance
 
                 # TODO: convert to (batch, frame, track_id)
                 track_ids = frame_features['labels'] - 1
-                centroids[batch, track_ids, frame] = frame_features['centroids']
-                morphologies[batch, track_ids, frame] = frame_features['morphologies']
-                appearances[batch, track_ids, frame] = frame_features['appearances']
-                mask[batch, track_ids, frame] = 1
+                centroids[batch, frame, track_ids] = frame_features['centroids']
+                morphologies[batch, frame, track_ids] = frame_features['morphologies']
+                appearances[batch, frame, track_ids] = frame_features['appearances']
+                mask[batch, frame, track_ids] = 1
 
                 # Get adjacency matrix, cannot filter on track ids.
                 # TODO: different results if calculated in get_frame_features.
-                cent = centroids[batch, :, frame, :]
+                cent = centroids[batch, frame, :, :]
                 distance = cdist(cent, cent, metric='euclidean')
                 distance = distance < self.distance_threshold
-                adj_matrix[batch, ..., frame] = distance.astype(np.float32)
+                adj_matrix[batch, frame, ...] = distance.astype(np.float32)
 
             # Get track length and temporal adjacency matrix
             for label in self.lineages[batch]:
@@ -698,7 +697,7 @@ class Track(object):  # pylint: disable=useless-object-inheritance
                 # Assign same
                 for f0, f1 in zip(frames[0:-1], frames[1:]):
                     if f1 - f0 == 1:
-                        temporal_adj_matrix[batch, track_id, track_id, f0, 0] = 1
+                        temporal_adj_matrix[batch, f0, track_id, track_id, 0] = 1
 
                 # Assign daughter
                 # WARNING: This wont work if there's a time gap between mother
@@ -707,7 +706,7 @@ class Track(object):  # pylint: disable=useless-object-inheritance
                 daughters = self.lineages[batch][label]['daughters']
                 for daughter in daughters:
                     daughter_id = daughter - 1
-                    temporal_adj_matrix[batch, track_id, daughter_id, last_frame, 2] = 1
+                    temporal_adj_matrix[batch, last_frame, track_id, daughter_id, 2] = 1
 
             # Assign different
             same_prob = temporal_adj_matrix[batch, ..., 0]
@@ -718,8 +717,8 @@ class Track(object):  # pylint: disable=useless-object-inheritance
             for i in range(temporal_adj_matrix.shape[1]):
                 # index + 1 is the cell label
                 if i + 1 not in self.lineages[batch]:
-                    temporal_adj_matrix[batch, i, ...] = -1
-                    temporal_adj_matrix[batch, :, i, ...] = -1
+                    temporal_adj_matrix[batch, :, i] = -1
+                    temporal_adj_matrix[batch, :, :, i] = -1
 
         feature_dict = {}
         feature_dict['adj_matrix'] = adj_matrix
