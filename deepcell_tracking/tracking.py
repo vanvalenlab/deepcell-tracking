@@ -446,7 +446,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             ], axis=0)
 
             # Add time dimension
-            future_feature_arr = np.expand_dims(future_feature_arr, axis=1)
+            future_feature_arr = np.expand_dims(future_feature_arr, axis=0)
 
             # Add batch dimension
             current_feature_arr = np.expand_dims(current_feature_arr, axis=0)
