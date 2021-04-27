@@ -713,7 +713,7 @@ class Track(object):  # pylint: disable=useless-object-inheritance
             temporal_adj_matrix[batch, ..., 1] = 1 - same_prob - daughter_prob
 
             # Identify padding
-            for i in range(temporal_adj_matrix.shape[1]):
+            for i in range(temporal_adj_matrix.shape[2]):
                 # index + 1 is the cell label
                 if i + 1 not in self.lineages[batch]:
                     temporal_adj_matrix[batch, :, i] = -1
