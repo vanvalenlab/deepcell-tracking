@@ -647,7 +647,7 @@ class Track(object):  # pylint: disable=useless-object-inheritance
 
         centroids = np.zeros(batch_shape + (2,), dtype='float32')
 
-        adj_matrix = np.zeros((n_batches, n_frames, max_tracks, max_tracks), dtype='float32')
+        adj_matrix = np.zeros(batch_shape + (max_tracks,), dtype='float32')
 
         temporal_adj_matrix = np.zeros((n_batches,
                                         n_frames - 1,
@@ -666,7 +666,6 @@ class Track(object):  # pylint: disable=useless-object-inheritance
                     self.X[batch, frame], self.y[batch, frame],
                     appearance_dim=self.appearance_dim)
 
-                # TODO: convert to (batch, frame, track_id)
                 track_ids = frame_features['labels'] - 1
                 centroids[batch, frame, track_ids] = frame_features['centroids']
                 morphologies[batch, frame, track_ids] = frame_features['morphologies']
@@ -674,7 +673,6 @@ class Track(object):  # pylint: disable=useless-object-inheritance
                 mask[batch, frame, track_ids] = 1
 
                 # Get adjacency matrix, cannot filter on track ids.
-                # TODO: different results if calculated in get_frame_features.
                 cent = centroids[batch, frame]
                 distance = cdist(cent, cent, metric='euclidean')
                 distance = distance < self.distance_threshold
