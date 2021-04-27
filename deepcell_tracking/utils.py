@@ -650,9 +650,9 @@ class Track(object):  # pylint: disable=useless-object-inheritance
         adj_matrix = np.zeros((n_batches, n_frames, max_tracks, max_tracks), dtype='float32')
 
         temporal_adj_matrix = np.zeros((n_batches,
-                                        max_tracks,
-                                        max_tracks,
                                         n_frames - 1,
+                                        max_tracks,
+                                        max_tracks,
                                         3), dtype='float32')
 
         mask = np.zeros(batch_shape, dtype='float32')
