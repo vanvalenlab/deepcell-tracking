@@ -440,7 +440,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             # Convert from dict to arrays
             current_feature_arr = np.stack([
                 current_feature[k] for k in current_feature
-            ], axis=0)
+            ], axis=1)  # time axis already included
             future_feature_arr = np.stack([
                 future_feature[k] for k in future_feature
             ], axis=0)
