@@ -161,6 +161,14 @@ class TestTrackingUtils(object):
                 batched_normalized[b],
                 normalized)
 
+        # Should fail with too large inputs
+        with pytest.raises(ValueError):
+            utils.normalize_adj_matrix(np.zeros((32,) * 2))
+
+        # Should fail with too small inputs
+        with pytest.raises(ValueError):
+            utils.normalize_adj_matrix(np.zeros((32,) * 5))
+
     def test_get_max_cells(self):
         labels_per_frame = 5
         frames = 2
