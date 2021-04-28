@@ -330,6 +330,9 @@ def normalize_adj_matrix(adj, epsilon=1e-5):
 
     Returns:
         np.array: Normalized adjacency matrix
+
+    Raises:
+        ValueError: If ``adj`` has a rank that is not 3 or 4.
     """
     input_rank = len(adj.shape)
     if input_rank not in {3, 4}:
@@ -343,17 +346,15 @@ def normalize_adj_matrix(adj, epsilon=1e-5):
 
     for t in range(adj.shape[1]):
         adj_frame = adj[:, t]
-        # setup degree matrix
-        degree_matrix = np.zeros(adj_frame.shape, dtype=normed_adj.dtype)
-        # adj is (batch, time, node, node)
+        # create degree matrix
         degrees = np.sum(adj_frame, axis=1)
         for batch, degree in enumerate(degrees):
             degree = (degree + epsilon) ** -0.5
-            degree_matrix[batch] = np.diagflat(degree)
+            degree_matrix = np.diagflat(degree)
 
-        norm_adj = np.matmul(degree_matrix, adj_frame)
-        norm_adj = np.matmul(norm_adj, degree_matrix)
-        normed_adj[:, t] = norm_adj
+            norm_adj = np.matmul(degree_matrix, adj_frame[batch])
+            norm_adj = np.matmul(norm_adj, degree_matrix)
+            normed_adj[batch, t] = norm_adj
 
     if input_rank == 3:
         # remove batch axis
