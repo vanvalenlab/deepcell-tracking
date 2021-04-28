@@ -140,6 +140,27 @@ class TestTrackingUtils(object):
                 if exc.errno != errno.ENOENT:  # no such file or directory
                     raise  # re-raise exception
 
+    def test_normalize_adj_matrix(self):
+        frames = 3
+        # 2 cells in each frame
+        adj = np.zeros((frames, 2, 2))
+        for i in range(2):
+            adj[:, i, i] = 1
+
+        normalized = utils.normalize_adj_matrix(adj)
+
+        # TODO: check accuracy of normalized tensor.
+
+        # also normalize batches
+        batched_adj = np.stack([adj, adj], axis=0)
+        batched_normalized = utils.normalize_adj_matrix(batched_adj)
+
+        # each batch is the same, should be normalized consistently
+        for b in range(batched_normalized.shape[0]):
+            np.testing.assert_array_equal(
+                batched_normalized[b],
+                normalized)
+
     def test_get_max_cells(self):
         labels_per_frame = 5
         frames = 2

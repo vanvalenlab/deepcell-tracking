@@ -331,31 +331,33 @@ def normalize_adj_matrix(adj, epsilon=1e-5):
     Returns:
         np.array: Normalized adjacency matrix
     """
-    normed_adj = np.zeros(adj.shape, dtype='float32')
-    # Time axis varies depending on if adj includes a batch dimension
-    # Shape is (batch, time, node, node) or (time, cells, cells)
-    for t in range(adj.shape[-3]):  # count backwards to ensure time axis
-        adj_frame = adj[..., t, : , :]
+    input_rank = len(adj.shape)
+    if input_rank not in {3, 4}:
+        raise ValueError('Only 3 & 4 dim adjacency matrices are supported')
+
+    if input_rank == 3:
+        # temporarily include a batch dimension for consistent processing
+        adj = np.expand_dims(adj, axis=0)
+
+    normed_adj = np.zeros(adj.shape, dtype=adj.dtype)
+
+    for t in range(adj.shape[1]):
+        adj_frame = adj[:, t]
         # setup degree matrix
         degree_matrix = np.zeros(adj_frame.shape, dtype=normed_adj.dtype)
-        # determine whether multiple batches being normalized
-        if len(adj.shape) == 4:
-            # adj is (batch, time, node, node)
-            degrees = np.sum(adj_frame, axis=1)
-            for batch, degree in enumerate(degrees):
-                degree = (degree + epsilon) ** -0.5
-                degree_matrix[batch] = np.diagflat(degree)
+        # adj is (batch, time, node, node)
+        degrees = np.sum(adj_frame, axis=1)
+        for batch, degree in enumerate(degrees):
+            degree = (degree + epsilon) ** -0.5
+            degree_matrix[batch] = np.diagflat(degree)
 
-            normed_adj[..., t, :, :] = degree_matrix
+        norm_adj = np.matmul(degree_matrix, adj_frame)
+        norm_adj = np.matmul(norm_adj, degree_matrix)
+        normed_adj[:, t] = norm_adj
 
-        elif len(adj.shape) == 3:
-            # adj is (time, cells, cells)
-            norm_adj = np.matmul(degree_matrix, adj_frame)
-            norm_adj = np.matmul(norm_adj, degree_matrix)
-            normed_adj[t] = norm_adj
-
-        else:
-            raise ValueError('Only 3 & 4 dim adjacency matrices are supported')
+    if input_rank == 3:
+        # remove batch axis
+        normed_adj = normed_adj[0]
 
     return normed_adj
 
