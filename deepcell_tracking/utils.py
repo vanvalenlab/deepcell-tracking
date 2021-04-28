@@ -332,19 +332,22 @@ def normalize_adj_matrix(adj, epsilon=1e-5):
         np.array: Normalized adjacency matrix
     """
     normed_adj = np.zeros(adj.shape, dtype='float32')
-    for t, adj_frame in enumerate(adj):
+    # Time axis varies depending on if adj includes a batch dimension
+    # Shape is (batch, time, node, node) or (time, cells, cells)
+    for t in range(adj.shape[-3]):  # count backwards to ensure time axis
+        adj_frame = adj[..., t, : , :]
         # setup degree matrix
         degree_matrix = np.zeros(adj_frame.shape, dtype=np.float32)
         # determine whether multiple batches being normalized
         if len(adj.shape) == 4:
-            # adj is (batch, node, node, time)
+            # adj is (batch, time, node, node)
             degrees = np.sum(adj_frame, axis=1)
             for batch, degree in enumerate(degrees):
                 degree = (degree + epsilon) ** -0.5
                 degree_matrix[batch] = np.diagflat(degree)
 
         elif len(adj.shape) == 3:
-            # adj is (cells, cells, time)
+            # adj is (cells, time, cells)
             norm_adj = np.matmul(degree_matrix, adj_frame)
             norm_adj = np.matmul(norm_adj, degree_matrix)
             normed_adj[t] = norm_adj
