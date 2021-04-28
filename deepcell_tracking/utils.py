@@ -339,7 +339,7 @@ def normalize_adj_matrix(adj, epsilon=1e-5):
         # temporarily include a batch dimension for consistent processing
         adj = np.expand_dims(adj, axis=0)
 
-    normed_adj = np.zeros(adj.shape, dtype=adj.dtype)
+    normed_adj = np.zeros(adj.shape, dtype='float32')
 
     for t in range(adj.shape[1]):
         adj_frame = adj[:, t]
