@@ -342,7 +342,7 @@ def normalize_adj_matrix(adj, epsilon=1e-5):
         # temporarily include a batch dimension for consistent processing
         adj = np.expand_dims(adj, axis=0)
 
-    normed_adj = np.zeros(adj.shape, dtype='float32')
+    normalized_adj = np.zeros(adj.shape, dtype='float32')
 
     for t in range(adj.shape[1]):
         adj_frame = adj[:, t]
@@ -352,15 +352,15 @@ def normalize_adj_matrix(adj, epsilon=1e-5):
             degree = (degree + epsilon) ** -0.5
             degree_matrix = np.diagflat(degree)
 
-            norm_adj = np.matmul(degree_matrix, adj_frame[batch])
-            norm_adj = np.matmul(norm_adj, degree_matrix)
-            normed_adj[batch, t] = norm_adj
+            normalized = np.matmul(degree_matrix, adj_frame[batch])
+            normalized = np.matmul(normalized, degree_matrix)
+            normalized_adj[batch, t] = normalized
 
     if input_rank == 3:
         # remove batch axis
-        normed_adj = normed_adj[0]
+        normalized_adj = normalized_adj[0]
 
-    return normed_adj
+    return normalized_adj
 
 
 def relabel_sequential_lineage(y, lineage):
