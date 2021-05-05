@@ -330,30 +330,37 @@ def normalize_adj_matrix(adj, epsilon=1e-5):
 
     Returns:
         np.array: Normalized adjacency matrix
+
+    Raises:
+        ValueError: If ``adj`` has a rank that is not 3 or 4.
     """
-    normed_adj = np.zeros(adj.shape, dtype='float32')
-    for t in range(adj.shape[-1]):
-        adj_frame = adj[..., t]
-        # setup degree matrix
-        degree_matrix = np.zeros(adj_frame.shape, dtype=np.float32)
-        # determine whether multiple batches being normalized
-        if len(adj.shape) == 4:
-            # adj is (batch, node, node, time)
-            degrees = np.sum(adj_frame, axis=1)
-            for batch, degree in enumerate(degrees):
-                degree = (degree + epsilon) ** -0.5
-                degree_matrix[batch] = np.diagflat(degree)
+    input_rank = len(adj.shape)
+    if input_rank not in {3, 4}:
+        raise ValueError('Only 3 & 4 dim adjacency matrices are supported')
 
-        elif len(adj.shape) == 3:
-            # adj is (cells, cells, time)
-            norm_adj = np.matmul(degree_matrix, adj_frame)
-            norm_adj = np.matmul(norm_adj, degree_matrix)
-            normed_adj[..., t] = norm_adj
+    if input_rank == 3:
+        # temporarily include a batch dimension for consistent processing
+        adj = np.expand_dims(adj, axis=0)
 
-        else:
-            raise ValueError('Only 3 & 4 dim adjacency matrices are supported')
+    normalized_adj = np.zeros(adj.shape, dtype='float32')
 
-    return normed_adj
+    for t in range(adj.shape[1]):
+        adj_frame = adj[:, t]
+        # create degree matrix
+        degrees = np.sum(adj_frame, axis=1)
+        for batch, degree in enumerate(degrees):
+            degree = (degree + epsilon) ** -0.5
+            degree_matrix = np.diagflat(degree)
+
+            normalized = np.matmul(degree_matrix, adj_frame[batch])
+            normalized = np.matmul(normalized, degree_matrix)
+            normalized_adj[batch, t] = normalized
+
+    if input_rank == 3:
+        # remove batch axis
+        normalized_adj = normalized_adj[0]
+
+    return normalized_adj
 
 
 def relabel_sequential_lineage(y, lineage):
@@ -589,7 +596,6 @@ class Track(object):  # pylint: disable=useless-object-inheritance
         self.temporal_adj_matrices = features_dict['temporal_adj_matrix']
         self.mask = features_dict['mask']
         self.track_length = features_dict['track_length']
-        self.time_axis = 2  # TODO: convert to 1 to resolve reshape issues.
 
     def _correct_lineages(self):
         """Ensure sequential labels for all batches"""
@@ -639,7 +645,7 @@ class Track(object):  # pylint: disable=useless-object-inheritance
         n_frames = self.X.shape[1]
         n_channels = self.X.shape[-1]
 
-        batch_shape = (n_batches, max_tracks, n_frames)
+        batch_shape = (n_batches, n_frames, max_tracks)
 
         appearance_shape = (self.appearance_dim, self.appearance_dim, n_channels)
 
@@ -649,12 +655,12 @@ class Track(object):  # pylint: disable=useless-object-inheritance
 
         centroids = np.zeros(batch_shape + (2,), dtype='float32')
 
-        adj_matrix = np.zeros((n_batches, max_tracks, max_tracks, n_frames), dtype='float32')
+        adj_matrix = np.zeros(batch_shape + (max_tracks,), dtype='float32')
 
         temporal_adj_matrix = np.zeros((n_batches,
-                                        max_tracks,
-                                        max_tracks,
                                         n_frames - 1,
+                                        max_tracks,
+                                        max_tracks,
                                         3), dtype='float32')
 
         mask = np.zeros(batch_shape, dtype='float32')
@@ -668,19 +674,17 @@ class Track(object):  # pylint: disable=useless-object-inheritance
                     self.X[batch, frame], self.y[batch, frame],
                     appearance_dim=self.appearance_dim)
 
-                # TODO: convert to (batch, frame, track_id)
                 track_ids = frame_features['labels'] - 1
-                centroids[batch, track_ids, frame] = frame_features['centroids']
-                morphologies[batch, track_ids, frame] = frame_features['morphologies']
-                appearances[batch, track_ids, frame] = frame_features['appearances']
-                mask[batch, track_ids, frame] = 1
+                centroids[batch, frame, track_ids] = frame_features['centroids']
+                morphologies[batch, frame, track_ids] = frame_features['morphologies']
+                appearances[batch, frame, track_ids] = frame_features['appearances']
+                mask[batch, frame, track_ids] = 1
 
                 # Get adjacency matrix, cannot filter on track ids.
-                # TODO: different results if calculated in get_frame_features.
-                cent = centroids[batch, :, frame, :]
+                cent = centroids[batch, frame]
                 distance = cdist(cent, cent, metric='euclidean')
                 distance = distance < self.distance_threshold
-                adj_matrix[batch, ..., frame] = distance.astype(np.float32)
+                adj_matrix[batch, frame] = distance.astype(np.float32)
 
             # Get track length and temporal adjacency matrix
             for label in self.lineages[batch]:
@@ -698,7 +702,7 @@ class Track(object):  # pylint: disable=useless-object-inheritance
                 # Assign same
                 for f0, f1 in zip(frames[0:-1], frames[1:]):
                     if f1 - f0 == 1:
-                        temporal_adj_matrix[batch, track_id, track_id, f0, 0] = 1
+                        temporal_adj_matrix[batch, f0, track_id, track_id, 0] = 1
 
                 # Assign daughter
                 # WARNING: This wont work if there's a time gap between mother
@@ -707,7 +711,7 @@ class Track(object):  # pylint: disable=useless-object-inheritance
                 daughters = self.lineages[batch][label]['daughters']
                 for daughter in daughters:
                     daughter_id = daughter - 1
-                    temporal_adj_matrix[batch, track_id, daughter_id, last_frame, 2] = 1
+                    temporal_adj_matrix[batch, last_frame, track_id, daughter_id, 2] = 1
 
             # Assign different
             same_prob = temporal_adj_matrix[batch, ..., 0]
@@ -715,11 +719,11 @@ class Track(object):  # pylint: disable=useless-object-inheritance
             temporal_adj_matrix[batch, ..., 1] = 1 - same_prob - daughter_prob
 
             # Identify padding
-            for i in range(temporal_adj_matrix.shape[1]):
+            for i in range(temporal_adj_matrix.shape[2]):
                 # index + 1 is the cell label
                 if i + 1 not in self.lineages[batch]:
-                    temporal_adj_matrix[batch, i, ...] = -1
-                    temporal_adj_matrix[batch, :, i, ...] = -1
+                    temporal_adj_matrix[batch, :, i] = -1
+                    temporal_adj_matrix[batch, :, :, i] = -1
 
         feature_dict = {}
         feature_dict['adj_matrix'] = adj_matrix

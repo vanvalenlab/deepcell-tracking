@@ -194,23 +194,18 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         n_frames = self.X.shape[0]
         n_channels = self.X.shape[-1]
 
-        appearances = np.zeros((max_cells,
-                                n_frames,
+        appearances = np.zeros((n_frames,
+                                max_cells,
                                 self.appearance_dim,
                                 self.appearance_dim,
                                 n_channels), dtype=np.float32)
 
-        morphologies = np.zeros((max_cells,
-                                 n_frames,
-                                 3), dtype=np.float32)
+        morphologies = np.zeros((n_frames, max_cells, 3), dtype=np.float32)
 
-        centroids = np.zeros((max_cells,
-                              n_frames,
-                              2), dtype=np.float32)
+        centroids = np.zeros((n_frames, max_cells, 2), dtype=np.float32)
 
-        adj_matrix = np.zeros((max_cells,
-                               max_cells,
-                               n_frames), dtype=np.float32)
+        adj_matrix = np.zeros((n_frames, max_cells, max_cells),
+                              dtype=np.float32)
 
         for frame in range(n_frames):
 
@@ -223,13 +218,13 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 self.idx_to_id[(frame, cell_idx)] = cell_id
 
             num_tracks = len(frame_features['labels'])
-            centroids[:num_tracks, frame] = frame_features['centroids']
-            morphologies[:num_tracks, frame] = frame_features['morphologies']
-            appearances[:num_tracks, frame] = frame_features['appearances']
+            centroids[frame, :num_tracks] = frame_features['centroids']
+            morphologies[frame, :num_tracks] = frame_features['morphologies']
+            appearances[frame, :num_tracks] = frame_features['appearances']
 
-            cent = centroids[:, frame]
+            cent = centroids[frame]
             distance = cdist(cent, cent, metric='euclidean') < self.distance_threshold
-            adj_matrix[..., frame] = distance.astype('float32')
+            adj_matrix[frame] = distance.astype('float32')
 
         # Normalize adj matrix
         norm_adj_matrices = normalize_adj_matrix(adj_matrix)
@@ -239,29 +234,18 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
     def _get_neighborhood_embeddings(self, appearances, morphologies,
                                      centroids, adj_matrices):
         """Compute the embeddings using the neighborhood encoder"""
-
-        # Move the time dimension to the batch dimension
-        # DVV Note - if we moved the time dimension ahead of the cells dimension
-        # we wouldnt need to do all of this
-        app = np.transpose(appearances, axes=(1, 0, 2, 3, 4))
-        morph = np.transpose(morphologies, axes=(1, 0, 2))
-        cent = np.transpose(centroids, axes=(1, 0, 2))
-        adj = np.transpose(adj_matrices, axes=(2, 0, 1))
-
-        # Compute embedding
-        inputs = {'encoder_app_input': app,
-                  'encoder_morph_input': morph,
-                  'encoder_centroid_input': cent,
-                  'encoder_adj_input': adj}
+        # Build input dictionary for neighborhood encoder model
+        inputs = {
+            'encoder_app_input': appearances,
+            'encoder_morph_input': morphologies,
+            'encoder_centroid_input': centroids,
+            'encoder_adj_input': adj_matrices,
+        }
 
         # TODO: current model doesnt organize outputs according to ordered list
         #       patching with embedding_axis
         embeddings = self.neighborhood_encoder.predict(inputs)[self.embedding_axis]
         embeddings = np.array(embeddings)
-
-        # Reorder the time dimension
-        embeddings = np.transpose(embeddings, axes=(1, 0, 2))
-
         return embeddings
 
     def _validate_feature_name(self, feature_name):
@@ -274,7 +258,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         """Get the feature for a cell in the frame"""
         self._validate_feature_name(feature_name)
         cell_idx = self.id_to_idx[cell_id]
-        return self.features[feature_name][cell_idx, frame, :]
+        return self.features[feature_name][frame, cell_idx, :]
 
     def _get_frame_features(self, frame, feature_name='embedding'):
         """Get the feature for the specified cells in a frame"""
@@ -456,13 +440,13 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
             # Convert from dict to arrays
             current_feature_arr = np.stack([
                 current_feature[k] for k in current_feature
-            ], axis=0)
+            ], axis=1)  # time axis already included
             future_feature_arr = np.stack([
                 future_feature[k] for k in future_feature
             ], axis=0)
 
             # Add time dimension
-            future_feature_arr = np.expand_dims(future_feature_arr, axis=1)
+            future_feature_arr = np.expand_dims(future_feature_arr, axis=0)
 
             # Add batch dimension
             current_feature_arr = np.expand_dims(current_feature_arr, axis=0)
@@ -478,7 +462,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         # Perform inference
         predictions = self.tracking_model.predict(inputs)
-        predictions = predictions[0, :, :, 0, ...]  # Remove the batch and time dimension
+        predictions = predictions[0, 0, ...]  # Remove the batch and time dimension
         assignment_matrix = 1 - predictions[..., 0]
 
         for track_id in relevant_tracks:
