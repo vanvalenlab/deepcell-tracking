@@ -234,7 +234,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
     def _get_neighborhood_embeddings(self, appearances, morphologies,
                                      centroids, adj_matrices):
         """Compute the embeddings using the neighborhood encoder"""
-        # Build input ditionary for neighborhood encoder model
+        # Build input dictionary for neighborhood encoder model
         inputs = {
             'encoder_app_input': appearances,
             'encoder_morph_input': morphologies,
