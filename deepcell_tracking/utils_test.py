@@ -302,3 +302,50 @@ class TestTrackingUtils(object):
         expected_shape = (num_labels,)
         assert labels.shape == expected_shape
         np.testing.assert_array_equal(labels, np.array(list(range(1, num_labels + 1))))
+
+    def test_concat_tracks(tmpdir):
+        num_labels = 3
+        y = np.stack([
+            get_annotated_movie(labels_per_frame=num_labels),
+            get_annotated_movie(labels_per_frame=num_labels)
+        ], axis=0)
+        X = np.random.random(y.shape)
+
+        # create dummy lineage
+        lineages = {}
+        for b in range(X.shape[0]):
+            lineages[b] = {}
+            for frame in range(X.shape[1]):
+                unique_labels = np.unique(y[b, frame])
+                unique_labels = unique_labels[unique_labels != 0]
+                for unique_label in unique_labels:
+                    lineages[b][unique_label] = {
+                        'frames': [frame],
+                        'parent': None,
+                        'daughters': [],
+                        'label': unique_label,
+                    }
+        # tracks expect batched data
+        data = {'X': X, 'y': y, 'lineages': lineages}
+        track_1 = utils.Track(tracked_data=data)
+        track_2 = utils.Track(tracked_data=data)
+
+        data = utils.concat_tracks([track_1, track_2])
+
+        for k, v in data.items():
+            starting_batch = 0
+            for t in (track_1, track_2):
+                assert hasattr(t, k)
+                w = getattr(t, k)
+                # data is put into top left corner of array
+                v_sub = v[
+                    starting_batch:starting_batch + w.shape[0],
+                    0:w.shape[1],
+                    0:w.shape[2],
+                    0:w.shape[3]
+                ]
+                np.testing.assert_array_equal(v_sub, w)
+
+        # test that input must be iterable
+        with pytest.raises(TypeError):
+            utils.concat_tracks(track_1)
