@@ -36,6 +36,7 @@ import networkx as nx
 import numpy as np
 
 from deepcell_tracking import isbi_utils
+from deepcell_tracking.test_utils import get_annotated_movie
 
 
 class TestIsbiUtils(object):
@@ -200,3 +201,32 @@ class TestIsbiUtils(object):
         assert daughters == original_daughters
         for d in daughters:
             assert new_track[d]['parent'] == max(new_track)
+
+    def test_match_nodes(self):
+        # creat dummy movie to test against
+        labels_per_frame = 5
+        frames = 3
+        y1 = get_annotated_movie(img_size=256,
+                                 labels_per_frame=labels_per_frame,
+                                 frames=frames,
+                                 mov_type='repeated', seed=1,
+                                 data_format='channels_last')
+        # test same movie
+        gtcells, rescells = isbi_utils.match_nodes(y1, y1)
+        for gt_cell, res_cell in zip(gtcells, rescells):
+            assert gt_cell == res_cell
+
+        # test different movie (with known values)
+        y2 = get_annotated_movie(img_size=256,
+                                 labels_per_frame=labels_per_frame,
+                                 frames=frames,
+                                 mov_type='sequential', seed=1,
+                                 data_format='channels_last')
+
+        gtcells, rescells = isbi_utils.match_nodes(y1, y2)
+
+        assert len(rescells) == len(gtcells)
+        for loc, gt_cell in enumerate(np.unique(gtcells)):
+            # because movies have the same first frame, every
+            # iteration of unique values should match original label
+            assert gt_cell == rescells[loc * 3]

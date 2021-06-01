@@ -29,16 +29,21 @@ from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
 
+import io
 import json
 import os
 import re
 import tarfile
 import tempfile
-from io import BytesIO
 
-import cv2
 import numpy as np
-from skimage import transform
+
+from scipy.spatial.distance import cdist
+
+from skimage.measure import regionprops
+from skimage.segmentation import relabel_sequential
+
+from deepcell_toolbox.utils import resize
 
 
 def clean_up_annotations(y, uid=None, data_format='channels_last'):
@@ -76,41 +81,6 @@ def clean_up_annotations(y, uid=None, data_format='channels_last'):
         else:
             y[frame] = y_frame_new
     return y
-
-
-def resize(data, shape, data_format='channels_last'):
-    """Resize the data to the given shape.
-
-    Uses openCV to resize the data if the data is a single channel, as it
-    is very fast. However, openCV does not support multi-channel resizing,
-    so if the data has multiple channels, use skimage.
-
-    Args:
-        data (np.array): data to be reshaped.
-        shape (tuple): shape of the output data.
-        data_format (str): determines the order of the channel axis,
-            one of 'channels_first' and 'channels_last'.
-
-    Returns:
-        numpy.array: data reshaped to new shape.
-    """
-    # cv2 resize is faster but does not support multi-channel data
-    # If the data is multi-channel, use skimage.transform.resize
-    channel_axis = 0 if data_format == 'channels_first' else -1
-    if data.shape[channel_axis] > 1:  # multichannel data, use skimage
-        # resize with skimage
-        if data_format == 'channels_first':
-            shape = tuple([data.shape[channel_axis]] + list(shape))
-        else:
-            shape = tuple(list(shape) + [data.shape[channel_axis]])
-        resized = transform.resize(data, shape,
-                                   mode='constant',
-                                   preserve_range=True)
-    else:  # single channel image, resize with cv2
-        resized = cv2.resize(np.squeeze(data), shape)  # pylint: disable=E1101
-        resized = np.expand_dims(resized, axis=channel_axis)
-
-    return resized
 
 
 def count_pairs(y, same_probability=0.5, data_format='channels_last'):
@@ -170,13 +140,13 @@ def load_trks(filename):
     with tarfile.open(filename, 'r') as trks:
 
         # numpy can't read these from disk...
-        array_file = BytesIO()
+        array_file = io.BytesIO()
         array_file.write(trks.extractfile('raw.npy').read())
         array_file.seek(0)
         raw = np.load(array_file)
         array_file.close()
 
-        array_file = BytesIO()
+        array_file = io.BytesIO()
         array_file.write(trks.extractfile('tracked.npy').read())
         array_file.seek(0)
         tracked = np.load(array_file)
@@ -330,3 +300,434 @@ def trks_stats(filename):
     print('Total number of divisions                  - ', total_divisions)
     print('Average cell density (cells/100 sq pixels) - ', avg_cells_per_sq_pixel * 100)
     print('Average number of frames per track         - ', int(avg_num_frames_per_track))
+
+
+def get_max_cells(y):
+    """Helper function for finding the maximum number of cells in a frame of a movie, across
+    all frames of the movie. Can be used for batches/tracks interchangeably with frames/cells.
+
+    Args:
+        y (np.array): Annotated image data
+
+    Returns:
+        int: The maximum number of cells in any frame
+    """
+    max_cells = 0
+    for frame in range(y.shape[0]):
+        cells = np.unique(y[frame])
+        n_cells = cells[cells != 0].shape[0]
+        if n_cells > max_cells:
+            max_cells = n_cells
+    return max_cells
+
+
+def normalize_adj_matrix(adj, epsilon=1e-5):
+    """Normalize the adjacency matrix
+
+    Args:
+        adj (np.array): Adjacency matrix
+        epsilon (float): Used to create the degree matrix
+
+    Returns:
+        np.array: Normalized adjacency matrix
+
+    Raises:
+        ValueError: If ``adj`` has a rank that is not 3 or 4.
+    """
+    input_rank = len(adj.shape)
+    if input_rank not in {3, 4}:
+        raise ValueError('Only 3 & 4 dim adjacency matrices are supported')
+
+    if input_rank == 3:
+        # temporarily include a batch dimension for consistent processing
+        adj = np.expand_dims(adj, axis=0)
+
+    normalized_adj = np.zeros(adj.shape, dtype='float32')
+
+    for t in range(adj.shape[1]):
+        adj_frame = adj[:, t]
+        # create degree matrix
+        degrees = np.sum(adj_frame, axis=1)
+        for batch, degree in enumerate(degrees):
+            degree = (degree + epsilon) ** -0.5
+            degree_matrix = np.diagflat(degree)
+
+            normalized = np.matmul(degree_matrix, adj_frame[batch])
+            normalized = np.matmul(normalized, degree_matrix)
+            normalized_adj[batch, t] = normalized
+
+    if input_rank == 3:
+        # remove batch axis
+        normalized_adj = normalized_adj[0]
+
+    return normalized_adj
+
+
+def relabel_sequential_lineage(y, lineage):
+    """Ensure the lineage information is sequentially labeled.
+
+    Args:
+        y (np.array): Annotated z-stack of image labels.
+        lineage (dict): Lineage data for y.
+
+    Returns:
+        tuple(np.array, dict): The relabeled array and corrected lineage.
+    """
+    y_relabel, fw, _ = relabel_sequential(y)
+
+    new_lineage = {}
+
+    cell_ids = np.unique(y)
+    cell_ids = cell_ids[cell_ids != 0]
+    for cell_id in cell_ids:
+        new_cell_id = fw[cell_id]
+
+        new_lineage[new_cell_id] = {}
+
+        # Fix label
+        # TODO: label == track ID?
+        new_lineage[new_cell_id]['label'] = new_cell_id
+
+        # Fix parent
+        parent = lineage[cell_id]['parent']
+        new_parent = fw[parent] if parent is not None else parent
+        new_lineage[new_cell_id]['parent'] = new_parent
+
+        # Fix daughters
+        daughters = lineage[cell_id]['daughters']
+        new_lineage[new_cell_id]['daughters'] = [fw[d] for d in daughters]
+
+        # Fix frames
+        y_true = np.sum(y == cell_id, axis=(1, 2))
+        y_index = np.where(y_true > 0)[0]
+        new_lineage[new_cell_id]['frames'] = list(y_index)
+
+    return y_relabel, new_lineage
+
+
+def is_valid_lineage(lineage):
+    """Check if a cell lineage of a single movie is valid.
+
+    Daughter cells must exist in the frame after the parent's final frame.
+
+    Args:
+        lineage (dict): The cell lineages for a single movie.
+
+    Returns:
+        bool: Whether or not the lineage is valid.
+    """
+    for cell_lineage in lineage.values():
+        # Get last frame of parent
+        last_parent_frame = cell_lineage['frames'][-1]
+
+        for daughter in cell_lineage['daughters']:
+            # get first frame of daughter
+            first_daughter_frame = lineage[daughter]['frames'][0]
+
+            # Check that daughter's start frame is one larger than parent end frame
+            if first_daughter_frame - last_parent_frame != 1:
+                return False
+
+    return True  # all cell lineages are valid!
+
+
+def get_image_features(X, y, appearance_dim=32):
+    """Return features for every object in the array.
+
+    Args:
+        X (np.array): a 3D numpy array of raw data of shape (x, y, c).
+        y (np.array): a 3D numpy array of integer labels of shape (x, y, 1).
+        appearance_dim (int): The resized shape of the appearance feature.
+
+    Returns:
+        dict: A dictionary of feature names to np.arrays of shape
+            (n, c) or (n, x, y, c) where n is the number of objects.
+    """
+    appearance_dim = int(appearance_dim)
+
+    # each feature will be ordered based on the label.
+    # labels are also stored and can be fetched by index.
+    num_labels = len(np.unique(y)) - 1
+    labels = np.zeros((num_labels,), dtype='int32')
+    centroids = np.zeros((num_labels, 2), dtype='float32')
+    morphologies = np.zeros((num_labels, 3), dtype='float32')
+    appearances = np.zeros((num_labels, appearance_dim,
+                            appearance_dim, X.shape[-1]), dtype='float32')
+
+    # iterate over all objects in y
+    props = regionprops(y[..., 0], cache=False)
+    for i, prop in enumerate(props):
+        # Get label
+        labels[i] = prop.label
+
+        # Get centroid
+        centroid = np.array(prop.centroid)
+        centroids[i] = centroid
+
+        # Get morphology
+        morphology = np.array([
+            prop.area,
+            prop.perimeter,
+            prop.eccentricity
+        ])
+        morphologies[i] = morphology
+
+        # Get appearance
+        minr, minc, maxr, maxc = prop.bbox
+        appearance = np.copy(X[minr:maxr, minc:maxc, :])
+        resize_shape = (appearance_dim, appearance_dim)
+        appearance = resize(appearance, resize_shape)
+        appearances[i] = appearance
+
+    # Get adjacency matrix
+    # distance = cdist(centroids, centroids, metric='euclidean') < distance_threshold
+    # adj_matrix = distance.astype('float32')
+
+    return {
+        'appearances': appearances,
+        'centroids': centroids,
+        'labels': labels,
+        'morphologies': morphologies,
+        # 'adj_matrix': adj_matrix,
+    }
+
+
+def concat_tracks(tracks):
+    """Join an iterable of Track objects into a single dictionary of features.
+
+    Args:
+        tracks (iterable): Iterable of tracks.
+
+    Returns:
+        dict: A dictionary of tracked features.
+
+    Raises:
+        TypeError: ``tracks`` is not iterable.
+    """
+    try:
+        list(tracks)  # check if iterable
+    except TypeError:
+        raise TypeError('concatenate_tracks requires an iterable input.')
+
+    def get_array_of_max_shape(lst):
+        # find max dimensions of all arrs in lst.
+        shape = None
+        size = 0
+        for arr in lst:
+            if shape is None:
+                shape = [0] * len(arr.shape[1:])
+            for i, dim in enumerate(arr.shape[1:]):
+                if dim > shape[i]:
+                    shape[i] = dim
+            size += arr.shape[0]
+        # add batch dimension
+        shape = [size] + shape
+        return np.zeros(shape, dtype='float32')
+
+    # insert small array into larger array
+    # https://stackoverflow.com/a/50692782
+    def paste_slices(tup):
+        pos, w, max_w = tup
+        wall_min = max(pos, 0)
+        wall_max = min(pos + w, max_w)
+        block_min = -min(pos, 0)
+        block_max = max_w - max(pos + w, max_w)
+        block_max = block_max if block_max != 0 else None
+        return slice(wall_min, wall_max), slice(block_min, block_max)
+
+    def paste(wall, block, loc):
+        loc_zip = zip(loc, block.shape, wall.shape)
+        wall_slices, block_slices = zip(*map(paste_slices, loc_zip))
+        wall[wall_slices] = block[block_slices]
+
+    # TODO: these keys must match the Track attributes.
+    track_info = {
+        'appearances': get_array_of_max_shape((t.appearances for t in tracks)),
+        'centroids': get_array_of_max_shape((t.centroids for t in tracks)),
+        'morphologies': get_array_of_max_shape((t.morphologies for t in tracks)),
+        'adj_matrices': get_array_of_max_shape((t.adj_matrices for t in tracks)),
+        'norm_adj_matrices': get_array_of_max_shape(
+            (t.norm_adj_matrices for t in tracks)),
+        'temporal_adj_matrices': get_array_of_max_shape(
+            (t.temporal_adj_matrices for t in tracks))
+    }
+
+    for track in tracks:
+        for k in track_info:
+            feature = getattr(track, k)
+            paste(track_info[k], feature, (0,) * len(feature.shape))
+
+    return track_info
+
+
+class Track(object):  # pylint: disable=useless-object-inheritance
+
+    def __init__(self, path=None, tracked_data=None,
+                 appearance_dim=32, distance_threshold=64):
+        if tracked_data:
+            training_data = tracked_data
+        elif path:
+            training_data = load_trks(path)
+        else:
+            raise ValueError('One of `tracked_data` or `path` is required')
+        self.X = training_data['X'].astype('float32')
+        self.y = training_data['y'].astype('int32')
+        self.lineages = training_data['lineages']
+        self.appearance_dim = appearance_dim
+        self.distance_threshold = distance_threshold
+
+        # Correct lineages
+        self._correct_lineages()
+
+        # Remove bad batches
+        self._remove_invalid_batches()
+
+        # Create feature dictionaries
+        features_dict = self._get_features()
+        self.appearances = features_dict['appearances']
+        self.morphologies = features_dict['morphologies']
+        self.centroids = features_dict['centroids']
+        self.adj_matrices = features_dict['adj_matrix']
+        self.norm_adj_matrices = normalize_adj_matrix(self.adj_matrices)
+        self.temporal_adj_matrices = features_dict['temporal_adj_matrix']
+        self.mask = features_dict['mask']
+        self.track_length = features_dict['track_length']
+
+    def _correct_lineages(self):
+        """Ensure sequential labels for all batches"""
+        new_lineages = {}
+        for batch in range(self.y.shape[0]):
+
+            y_relabel, new_lineage = relabel_sequential_lineage(
+                self.y[batch], self.lineages[batch])
+
+            new_lineages[batch] = new_lineage
+            self.y[batch] = y_relabel
+
+        self.lineages = new_lineages
+
+    def _remove_invalid_batches(self):
+        """Remove all movies and lineages that are invalid.
+
+        All batches with a daughter cell starting in a frame
+        other than the parent's final frame will be dropped.
+        """
+        bad_batches = set()
+
+        for batch in range(self.y.shape[0]):
+            if not is_valid_lineage(self.lineages[batch]):
+                bad_batches.add(batch)
+
+        new_X = []
+        new_y = []
+        new_lineages = []
+        for batch in range(self.X.shape[0]):
+            if batch not in bad_batches:
+                new_X.append(self.X[batch])
+                new_y.append(self.y[batch])
+                new_lineages.append(self.lineages[batch])
+
+        self.X = np.stack(new_X, axis=0)
+        self.y = np.stack(new_y, axis=0)
+        self.lineages = new_lineages
+
+    def _get_features(self):
+        """
+        Extract the relevant features from the label movie
+        Appearance, morphologies, centroids, and adjacency matrices
+        """
+        max_tracks = get_max_cells(self.y)
+        n_batches = self.X.shape[0]
+        n_frames = self.X.shape[1]
+        n_channels = self.X.shape[-1]
+
+        batch_shape = (n_batches, n_frames, max_tracks)
+
+        appearance_shape = (self.appearance_dim, self.appearance_dim, n_channels)
+
+        appearances = np.zeros(batch_shape + appearance_shape, dtype='float32')
+
+        morphologies = np.zeros(batch_shape + (3,), dtype='float32')
+
+        centroids = np.zeros(batch_shape + (2,), dtype='float32')
+
+        adj_matrix = np.zeros(batch_shape + (max_tracks,), dtype='float32')
+
+        temporal_adj_matrix = np.zeros((n_batches,
+                                        n_frames - 1,
+                                        max_tracks,
+                                        max_tracks,
+                                        3), dtype='float32')
+
+        mask = np.zeros(batch_shape, dtype='float32')
+
+        track_length = np.zeros((n_batches, max_tracks, 2), dtype='int32')
+
+        for batch in range(n_batches):
+            for frame in range(n_frames):
+
+                frame_features = get_image_features(
+                    self.X[batch, frame], self.y[batch, frame],
+                    appearance_dim=self.appearance_dim)
+
+                track_ids = frame_features['labels'] - 1
+                centroids[batch, frame, track_ids] = frame_features['centroids']
+                morphologies[batch, frame, track_ids] = frame_features['morphologies']
+                appearances[batch, frame, track_ids] = frame_features['appearances']
+                mask[batch, frame, track_ids] = 1
+
+                # Get adjacency matrix, cannot filter on track ids.
+                cent = centroids[batch, frame]
+                distance = cdist(cent, cent, metric='euclidean')
+                distance = distance < self.distance_threshold
+                adj_matrix[batch, frame] = distance.astype(np.float32)
+
+            # Get track length and temporal adjacency matrix
+            for label in self.lineages[batch]:
+                # Get track length
+                start_frame = self.lineages[batch][label]['frames'][0]
+                end_frame = self.lineages[batch][label]['frames'][-1]
+
+                track_id = label - 1
+                track_length[batch, track_id, 0] = start_frame
+                track_length[batch, track_id, 1] = end_frame
+
+                # Get temporal adjacency matrix
+                frames = self.lineages[batch][label]['frames']
+
+                # Assign same
+                for f0, f1 in zip(frames[0:-1], frames[1:]):
+                    if f1 - f0 == 1:
+                        temporal_adj_matrix[batch, f0, track_id, track_id, 0] = 1
+
+                # Assign daughter
+                # WARNING: This wont work if there's a time gap between mother
+                # cell disappearing and daughter cells appearing
+                last_frame = frames[-1]
+                daughters = self.lineages[batch][label]['daughters']
+                for daughter in daughters:
+                    daughter_id = daughter - 1
+                    temporal_adj_matrix[batch, last_frame, track_id, daughter_id, 2] = 1
+
+            # Assign different
+            same_prob = temporal_adj_matrix[batch, ..., 0]
+            daughter_prob = temporal_adj_matrix[batch, ..., 2]
+            temporal_adj_matrix[batch, ..., 1] = 1 - same_prob - daughter_prob
+
+            # Identify padding
+            for i in range(temporal_adj_matrix.shape[2]):
+                # index + 1 is the cell label
+                if i + 1 not in self.lineages[batch]:
+                    temporal_adj_matrix[batch, :, i] = -1
+                    temporal_adj_matrix[batch, :, :, i] = -1
+
+        feature_dict = {}
+        feature_dict['adj_matrix'] = adj_matrix
+        feature_dict['appearances'] = appearances
+        feature_dict['morphologies'] = morphologies
+        feature_dict['centroids'] = centroids
+        feature_dict['temporal_adj_matrix'] = temporal_adj_matrix
+        feature_dict['mask'] = mask
+        feature_dict['track_length'] = track_length
+
+        return feature_dict

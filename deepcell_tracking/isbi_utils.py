@@ -30,10 +30,14 @@ from __future__ import division
 from __future__ import print_function
 
 from collections import Counter
+from skimage.measure import regionprops
 
 import networkx as nx
 import numpy as np
 import pandas as pd
+
+from deepcell_toolbox import compute_overlap
+from deepcell_tracking.utils import load_trks
 
 
 def trk_to_isbi(track, path):
@@ -126,7 +130,64 @@ def contig_tracks(label, batch_info, batch_tracked):
     return batch_info, batch_tracked
 
 
-def txt_to_graph(path):
+def match_nodes(gt, res):
+    """Relabel predicted track to match GT track labels.
+
+    Args:
+        gt (np arr): label movie (y) from ground truth .trk file.
+        res (np arr): label movie (y) from predicted results .trk file
+        threshold (int): threshold value for IoU to count as same cell
+
+    Returns:
+        gtcells (np arr): Array of overlapping ids in the gt movie.
+        rescells (np arr): Array of overlapping ids in the res movie.
+
+    Raises:
+        ValueError: If .
+    """
+
+    num_frames = gt.shape[0]
+    iou = np.zeros((num_frames, np.max(gt) + 1, np.max(res) + 1))
+
+    # TODO: Compute IOUs only when neccesary
+    # If bboxs for true and pred do not overlap with each other, the assignment is immediate
+    # Otherwise use pixel-wise IOU to determine which cell is which
+
+    # Regionprops expects one frame at a time
+    for frame in range(num_frames):
+        gt_frame = gt[frame]
+        res_frame = res[frame]
+
+        gt_props = regionprops(np.squeeze(gt_frame.astype('int')))
+        gt_boxes = [np.array(gt_prop.bbox) for gt_prop in gt_props]
+        gt_boxes = np.array(gt_boxes).astype('double')
+        gt_box_labels = [int(gt_prop.label) for gt_prop in gt_props]
+
+        res_props = regionprops(np.squeeze(res_frame.astype('int')))
+        res_boxes = [np.array(res_prop.bbox) for res_prop in res_props]
+        res_boxes = np.array(res_boxes).astype('double')
+        res_box_labels = [int(res_prop.label) for res_prop in res_props]
+
+        overlaps = compute_overlap(gt_boxes, res_boxes)    # has the form [gt_bbox, res_bbox]
+
+        # Find the bboxes that have overlap at all (ind_ corresponds to box number - starting at 0)
+        ind_gt, ind_res = np.nonzero(overlaps)
+
+        # frame_ious = np.zeros(overlaps.shape)
+        for index in range(ind_gt.shape[0]):
+
+            iou_gt_idx = gt_box_labels[ind_gt[index]]
+            iou_res_idx = res_box_labels[ind_res[index]]
+            intersection = np.logical_and(gt_frame == iou_gt_idx, res_frame == iou_res_idx)
+            union = np.logical_or(gt_frame == iou_gt_idx, res_frame == iou_res_idx)
+            iou[frame, iou_gt_idx, iou_res_idx] = intersection.sum() / union.sum()
+
+    gtcells, rescells = np.where(np.nansum(iou, axis=0) >= 1)
+
+    return gtcells, rescells
+
+
+def txt_to_graph(path, node_key=None):
     """Read the ISBI text file and create a Graph.
 
     Args:
@@ -140,6 +201,9 @@ def txt_to_graph(path):
     """
     names = ['Cell_ID', 'Start', 'End', 'Parent_ID']
     df = pd.read_csv(path, header=None, sep=' ', names=names)
+
+    if node_key is not None:
+        df[['Cell_ID', 'Parent_ID']] = df[['Cell_ID', 'Parent_ID']].replace(node_key)
 
     edges = pd.DataFrame()
 
@@ -198,6 +262,11 @@ def txt_to_graph(path):
 
 def classify_divisions(G_gt, G_res):
     """Compare two graphs and calculate the cell division confusion matrix.
+
+    WARNING: This function will only work if the labels underlying both
+    graphs are the same. E.G. the parents only match if the same label
+    splits in the same frame - but each movie isn't guaranteed to be labeled
+    in the same way (with the same order). Should be used with match_nodes
 
     Args:
         G_gt (networkx.Graph): Ground truth cell lineage graph.
@@ -258,3 +327,48 @@ def classify_divisions(G_gt, G_res):
         'False positive division': false_positive,
         'False negative division': missed
     }
+
+
+def benchmark_division_performance(trk_gt, trk_res, path_gt, path_res):
+    """Compare two related .trk files (one being the GT of the other) and meaasure
+    performance on the the divisions in the GT file. This function produces two .txt
+    documents as a by-product (ISBI-style lineage documents)
+
+    # TODO: there should be an option to not write the files but compare in memory
+
+    Args:
+        trk_gt (path): Path to the ground truth .trk file.
+        trk_res (path): Path to the predicted results .trk file.
+        path_gt (path): Desired destination path for the GT ISBI-style .txt file.
+        path_res (path): Desired destination path for the result ISBI-style .txt file.
+
+    Returns:
+        dict: Diciontary of all division statistics.
+    """
+    # Identify nodes with parent attribute
+    # Load both .trk
+    trks = load_trks(trk_gt)
+    lineage_gt, _, y_gt = trks['lineages'][0], trks['X'], trks['y']
+    trks = load_trks(trk_res)
+    lineage_res, _, y_res = trks['lineages'][0], trks['X'], trks['y']
+
+    # Produce ISBI style text doc to work with
+    trk_to_isbi(lineage_gt, path_gt)
+    trk_to_isbi(lineage_res, path_res)
+
+    # Match up labels in GT to Results to allow for direct comparisons
+    cells_gt, cells_res = match_nodes(y_gt, y_res)
+
+    if len(np.unique(cells_res)) < len(np.unique(cells_gt)):
+        node_key = {r: g for g, r in zip(cells_gt, cells_res)}
+        # node_key maps gt nodes onto resnodes so must be applied to gt
+        G_res = txt_to_graph(path_res, node_key=node_key)
+        G_gt = txt_to_graph(path_gt)
+        div_results = classify_divisions(G_gt, G_res)
+    else:
+        node_key = {g: r for g, r in zip(cells_gt, cells_res)}
+        G_res = txt_to_graph(path_res)
+        G_gt = txt_to_graph(path_gt, node_key=node_key)
+        div_results = classify_divisions(G_gt, G_res)
+
+    return div_results
