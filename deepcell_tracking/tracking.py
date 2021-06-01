@@ -318,32 +318,6 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         # we are assigning a pointer not instantiating a new object
         self.y_tracked = self.y[[frame]].astype('int32')
 
-    def compute_distance(self, track_centroids, frame_centroids):
-        """Computes the distance between two centroids.
-
-        Args:
-            track_centroids (tuple): x and y centroid for the given track.
-            frame_centroids (tuple): x and y centroid for the given frame.
-
-        Returns:
-            tuple: the distances for tracks and frames,
-                and a boolean indicating whether the distance is valid.
-        """
-        centroids = np.concatenate([
-            track_centroids,
-            np.array([frame_centroids])
-        ], axis=0)
-
-        distances = np.concatenate([
-            np.zeros((1, 2), dtype=self.dtype),
-            np.diff(centroids, axis=0)
-        ], axis=0)
-
-        l2 = np.linalg.norm(distances, axis=0)
-        is_cell_in_range = np.all(l2 <= self.distance_threshold)
-
-        return distances[0:-1, :], distances[-1, :], is_cell_in_range
-
     def _fetch_tracked_features(self, before_frame=None, feature_name='embedding'):
         """Get feature data from each tracked frame less than before_frame.
 
