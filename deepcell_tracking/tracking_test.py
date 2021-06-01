@@ -124,14 +124,15 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                                  data_format='invalid')
 
     def test_track_cells(self):
-        frames = 5
-        track_length = 2
+        frames = 10
+        track_length = 3
+        labels_per_frame = 3
+
+        # TODO: test detected divisions
+        # TODO: test creating new track
 
         # TODO: Fix for channels_first
         for data_format in ('channels_last',):  # 'channels_first'):
-
-            labels_per_frame = 5
-            frames = 2
 
             y1 = get_annotated_movie(img_size=256,
                                      labels_per_frame=labels_per_frame,
