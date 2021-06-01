@@ -45,6 +45,38 @@ from deepcell_tracking.test_utils import get_annotated_image
 from deepcell_tracking.test_utils import get_annotated_movie
 
 
+def get_dummy_data(num_labels=3, batches=2):
+    num_labels = 3
+    movies = []
+    for _ in range(batches):
+        movies.append(get_annotated_movie(labels_per_frame=num_labels))
+
+    y = np.stack(movies, axis=0)
+    X = np.random.random(y.shape)
+
+    # create dummy lineage
+    lineages = {}
+    for b in range(X.shape[0]):
+        lineages[b] = {}
+        for frame in range(X.shape[1]):
+            unique_labels = np.unique(y[b, frame])
+            unique_labels = unique_labels[unique_labels != 0]
+            for unique_label in unique_labels:
+                if unique_label not in lineages[b]:
+                    lineages[b][unique_label] = {
+                        'frames': [frame],
+                        'parent': None,
+                        'daughters': [],
+                        'label': unique_label,
+                    }
+                else:
+                    lineages[b][unique_label]['frames'].append(frame)
+
+    # tracks expect batched data
+    data = {'X': X, 'y': y, 'lineages': lineages}
+    return data
+
+
 class TestTrackingUtils(object):
 
     def test_clean_up_annotations(self):
@@ -303,30 +335,10 @@ class TestTrackingUtils(object):
         assert labels.shape == expected_shape
         np.testing.assert_array_equal(labels, np.array(list(range(1, num_labels + 1))))
 
-    def test_concat_tracks(tmpdir):
+    def test_concat_tracks(self):
         num_labels = 3
-        y = np.stack([
-            get_annotated_movie(labels_per_frame=num_labels),
-            get_annotated_movie(labels_per_frame=num_labels)
-        ], axis=0)
-        X = np.random.random(y.shape)
 
-        # create dummy lineage
-        lineages = {}
-        for b in range(X.shape[0]):
-            lineages[b] = {}
-            for frame in range(X.shape[1]):
-                unique_labels = np.unique(y[b, frame])
-                unique_labels = unique_labels[unique_labels != 0]
-                for unique_label in unique_labels:
-                    lineages[b][unique_label] = {
-                        'frames': [frame],
-                        'parent': None,
-                        'daughters': [],
-                        'label': unique_label,
-                    }
-        # tracks expect batched data
-        data = {'X': X, 'y': y, 'lineages': lineages}
+        data = get_dummy_data(num_labels)
         track_1 = utils.Track(tracked_data=data)
         track_2 = utils.Track(tracked_data=data)
 
@@ -349,3 +361,26 @@ class TestTrackingUtils(object):
         # test that input must be iterable
         with pytest.raises(TypeError):
             utils.concat_tracks(track_1)
+
+
+class TestTrack(object):
+
+    def test_init(self, mocker):
+        num_labels = 3
+
+        data = get_dummy_data(num_labels)
+
+        # invalidate one lineage
+        mocker.patch('deepcell_tracking.utils.load_trks',
+                     lambda x: data)
+
+        track1 = utils.Track(tracked_data=data)
+        track2 = utils.Track(path='path/to/data')
+
+        np.testing.assert_array_equal(track1.appearances, track2.appearances)
+        np.testing.assert_array_equal(
+            track1.temporal_adj_matrices,
+            track2.temporal_adj_matrices)
+
+        with pytest.raises(ValueError):
+            utils.Track()
