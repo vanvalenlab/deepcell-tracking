@@ -504,9 +504,6 @@ def concat_tracks(tracks):
     Raises:
         TypeError: ``tracks`` is not iterable.
     """
-    # TODO: encapsulate as part of Track object
-    # this could improve the node_axes/time_axes issues.
-
     try:
         list(tracks)  # check if iterable
     except TypeError:
@@ -564,7 +561,6 @@ def concat_tracks(tracks):
 
 
 class Track(object):  # pylint: disable=useless-object-inheritance
-    # TODO: Consolidate Track._get_features and CellTracker._get_features
 
     def __init__(self, path=None, tracked_data=None,
                  appearance_dim=32, distance_threshold=64):
