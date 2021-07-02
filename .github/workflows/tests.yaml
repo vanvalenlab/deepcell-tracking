@@ -42,7 +42,7 @@ jobs:
 
     - name: PyTest
       run: |
-        pytest --cov deepcell_tracking --pep8
+        python -m pytest --cov deepcell_tracking --pep8
 
     - name: Coveralls
       if: env.COVERALLS_REPO_TOKEN != null
