@@ -37,7 +37,7 @@ with open(os.path.join(here, 'README.md'), 'r', 'utf-8') as f:
     readme = f.read()
 
 
-VERSION = '0.4.1'
+VERSION = '0.4.2'
 NAME = 'DeepCell_Tracking'
 DESCRIPTION = 'Tracking cells and lineage with deep learning.'
 LICENSE = 'LICENSE'
@@ -77,4 +77,5 @@ setup(name=NAME,
           'Programming Language :: Python :: 3.5',
           'Programming Language :: Python :: 3.6',
           'Programming Language :: Python :: 3.7',
-          'Programming Language :: Python :: 3.8'])
+          'Programming Language :: Python :: 3.8',
+          'Programming Language :: Python :: 3.9'])
