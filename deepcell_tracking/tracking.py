@@ -747,7 +747,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         filename = str(filename)
 
-        with tarfile.open(filename, 'w:gz') as trks:
+        with tarfile.open(filename, 'w:bz2') as trks:
             # disable auto deletion and close/delete manually
             # to resolve double-opening issue on Windows.
             with tempfile.NamedTemporaryFile('w', delete=False) as lineage:
