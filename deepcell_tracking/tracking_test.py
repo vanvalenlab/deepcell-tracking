@@ -29,10 +29,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import errno
 import os
-import shutil
-import tempfile
 
 import numpy as np
 import pandas as pd
@@ -123,7 +120,7 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
                                  neighborhood_encoder=encoder,
                                  data_format='invalid')
 
-    def test_track_cells(self):
+    def test_track_cells(self, tmpdir):
         frames = 10
         track_length = 3
         labels_per_frame = 3
@@ -172,41 +169,34 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
             with pytest.raises(ValueError):
                 tracker.dataframe(bad_value=-1)
 
-            try:
-                # test tracker.postprocess
-                tempdir = tempfile.mkdtemp()  # create dir
-                path = os.path.join(tempdir, 'postprocess.xyz')
-                tracker.postprocess(filename=path)
-                post_saved_path = os.path.join(tempdir, 'postprocess.trk')
-                assert os.path.isfile(post_saved_path)
+            # test tracker.postprocess
+            tempdir = str(tmpdir)  # create dir
+            path = os.path.join(tempdir, 'postprocess.xyz')
+            tracker.postprocess(filename=path)
+            post_saved_path = os.path.join(tempdir, 'postprocess.trk')
+            assert os.path.isfile(post_saved_path)
 
-                # test tracker.dump
-                path = os.path.join(tempdir, 'test.xyz')
-                tracker.dump(path)
-                dump_saved_path = os.path.join(tempdir, 'test.trk')
-                assert os.path.isfile(dump_saved_path)
+            # test tracker.dump
+            path = os.path.join(tempdir, 'test.xyz')
+            tracker.dump(path)
+            dump_saved_path = os.path.join(tempdir, 'test.trk')
+            assert os.path.isfile(dump_saved_path)
 
-                # utility tests for loading trk files
-                # TODO: move utility tests into utils_test.py
+            # utility tests for loading trk files
+            # TODO: move utility tests into utils_test.py
 
-                # test trk_folder_to_trks
-                utils.trk_folder_to_trks(tempdir, os.path.join(tempdir, 'all.trks'))
-                assert os.path.isfile(os.path.join(tempdir, 'all.trks'))
+            # test trk_folder_to_trks
+            utils.trk_folder_to_trks(tempdir, os.path.join(tempdir, 'all.trks'))
+            assert os.path.isfile(os.path.join(tempdir, 'all.trks'))
 
-                # test load_trks
-                data = utils.load_trks(post_saved_path)
-                assert isinstance(data['lineages'], list)
-                assert all(isinstance(d, dict) for d in data['lineages'])
-                np.testing.assert_equal(data['X'], tracker.X)
-                np.testing.assert_equal(data['y'], tracker.y_tracked)
-                # load trks instead of trk
-                data = utils.load_trks(os.path.join(tempdir, 'all.trks'))
+            # test load_trks
+            data = utils.load_trks(post_saved_path)
+            assert isinstance(data['lineages'], list)
+            assert all(isinstance(d, dict) for d in data['lineages'])
+            np.testing.assert_equal(data['X'], tracker.X)
+            np.testing.assert_equal(data['y'], tracker.y_tracked)
+            # load trks instead of trk
+            data = utils.load_trks(os.path.join(tempdir, 'all.trks'))
 
-                # test trks_stats
-                utils.trks_stats(os.path.join(tempdir, 'test.trk'))
-            finally:
-                try:
-                    shutil.rmtree(tempdir)  # delete directory
-                except OSError as exc:
-                    if exc.errno != errno.ENOENT:  # no such file or directory
-                        raise  # re-raise exception
+            # test trks_stats
+            utils.trks_stats(os.path.join(tempdir, 'test.trk'))
