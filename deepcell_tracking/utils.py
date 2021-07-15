@@ -138,19 +138,14 @@ def load_trks(filename):
         dict: A dictionary with raw, tracked, and lineage data.
     """
     with tarfile.open(filename, 'r') as trks:
-
         # numpy can't read these from disk...
-        array_file = io.BytesIO()
-        array_file.write(trks.extractfile('raw.npy').read())
-        array_file.seek(0)
-        raw = np.load(array_file)
-        array_file.close()
-
-        array_file = io.BytesIO()
-        array_file.write(trks.extractfile('tracked.npy').read())
-        array_file.seek(0)
-        tracked = np.load(array_file)
-        array_file.close()
+        npz_file = io.BytesIO()
+        npz_file.write(trks.extractfile('data.npz').read())
+        npz_file.seek(0)
+        data = np.load(npz_file)
+        raw = data['X']
+        tracked = data['y']
+        npz_file.close()
 
         # trks.extractfile opens a file in bytes mode, json can't use bytes.
         _, file_extension = os.path.splitext(filename)
@@ -222,19 +217,12 @@ def save_trks(filename, lineages, raw, tracked):
             trks.add(lineages_file.name, 'lineages.json')
             os.remove(lineages_file.name)
 
-        with tempfile.NamedTemporaryFile(delete=False) as raw_file:
-            np.save(raw_file, raw)
-            raw_file.flush()
-            raw_file.close()
-            trks.add(raw_file.name, 'raw.npy')
-            os.remove(raw_file.name)
-
-        with tempfile.NamedTemporaryFile(delete=False) as tracked_file:
-            np.save(tracked_file, tracked)
-            tracked_file.flush()
-            tracked_file.close()
-            trks.add(tracked_file.name, 'tracked.npy')
-            os.remove(tracked_file.name)
+        with tempfile.NamedTemporaryFile(delete=False) as npz_file:
+            np.savez_compressed(npz_file, X=raw, y=tracked)
+            npz_file.flush()
+            npz_file.close()
+            trks.add(npz_file.name, 'data.npz')
+            os.remove(npz_file.name)
 
 
 def trks_stats(filename):
