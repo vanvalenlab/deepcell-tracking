@@ -29,10 +29,7 @@ from __future__ import division
 from __future__ import print_function
 
 import copy
-import errno
 import os
-import shutil
-import tempfile
 
 import numpy as np
 import skimage as sk
@@ -144,33 +141,25 @@ class TestTrackingUtils(object):
             y, same_probability=prob, data_format='channels_first')
         assert pairs == expected
 
-    def test_save_trks(self):
+    def test_save_trks(self, tmpdir):
         X = get_image(30, 30)
         y = np.random.randint(low=0, high=10, size=X.shape)
         lineage = [dict()]
 
-        try:
-            tempdir = tempfile.mkdtemp()  # create dir
-            with pytest.raises(ValueError):
-                badfilename = os.path.join(tempdir, 'x.trk')
-                utils.save_trks(badfilename, lineage, X, y)
+        tempdir = str(tmpdir)  # create dir
+        with pytest.raises(ValueError):
+            badfilename = os.path.join(tempdir, 'x.trk')
+            utils.save_trks(badfilename, lineage, X, y)
 
-            filename = os.path.join(tempdir, 'x.trks')
-            utils.save_trks(filename, lineage, X, y)
-            assert os.path.isfile(filename)
+        filename = os.path.join(tempdir, 'x.trks')
+        utils.save_trks(filename, lineage, X, y)
+        assert os.path.isfile(filename)
 
-            # test saved tracks can be loaded
-            loaded = utils.load_trks(filename)
-            assert loaded['lineages'] == lineage
-            np.testing.assert_array_equal(X, loaded['X'])
-            np.testing.assert_array_equal(y, loaded['y'])
-
-        finally:
-            try:
-                shutil.rmtree(tempdir)  # delete directory
-            except OSError as exc:
-                if exc.errno != errno.ENOENT:  # no such file or directory
-                    raise  # re-raise exception
+        # test saved tracks can be loaded
+        loaded = utils.load_trks(filename)
+        assert loaded['lineages'] == lineage
+        np.testing.assert_array_equal(X, loaded['X'])
+        np.testing.assert_array_equal(y, loaded['y'])
 
     def test_normalize_adj_matrix(self):
         frames = 3
