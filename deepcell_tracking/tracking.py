@@ -757,19 +757,14 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                 trks.add(lineage.name, 'lineage.json')
                 os.remove(lineage.name)
 
-            with tempfile.NamedTemporaryFile(delete=False) as raw:
-                np.save(raw, track_review_dict['X'])
-                raw.flush()
-                raw.close()
-                trks.add(raw.name, 'raw.npy')
-                os.remove(raw.name)
-
-            with tempfile.NamedTemporaryFile(delete=False) as tracked:
-                np.save(tracked, track_review_dict['y_tracked'])
-                tracked.flush()
-                tracked.close()
-                trks.add(tracked.name, 'tracked.npy')
-                os.remove(tracked.name)
+            with tempfile.NamedTemporaryFile(delete=False) as npz_file:
+                raw = track_review_dict['X']
+                tracked = track_review_dict['y_tracked']
+                np.savez_compressed(npz_file, X=raw, y=tracked)
+                npz_file.flush()
+                npz_file.close()
+                trks.add(npz_file.name, 'data.npz')
+                os.remove(npz_file.name)
 
     def _track_to_graph(self, tracks):
         """Create a graph from the lineage information"""
