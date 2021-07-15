@@ -209,7 +209,7 @@ def save_trks(filename, lineages, raw, tracked):
     if not str(filename).lower().endswith('.trks'):
         raise ValueError('filename must end with `.trks`. Found %s' % filename)
 
-    with tarfile.open(filename, 'w:bz2') as trks:
+    with tarfile.open(filename, 'w:gz') as trks:
         with tempfile.NamedTemporaryFile('w', delete=False) as lineages_file:
             json.dump(lineages, lineages_file, indent=4)
             lineages_file.flush()
