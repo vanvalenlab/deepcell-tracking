@@ -47,7 +47,7 @@ def trk_to_isbi(track):
         track (dict): Cell lineage object.
 
     Returns:
-        isbi (arr): Array of ISBI dictionaries of each label. 
+        isbi (arr): Array of ISBI dictionaries of each label.
     """
     isbi = []
     for label in track:
@@ -64,7 +64,7 @@ def trk_to_isbi(track):
                 'Start': first_frame,
                 'End': last_frame,
                 'Parent_ID': parent}
-        
+
         isbi.append(line)
     return isbi
 
@@ -192,7 +192,7 @@ def isbi_to_graph(data, node_key=None):
     """Create a Graph from array of ISBI info.
 
     Args:
-        data (arr): Array of ISBI dictionaries of each label. 
+        data (arr): Array of ISBI dictionaries of each label.
         node_key (dict): Map between gt nodes and result nodes
 
     Returns:
