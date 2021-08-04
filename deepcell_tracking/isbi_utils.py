@@ -52,6 +52,7 @@ def trk_to_isbi(track, path=None):
     """
     if path is not None:
         print("UserWarning: The `path` argument is deprecated.")
+        text_file = open(path, 'w')
 
     isbi = []
     for label in track:
@@ -63,13 +64,22 @@ def trk_to_isbi(track, path=None):
             parent_frames = track[parent]['frames']
             if parent_frames[-1] != first_frame - 1:
                 parent = 0
+        if path is not None:
+            line = '{cell_id} {start} {end} {parent}\n'.format(
+                cell_id=label,
+                start=first_frame,
+                end=last_frame,
+                parent=parent
+            )
+            text_file.write(line)
 
-        line = {'Cell_ID': label,
-                'Start': first_frame,
-                'End': last_frame,
-                'Parent_ID': parent}
-
-        isbi.append(line)
+        isbi_dict = {'Cell_ID': label,
+                     'Start': first_frame,
+                     'End': last_frame,
+                     'Parent_ID': parent}
+        isbi.append(isbi_dict)
+    if path is not None:
+        text_file.close()
     return isbi
 
 
@@ -191,7 +201,7 @@ def match_nodes(gt, res):
     return gtcells, rescells
 
 
-def txt_to_graph(data, node_key=None):
+def txt_to_graph(path=None, node_key=None, data=None):
     """Create a Graph from array of ISBI info.
 
     Args:
@@ -204,7 +214,12 @@ def txt_to_graph(data, node_key=None):
     Raises:
         ValueError: If the Parent_ID is not in any previous frames.
     """
-    df = pd.DataFrame(data)
+    if path is not None:
+        print("UserWarning: The `path` argument is deprecated.")
+        names = ['Cell_ID', 'Start', 'End', 'Parent_ID']
+        df = pd.read_csv(path, header=None, sep=' ', names=names)
+    else:
+        df = pd.DataFrame(data)
 
     if node_key is not None:
         df[['Cell_ID', 'Parent_ID']] = df[['Cell_ID', 'Parent_ID']].replace(node_key)
@@ -343,13 +358,11 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None)
         path_gt (path): Desired destination path for the GT ISBI-style .txt
             file (deprecated).
         path_res (path): Desired destination path for the result ISBI-style
-            .txt file (depracated).
+            .txt file (deprecated).
 
     Returns:
         dict: Dictionary of all division statistics.
     """
-    if path_gt or path_res is not None:
-        print("UserWarning: The 'path_gt` and 'path_res' arguments are deprecated.")
     # Identify nodes with parent attribute
     # Load both .trk
     trks = load_trks(trk_gt)
@@ -358,8 +371,13 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None)
     lineage_res, _, y_res = trks['lineages'][0], trks['X'], trks['y']
 
     # Produce ISBI style array to work with
-    gt = trk_to_isbi(lineage_gt)
-    res = trk_to_isbi(lineage_res)
+    if path_gt or path_res is not None:
+        print("UserWarning: The 'path_gt` and 'path_res' arguments are deprecated.")
+        trk_to_isbi(lineage_gt, path_gt)
+        trk_to_isbi(lineage_res, path_res)
+    else:
+        gt = trk_to_isbi(lineage_gt)
+        res = trk_to_isbi(lineage_res)
 
     # Match up labels in GT to Results to allow for direct comparisons
     cells_gt, cells_res = match_nodes(y_gt, y_res)
@@ -367,13 +385,22 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None)
     if len(np.unique(cells_res)) < len(np.unique(cells_gt)):
         node_key = {r: g for g, r in zip(cells_gt, cells_res)}
         # node_key maps gt nodes onto resnodes so must be applied to gt
-        G_res = txt_to_graph(res, node_key=node_key)
-        G_gt = txt_to_graph(gt)
+        if path_gt or path_res is not None:
+            G_res = txt_to_graph(path=path_res, node_key=node_key)
+            G_gt = txt_to_graph(path=path_gt)
+        else:
+            G_res = txt_to_graph(data=res, node_key=node_key)
+            G_gt = txt_to_graph(data=gt)
+
         div_results = classify_divisions(G_gt, G_res)
     else:
         node_key = {g: r for g, r in zip(cells_gt, cells_res)}
-        G_res = txt_to_graph(res)
-        G_gt = txt_to_graph(gt, node_key=node_key)
+        if path_gt or path_res is not None:
+            G_res = txt_to_graph(path=path_res)
+            G_gt = txt_to_graph(path=path_gt, node_key=node_key)
+        else:
+            G_res = txt_to_graph(data=res)
+            G_gt = txt_to_graph(data=gt, node_key=node_key)
         div_results = classify_divisions(G_gt, G_res)
 
     return div_results

@@ -95,7 +95,7 @@ class TestIsbiUtils(object):
                 {'Cell_ID': 4, 'Start': 3, 'End': 3, 'Parent_ID': 2},
                 {'Cell_ID': 5, 'Start': 3, 'End': 3, 'Parent_ID': 4}]
 
-        G = isbi_utils.txt_to_graph(data)
+        G = isbi_utils.txt_to_graph(data=data)
         for d in data:
             node_ids = ['{}_{}'.format(d["Cell_ID"], t)
                         for t in range(d["Start"], d["End"] + 1)]
