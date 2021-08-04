@@ -31,6 +31,9 @@ from __future__ import print_function
 
 import copy
 import os
+import tarfile
+import tempfile
+import json
 
 import networkx as nx
 import numpy as np
@@ -41,7 +44,7 @@ from deepcell_tracking.test_utils import get_annotated_movie
 
 class TestIsbiUtils(object):
 
-    def test_trk_to_isbi(self):
+    def test_trk_to_isbi(self, tmpdir):
         # start with dummy lineage
         # convert to ISBI array
         # validate array
@@ -81,20 +84,18 @@ class TestIsbiUtils(object):
         expected = [{'Cell_ID': 1, 'Start': 0, 'End': 4, 'Parent_ID': 0},
                     {'Cell_ID': 2, 'Start': 5, 'End': 5, 'Parent_ID': 1},
                     {'Cell_ID': 3, 'Start': 5, 'End': 5, 'Parent_ID': 1},
-                    {'Cell_ID': 4, 'Start': 7, 'End': 7, 'Parent_ID': 0}
-                    ]
+                    {'Cell_ID': 4, 'Start': 7, 'End': 7, 'Parent_ID': 0}]
         assert data == expected
 
-    def test_isbi_to_graph(self):
+    def test_txt_to_graph(self):
         # cell_id, start, end, parent_id
         data = [{'Cell_ID': 1, 'Start': 0, 'End': 3, 'Parent_ID': 0},
                 {'Cell_ID': 2, 'Start': 0, 'End': 2, 'Parent_ID': 0},
                 {'Cell_ID': 3, 'Start': 3, 'End': 3, 'Parent_ID': 2},
                 {'Cell_ID': 4, 'Start': 3, 'End': 3, 'Parent_ID': 2},
-                {'Cell_ID': 5, 'Start': 3, 'End': 3, 'Parent_ID': 4}
-                ]
+                {'Cell_ID': 5, 'Start': 3, 'End': 3, 'Parent_ID': 4}]
 
-        G = isbi_utils.isbi_to_graph(data)
+        G = isbi_utils.txt_to_graph(data)
         for d in data:
             node_ids = ['{}_{}'.format(d["Cell_ID"], t)
                         for t in range(d["Start"], d["End"] + 1)]
@@ -206,7 +207,6 @@ class TestIsbiUtils(object):
                                  frames=frames,
                                  mov_type='sequential', seed=1,
                                  data_format='channels_last')
-
         gtcells, rescells = isbi_utils.match_nodes(y1, y2)
 
         assert len(rescells) == len(gtcells)
@@ -214,3 +214,80 @@ class TestIsbiUtils(object):
             # because movies have the same first frame, every
             # iteration of unique values should match original label
             assert gt_cell == rescells[loc * 3]
+
+    def test_benchmark_division_performance(self, tmpdir):
+        trk_gt = os.path.join(str(tmpdir), 'test_benchmark_gt.trk')
+        trk_res = os.path.join(str(tmpdir), 'test_benchmark_res.trk')
+
+        # Generate lineage data
+        tracks_gt = {1: {'label': 1, 'frames': [1, 2], 'daughters': [],
+                     'capped': False, 'frame_div': None, 'parent': 3},
+                     2: {'label': 2, 'frames': [1, 2], 'daughters': [],
+                     'capped': False, 'frame_div': None, 'parent': 3},
+                     3: {'label': 3, 'frames': [0], 'daughters': [1, 2],
+                     'capped': False, 'frame_div': 1, 'parent': None}}
+        X_gt = []
+        # Generate tracked movie
+        y_gt = get_annotated_movie(img_size=256,
+                                   labels_per_frame=3,
+                                   frames=3,
+                                   mov_type='sequential', seed=0,
+                                   data_format='channels_last')
+        # Let results be same as ground truth
+        tracks_res = tracks_gt
+        X_res = []
+        y_res = y_gt
+
+        # Save gt and res data to .trk files
+        with tarfile.open(trk_gt, 'w:gz') as trks:
+            # disable auto deletion and close/delete manually
+            # to resolve double-opening issue on Windows.
+            with tempfile.NamedTemporaryFile('w', delete=False) as lineage:
+                json.dump(tracks_gt, lineage, indent=4)
+                lineage.flush()
+                lineage.close()
+                trks.add(lineage.name, 'lineage.json')
+                os.remove(lineage.name)
+
+            with tempfile.NamedTemporaryFile(delete=False) as raw:
+                np.save(raw, X_gt)
+                raw.flush()
+                raw.close()
+                trks.add(raw.name, 'raw.npy')
+                os.remove(raw.name)
+
+            with tempfile.NamedTemporaryFile(delete=False) as tracked:
+                np.save(tracked, y_gt)
+                tracked.flush()
+                tracked.close()
+                trks.add(tracked.name, 'tracked.npy')
+                os.remove(tracked.name)
+
+        with tarfile.open(trk_res, 'w:gz') as trks:
+            # disable auto deletion and close/delete manually
+            # to resolve double-opening issue on Windows.
+            with tempfile.NamedTemporaryFile('w', delete=False) as lineage:
+                json.dump(tracks_res, lineage, indent=4)
+                lineage.flush()
+                lineage.close()
+                trks.add(lineage.name, 'lineage.json')
+                os.remove(lineage.name)
+
+            with tempfile.NamedTemporaryFile(delete=False) as raw:
+                np.save(raw, X_res)
+                raw.flush()
+                raw.close()
+                trks.add(raw.name, 'raw.npy')
+                os.remove(raw.name)
+
+            with tempfile.NamedTemporaryFile(delete=False) as tracked:
+                np.save(tracked, y_res)
+                tracked.flush()
+                tracked.close()
+                trks.add(tracked.name, 'tracked.npy')
+                os.remove(tracked.name)
+
+        expected = {'Correct division': 1, 'Incorrect division': 0,
+                    'False positive division': 0, 'False negative division': 0}
+        results = isbi_utils.benchmark_division_performance(trk_gt, trk_res)
+        assert results == expected

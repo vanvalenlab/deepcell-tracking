@@ -40,15 +40,19 @@ from deepcell_toolbox import compute_overlap
 from deepcell_tracking.utils import load_trks
 
 
-def trk_to_isbi(track):
+def trk_to_isbi(track, path=None):
     """Convert a lineage track into an ISBI formatted text file.
 
     Args:
         track (dict): Cell lineage object.
+        path (str): Path to save the .txt file (deprecated).
 
     Returns:
-        isbi (arr): Array of ISBI dictionaries of each label.
+        array: Array of ISBI dictionaries of each label.
     """
+    if path is not None:
+        print("UserWarning: The `path` argument is deprecated.")
+
     isbi = []
     for label in track:
         first_frame = min(track[label]['frames'])
@@ -146,7 +150,6 @@ def match_nodes(gt, res):
     Raises:
         ValueError: If .
     """
-
     num_frames = gt.shape[0]
     iou = np.zeros((num_frames, np.max(gt) + 1, np.max(res) + 1))
 
@@ -188,7 +191,7 @@ def match_nodes(gt, res):
     return gtcells, rescells
 
 
-def isbi_to_graph(data, node_key=None):
+def txt_to_graph(data, node_key=None):
     """Create a Graph from array of ISBI info.
 
     Args:
@@ -330,17 +333,23 @@ def classify_divisions(G_gt, G_res):
     }
 
 
-def benchmark_division_performance(trk_gt, trk_res):
-    """Compare two related .trk files (one being the GT of the other) and meaasure
+def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None):
+    """Compare two related .trk files (one being the GT of the other) and measure
     performance on the the divisions in the GT file.
 
     Args:
         trk_gt (path): Path to the ground truth .trk file.
         trk_res (path): Path to the predicted results .trk file.
+        path_gt (path): Desired destination path for the GT ISBI-style .txt
+            file (deprecated).
+        path_res (path): Desired destination path for the result ISBI-style
+            .txt file (depracated).
 
     Returns:
         dict: Dictionary of all division statistics.
     """
+    if path_gt or path_res is not None:
+        print("UserWarning: The 'path_gt` and 'path_res' arguments are deprecated.")
     # Identify nodes with parent attribute
     # Load both .trk
     trks = load_trks(trk_gt)
@@ -358,13 +367,13 @@ def benchmark_division_performance(trk_gt, trk_res):
     if len(np.unique(cells_res)) < len(np.unique(cells_gt)):
         node_key = {r: g for g, r in zip(cells_gt, cells_res)}
         # node_key maps gt nodes onto resnodes so must be applied to gt
-        G_res = isbi_to_graph(res, node_key=node_key)
-        G_gt = isbi_to_graph(gt)
+        G_res = txt_to_graph(res, node_key=node_key)
+        G_gt = txt_to_graph(gt)
         div_results = classify_divisions(G_gt, G_res)
     else:
         node_key = {g: r for g, r in zip(cells_gt, cells_res)}
-        G_res = isbi_to_graph(res)
-        G_gt = isbi_to_graph(gt, node_key=node_key)
+        G_res = txt_to_graph(res)
+        G_gt = txt_to_graph(gt, node_key=node_key)
         div_results = classify_divisions(G_gt, G_res)
 
     return div_results
