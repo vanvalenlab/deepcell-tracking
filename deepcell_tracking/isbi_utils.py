@@ -215,7 +215,7 @@ def txt_to_graph(path, node_key=None):
     """
     names = ['Cell_ID', 'Start', 'End', 'Parent_ID']
     df = pd.read_csv(path, header=None, sep=' ', names=names)
-    G = isbi_to_graph(df)
+    G = isbi_to_graph(df, node_key)
     return G
 
 
