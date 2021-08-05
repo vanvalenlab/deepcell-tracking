@@ -35,37 +35,51 @@ from skimage.measure import regionprops
 import networkx as nx
 import numpy as np
 import pandas as pd
+import warnings
 
 from deepcell_toolbox import compute_overlap
 from deepcell_tracking.utils import load_trks
 
 
-def trk_to_isbi(track, path):
+def trk_to_isbi(track, path=None):
     """Convert a lineage track into an ISBI formatted text file.
 
     Args:
         track (dict): Cell lineage object.
-        path (str): Path to save the .txt file.
+        path (str): Path to save the .txt file (deprecated).
+
+    Returns:
+        pd.DataFrame: DataFrame of ISBI data for each label.
     """
-    with open(path, 'w') as text_file:
-        for label in track:
-            first_frame = min(track[label]['frames'])
-            last_frame = max(track[label]['frames'])
-            parent = track[label]['parent']
-            parent = 0 if parent is None else parent
-            if parent:
-                parent_frames = track[parent]['frames']
-                if parent_frames[-1] != first_frame - 1:
-                    parent = 0
+    isbi = []
+    for label in track:
+        first_frame = min(track[label]['frames'])
+        last_frame = max(track[label]['frames'])
+        parent = track[label]['parent']
+        parent = 0 if parent is None else parent
+        if parent:
+            parent_frames = track[parent]['frames']
+            if parent_frames[-1] != first_frame - 1:
+                parent = 0
 
-            line = '{cell_id} {start} {end} {parent}\n'.format(
-                cell_id=label,
-                start=first_frame,
-                end=last_frame,
-                parent=parent
-            )
+        isbi_dict = {'Cell_ID': label,
+                     'Start': first_frame,
+                     'End': last_frame,
+                     'Parent_ID': parent}
+        isbi.append(isbi_dict)
 
-            text_file.write(line)
+    if path is not None:
+        with open(path, 'w') as text_file:
+            for cell in isbi_dict:
+                line = '{cell_id} {start} {end} {parent}\n'.format(
+                    cell_id=cell['Cell_ID'],
+                    start=cell['Start'],
+                    end=cell['End'],
+                    parent=cell['Parent_ID']
+                )
+                text_file.write(line)
+    df = pd.DataFrame(isbi)
+    return df
 
 
 def contig_tracks(label, batch_info, batch_tracked):
@@ -145,7 +159,6 @@ def match_nodes(gt, res):
     Raises:
         ValueError: If .
     """
-
     num_frames = gt.shape[0]
     iou = np.zeros((num_frames, np.max(gt) + 1, np.max(res) + 1))
 
@@ -192,16 +205,33 @@ def txt_to_graph(path, node_key=None):
 
     Args:
         path (str): Path to the ISBI text file.
+        node_key (dict): Map between gt nodes and result nodes
 
     Returns:
-        networkx.Graph: Graph representation of the text file.
+        networkx.Graph: Graph representation of the ISBI data.
 
     Raises:
         ValueError: If the Parent_ID is not in any previous frames.
     """
     names = ['Cell_ID', 'Start', 'End', 'Parent_ID']
     df = pd.read_csv(path, header=None, sep=' ', names=names)
+    G = isbi_to_graph(df, node_key)
+    return G
 
+
+def isbi_to_graph(df, node_key=None):
+    """Create a Graph from DataFrame of ISBI info.
+
+    Args:
+        data (pd.DataFrame): DataFrame of ISBI-style info.
+        node_key (dict): Map between gt nodes and result nodes
+
+    Returns:
+        networkx.Graph: Graph representation of the ISBI data.
+
+    Raises:
+        ValueError: If the Parent_ID is not in any previous frames.
+    """
     if node_key is not None:
         df[['Cell_ID', 'Parent_ID']] = df[['Cell_ID', 'Parent_ID']].replace(node_key)
 
@@ -237,7 +267,7 @@ def txt_to_graph(path, node_key=None):
         if source not in all_ids:  # parents should be in the previous frame.
             # parent_frame = df[df['Cell_ID'] == row['Parent_id']]['End']
             # source = '{}_{}'.format(row['Parent_ID'], parent_frame)
-            print('%s: skipped parent %s to daughter %s' % (path, source, row['Cell_ID']))
+            print('skipped parent %s to daughter %s' % (source, row['Cell_ID']))
             continue
 
         target = '{}_{}'.format(row['Cell_ID'], row['Start'])
@@ -329,21 +359,20 @@ def classify_divisions(G_gt, G_res):
     }
 
 
-def benchmark_division_performance(trk_gt, trk_res, path_gt, path_res):
-    """Compare two related .trk files (one being the GT of the other) and meaasure
-    performance on the the divisions in the GT file. This function produces two .txt
-    documents as a by-product (ISBI-style lineage documents)
-
-    # TODO: there should be an option to not write the files but compare in memory
+def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None):
+    """Compare two related .trk files (one being the GT of the other) and measure
+    performance on the the divisions in the GT file.
 
     Args:
         trk_gt (path): Path to the ground truth .trk file.
         trk_res (path): Path to the predicted results .trk file.
-        path_gt (path): Desired destination path for the GT ISBI-style .txt file.
-        path_res (path): Desired destination path for the result ISBI-style .txt file.
+        path_gt (path): Desired destination path for the GT ISBI-style .txt
+            file (deprecated).
+        path_res (path): Desired destination path for the result ISBI-style
+            .txt file (deprecated).
 
     Returns:
-        dict: Diciontary of all division statistics.
+        dict: Dictionary of all division statistics.
     """
     # Identify nodes with parent attribute
     # Load both .trk
@@ -352,9 +381,12 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt, path_res):
     trks = load_trks(trk_res)
     lineage_res, _, y_res = trks['lineages'][0], trks['X'], trks['y']
 
-    # Produce ISBI style text doc to work with
-    trk_to_isbi(lineage_gt, path_gt)
-    trk_to_isbi(lineage_res, path_res)
+    # Produce ISBI style array to work with
+    if path_gt is not None or path_res is not None:
+        warnings.warn('The `path_gt` and `path_res` arguments are deprecated.',
+                      DeprecationWarning)
+    gt = trk_to_isbi(lineage_gt, path_gt)
+    res = trk_to_isbi(lineage_res, path_res)
 
     # Match up labels in GT to Results to allow for direct comparisons
     cells_gt, cells_res = match_nodes(y_gt, y_res)
@@ -362,13 +394,13 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt, path_res):
     if len(np.unique(cells_res)) < len(np.unique(cells_gt)):
         node_key = {r: g for g, r in zip(cells_gt, cells_res)}
         # node_key maps gt nodes onto resnodes so must be applied to gt
-        G_res = txt_to_graph(path_res, node_key=node_key)
-        G_gt = txt_to_graph(path_gt)
+        G_res = isbi_to_graph(res, node_key=node_key)
+        G_gt = isbi_to_graph(gt)
         div_results = classify_divisions(G_gt, G_res)
     else:
         node_key = {g: r for g, r in zip(cells_gt, cells_res)}
-        G_res = txt_to_graph(path_res)
-        G_gt = txt_to_graph(path_gt, node_key=node_key)
+        G_res = isbi_to_graph(res)
+        G_gt = isbi_to_graph(gt, node_key=node_key)
         div_results = classify_divisions(G_gt, G_res)
 
     return div_results
