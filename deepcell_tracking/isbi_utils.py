@@ -35,6 +35,7 @@ from skimage.measure import regionprops
 import networkx as nx
 import numpy as np
 import pandas as pd
+import warnings
 
 from deepcell_toolbox import compute_overlap
 from deepcell_tracking.utils import load_trks
@@ -48,12 +49,8 @@ def trk_to_isbi(track, path=None):
         path (str): Path to save the .txt file (deprecated).
 
     Returns:
-        array: Array of ISBI dictionaries of each label.
+        pd.DataFrame: DataFrame of ISBI data for each label.
     """
-    if path is not None:
-        print("UserWarning: The `path` argument is deprecated.")
-        text_file = open(path, 'w')
-
     isbi = []
     for label in track:
         first_frame = min(track[label]['frames'])
@@ -64,23 +61,25 @@ def trk_to_isbi(track, path=None):
             parent_frames = track[parent]['frames']
             if parent_frames[-1] != first_frame - 1:
                 parent = 0
-        if path is not None:
-            line = '{cell_id} {start} {end} {parent}\n'.format(
-                cell_id=label,
-                start=first_frame,
-                end=last_frame,
-                parent=parent
-            )
-            text_file.write(line)
 
         isbi_dict = {'Cell_ID': label,
                      'Start': first_frame,
                      'End': last_frame,
                      'Parent_ID': parent}
         isbi.append(isbi_dict)
+
     if path is not None:
-        text_file.close()
-    return isbi
+        with open(path, 'w') as text_file:
+            for cell in isbi_dict:
+                line = '{cell_id} {start} {end} {parent}\n'.format(
+                    cell_id=cell['Cell_ID'],
+                    start=cell['Start'],
+                    end=cell['End'],
+                    parent=cell['Parent_ID']
+                )
+                text_file.write(line)
+    df = pd.DataFrame(isbi)
+    return df
 
 
 def contig_tracks(label, batch_info, batch_tracked):
@@ -201,11 +200,11 @@ def match_nodes(gt, res):
     return gtcells, rescells
 
 
-def txt_to_graph(path=None, node_key=None, data=None):
-    """Create a Graph from array of ISBI info.
+def txt_to_graph(path, node_key=None):
+    """Read the ISBI text file and create a Graph.
 
     Args:
-        data (arr): Array of ISBI dictionaries of each label.
+        path (str): Path to the ISBI text file.
         node_key (dict): Map between gt nodes and result nodes
 
     Returns:
@@ -214,13 +213,25 @@ def txt_to_graph(path=None, node_key=None, data=None):
     Raises:
         ValueError: If the Parent_ID is not in any previous frames.
     """
-    if path is not None:
-        print("UserWarning: The `path` argument is deprecated.")
-        names = ['Cell_ID', 'Start', 'End', 'Parent_ID']
-        df = pd.read_csv(path, header=None, sep=' ', names=names)
-    else:
-        df = pd.DataFrame(data)
+    names = ['Cell_ID', 'Start', 'End', 'Parent_ID']
+    df = pd.read_csv(path, header=None, sep=' ', names=names)
+    G = isbi_to_graph(df)
+    return G
 
+
+def isbi_to_graph(df, node_key=None):
+    """Create a Graph from DataFrame of ISBI info.
+
+    Args:
+        data (pd.DataFrame): DataFrame of ISBI-style info.
+        node_key (dict): Map between gt nodes and result nodes
+
+    Returns:
+        networkx.Graph: Graph representation of the ISBI data.
+
+    Raises:
+        ValueError: If the Parent_ID is not in any previous frames.
+    """
     if node_key is not None:
         df[['Cell_ID', 'Parent_ID']] = df[['Cell_ID', 'Parent_ID']].replace(node_key)
 
@@ -371,13 +382,10 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None)
     lineage_res, _, y_res = trks['lineages'][0], trks['X'], trks['y']
 
     # Produce ISBI style array to work with
-    if path_gt or path_res is not None:
-        print("UserWarning: The 'path_gt` and 'path_res' arguments are deprecated.")
-        trk_to_isbi(lineage_gt, path_gt)
-        trk_to_isbi(lineage_res, path_res)
-    else:
-        gt = trk_to_isbi(lineage_gt)
-        res = trk_to_isbi(lineage_res)
+    if path_gt is not None or path_res is not None:
+        warnings.warn("UserWarning: The 'path_gt` and 'path_res' arguments are deprecated.")
+    gt = trk_to_isbi(lineage_gt, path_gt)
+    res = trk_to_isbi(lineage_res, path_res)
 
     # Match up labels in GT to Results to allow for direct comparisons
     cells_gt, cells_res = match_nodes(y_gt, y_res)
@@ -385,22 +393,13 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None)
     if len(np.unique(cells_res)) < len(np.unique(cells_gt)):
         node_key = {r: g for g, r in zip(cells_gt, cells_res)}
         # node_key maps gt nodes onto resnodes so must be applied to gt
-        if path_gt or path_res is not None:
-            G_res = txt_to_graph(path=path_res, node_key=node_key)
-            G_gt = txt_to_graph(path=path_gt)
-        else:
-            G_res = txt_to_graph(data=res, node_key=node_key)
-            G_gt = txt_to_graph(data=gt)
-
+        G_res = isbi_to_graph(res, node_key=node_key)
+        G_gt = isbi_to_graph(gt)
         div_results = classify_divisions(G_gt, G_res)
     else:
         node_key = {g: r for g, r in zip(cells_gt, cells_res)}
-        if path_gt or path_res is not None:
-            G_res = txt_to_graph(path=path_res)
-            G_gt = txt_to_graph(path=path_gt, node_key=node_key)
-        else:
-            G_res = txt_to_graph(data=res)
-            G_gt = txt_to_graph(data=gt, node_key=node_key)
+        G_res = isbi_to_graph(res)
+        G_gt = isbi_to_graph(gt, node_key=node_key)
         div_results = classify_divisions(G_gt, G_res)
 
     return div_results

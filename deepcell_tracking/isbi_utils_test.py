@@ -37,6 +37,7 @@ import json
 
 import networkx as nx
 import numpy as np
+import pandas as pd
 
 from deepcell_tracking import isbi_utils
 from deepcell_tracking.test_utils import get_annotated_movie
@@ -79,23 +80,61 @@ class TestIsbiUtils(object):
             'parent': 3,
             'label': 4,
         }
-        data = isbi_utils.trk_to_isbi(track)
+        df = isbi_utils.trk_to_isbi(track)
 
         expected = [{'Cell_ID': 1, 'Start': 0, 'End': 4, 'Parent_ID': 0},
                     {'Cell_ID': 2, 'Start': 5, 'End': 5, 'Parent_ID': 1},
                     {'Cell_ID': 3, 'Start': 5, 'End': 5, 'Parent_ID': 1},
                     {'Cell_ID': 4, 'Start': 7, 'End': 7, 'Parent_ID': 0}]
-        assert data == expected
+        expected_df = pd.DataFrame(expected)
+        assert df.equals(expected_df)
 
-    def test_txt_to_graph(self):
+    def test_txt_to_graph(self, tmpdir):
+        # cell_id, start, end, parent_id
+        rows = [
+            (1, 0, 3, 0),  # cell 1 is in all 3 frames
+            (2, 0, 2, 0),  # cell 2 is not in the last frame
+            (3, 3, 3, 2),  # cell 3 is a daughter of 2
+            (4, 3, 3, 2),  # cell 4 is a daughter of 2
+            (5, 3, 3, 4),  # cell 5 is a daughter of 4, ignored bad frame value
+        ]
+        text_file = os.path.join(str(tmpdir), 'test_txt_to_graph.txt')
+        with open(text_file, 'wb') as f:
+            # write the file
+            for row in rows:
+                line = '{} {} {} {}{}'.format(
+                    row[0], row[1], row[2], row[3], os.linesep)
+                f.write(line.encode())
+
+            f.flush()  # save the file
+
+        # read the file
+        G = isbi_utils.txt_to_graph(text_file)
+        for row in rows:
+            node_ids = ['{}_{}'.format(row[0], t)
+                        for t in range(row[1], row[2] + 1)]
+
+            for node_id in node_ids:
+                assert node_id in G
+
+            if row[3]:  # should have a division
+                daughter_id = '{}_{}'.format(row[0], row[1])
+                parent_id = '{}_{}'.format(row[3], row[1] - 1)
+                if G.has_node(parent_id):
+                    assert G.nodes[parent_id]['division'] is True
+                    assert G.has_edge(parent_id, daughter_id)
+                else:
+                    assert not G.in_degree(daughter_id)
+
+    def test_isbi_to_graph(self):
         # cell_id, start, end, parent_id
         data = [{'Cell_ID': 1, 'Start': 0, 'End': 3, 'Parent_ID': 0},
                 {'Cell_ID': 2, 'Start': 0, 'End': 2, 'Parent_ID': 0},
                 {'Cell_ID': 3, 'Start': 3, 'End': 3, 'Parent_ID': 2},
                 {'Cell_ID': 4, 'Start': 3, 'End': 3, 'Parent_ID': 2},
                 {'Cell_ID': 5, 'Start': 3, 'End': 3, 'Parent_ID': 4}]
-
-        G = isbi_utils.txt_to_graph(data=data)
+        df = pd.DataFrame(data)
+        G = isbi_utils.isbi_to_graph(df)
         for d in data:
             node_ids = ['{}_{}'.format(d["Cell_ID"], t)
                         for t in range(d["Start"], d["End"] + 1)]
