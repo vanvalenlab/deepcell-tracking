@@ -383,7 +383,8 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None)
 
     # Produce ISBI style array to work with
     if path_gt is not None or path_res is not None:
-        warnings.warn("UserWarning: The 'path_gt` and 'path_res' arguments are deprecated.")
+        warnings.warn('The `path_gt` and `path_res` arguments are deprecated.',
+                      DeprecationWarning)
     gt = trk_to_isbi(lineage_gt, path_gt)
     res = trk_to_isbi(lineage_res, path_res)
 
