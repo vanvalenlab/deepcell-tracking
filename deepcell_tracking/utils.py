@@ -254,7 +254,7 @@ def save_trk(filename, lineages, raw, tracked):
     if isinstance(lineages, list):
         if len(lineages) > 1:
             raise ValueError('For trk file, lineages must be a dictionary '
-                            'or list with a single dictionary')
+                             'or list with a single dictionary')
         else:
             lineages = lineages[0]
 
