@@ -137,20 +137,18 @@ def load_trks(filename):
     Returns:
         dict: A dictionary with raw, tracked, and lineage data.
     """
-    with tarfile.open(filename, 'r') as trks:
+    with tarfile.open(fileobj=filename, mode='r') as trks:
 
         # numpy can't read these from disk...
-        array_file = io.BytesIO()
-        array_file.write(trks.extractfile('raw.npy').read())
-        array_file.seek(0)
-        raw = np.load(array_file)
-        array_file.close()
+        with io.BytesIO() as array_file:
+            array_file.write(trks.extractfile('raw.npy').read())
+            array_file.seek(0)
+            raw = np.load(array_file)
 
-        array_file = io.BytesIO()
-        array_file.write(trks.extractfile('tracked.npy').read())
-        array_file.seek(0)
-        tracked = np.load(array_file)
-        array_file.close()
+        with io.BytesIO() as array_file:
+            array_file.write(trks.extractfile('tracked.npy').read())
+            array_file.seek(0)
+            tracked = np.load(array_file)
 
         # trks.extractfile opens a file in bytes mode, json can't use bytes.
         _, file_extension = os.path.splitext(filename)
@@ -158,16 +156,13 @@ def load_trks(filename):
         if file_extension == '.trks':
             trk_data = trks.getmember('lineages.json')
             lineages = json.loads(trks.extractfile(trk_data).read().decode())
-            # JSON only allows strings as keys, so convert them back to ints
-            for i, tracks in enumerate(lineages):
-                lineages[i] = {int(k): v for k, v in tracks.items()}
-
         elif file_extension == '.trk':
             trk_data = trks.getmember('lineage.json')
-            lineage = json.loads(trks.extractfile(trk_data).read().decode())
-            # JSON only allows strings as keys, so convert them back to ints
-            lineages = []
-            lineages.append({int(k): v for k, v in lineage.items()})
+            lineages = [json.loads(trks.extractfile(trk_data).read().decode())]
+
+        # JSON only allows strings as keys, so convert them back to ints
+        for i, tracks in enumerate(lineages):
+            lineages[i] = {int(k): v for k, v in tracks.items()}
 
     return {'lineages': lineages, 'X': raw, 'y': tracked}
 
