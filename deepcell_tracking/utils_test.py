@@ -30,6 +30,7 @@ from __future__ import print_function
 
 import copy
 import os
+import io
 
 import numpy as np
 import skimage as sk
@@ -157,6 +158,17 @@ class TestTrackingUtils(object):
 
         # test saved tracks can be loaded
         loaded = utils.load_trks(filename)
+        assert loaded['lineages'] == lineage
+        np.testing.assert_array_equal(X, loaded['X'])
+        np.testing.assert_array_equal(y, loaded['y'])
+
+        # test save trks to bytes
+        b = io.BytesIO()
+        out = utils.save_trks(b, lineage, X, y)
+        assert isinstance(out, io.BytesIO)
+
+        # load trks from bytes
+        loaded = utils.load_trks(out)
         assert loaded['lineages'] == lineage
         np.testing.assert_array_equal(X, loaded['X'])
         np.testing.assert_array_equal(y, loaded['y'])
