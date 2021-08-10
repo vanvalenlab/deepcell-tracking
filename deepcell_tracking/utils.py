@@ -208,15 +208,72 @@ def save_trks(filename, lineages, raw, tracked):
     Args:
         filename (str or io.BytesIO): full path to the final trk files or bytes object
             to save the data to
-        lineages (dict): a list of dictionaries saved as a json.
+        lineages (list): a list of dictionaries saved as a json.
         raw (np.array): raw images data.
         tracked (np.array): annotated image data.
+
+    Returns:
+        io.BytesIO: If filename is instance of io.BytesIO
 
     Raises:
         ValueError: filename does not end in ".trks".
     """
     if not str(filename).lower().endswith('.trks') and not isinstance(filename, io.BytesIO):
         raise ValueError('filename must end with `.trks`. Found %s' % filename)
+
+    out = save_track_data(filename, lineages, raw, tracked, 'lineages.json')
+    if out is not None:
+        return out
+
+
+def save_trk(filename, lineages, raw, tracked):
+    """Saves raw, tracked, and lineage data into a trk_file.
+
+    Args:
+        filename (str or io.BytesIO): full path to the final trk files or bytes object
+            to save the data to
+        lineages (list or dict): a list of a single dictionary or a single lineage dictionarys
+        raw (np.array): raw images data.
+        tracked (np.array): annotated image data.
+
+    Returns:
+        io.BytesIO: If filename is instance of io.BytesIO
+
+    Raises:
+        ValueError: filename does not end in ".trks".
+    """
+
+    if not str(filename).lower().endswith('.trk') and not isinstance(filename, io.BytesIO):
+        raise ValueError('filename must end with `.trk`. Found %s' % filename)
+
+    # Check that lineages is a dictionary or list of length 1
+    if isinstance(lineages, list):
+        if len(lineages) > 1:
+            raise ValueError('For trk file, lineages must be a dictionary '
+                            'or list with a single dictionary')
+        else:
+            lineages = lineages[0]
+
+    out = save_track_data(filename, lineages, raw, tracked, 'lineage.json')
+    if out is not None:
+        return out
+
+
+def save_track_data(filename, lineages, raw, tracked, lineage_name):
+    """Base function for saving tracking data as either trk or trks
+
+    Args:
+        filename (str or io.BytesIO): full path to the final trk files or bytes object
+            to save the data to
+        lineages (list or dict): a list of a single dictionary or a single lineage dictionarys
+        raw (np.array): raw images data.
+        tracked (np.array): annotated image data.
+        lineage_name (str): Filename for the lineage file in the tarfile, either 'lineages.json'
+            or 'lineage.json'
+
+    Returns:
+        io.BytesIO: If filename is instance of io.BytesIO
+    """
 
     if isinstance(filename, io.BytesIO):
         kwargs = {'fileobj': filename}
@@ -228,7 +285,7 @@ def save_trks(filename, lineages, raw, tracked):
             json.dump(lineages, lineages_file, indent=4)
             lineages_file.flush()
             lineages_file.close()
-            trks.add(lineages_file.name, 'lineages.json')
+            trks.add(lineages_file.name, lineage_name)
             os.remove(lineages_file.name)
 
         with tempfile.NamedTemporaryFile(delete=False) as raw_file:
