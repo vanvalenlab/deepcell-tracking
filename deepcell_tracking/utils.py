@@ -218,12 +218,16 @@ def save_trks(filename, lineages, raw, tracked):
     Raises:
         ValueError: filename does not end in ".trks".
     """
-    if not str(filename).lower().endswith('.trks') and not isinstance(filename, io.BytesIO):
+    ext = os.path.splitext(str(filename))[-1]
+    if not isinstance(filename, io.BytesIO) and ext != '.trks':
         raise ValueError('filename must end with `.trks`. Found %s' % filename)
 
-    out = save_track_data(filename, lineages, raw, tracked, 'lineages.json')
-    if out is not None:
-        return out
+    out = save_track_data(filename=filename,
+                          lineages=lineages,
+                          raw=raw,
+                          tracked=tracked,
+                          lineage_name='lineages.json')
+    return out
 
 
 def save_trk(filename, lineages, raw, tracked):
@@ -242,8 +246,8 @@ def save_trk(filename, lineages, raw, tracked):
     Raises:
         ValueError: filename does not end in ".trks".
     """
-
-    if not str(filename).lower().endswith('.trk') and not isinstance(filename, io.BytesIO):
+    ext = os.path.splitext(str(filename))[-1]
+    if not isinstance(filename, io.BytesIO) and ext != '.trk':
         raise ValueError('filename must end with `.trk`. Found %s' % filename)
 
     # Check that lineages is a dictionary or list of length 1
@@ -254,9 +258,12 @@ def save_trk(filename, lineages, raw, tracked):
         else:
             lineages = lineages[0]
 
-    out = save_track_data(filename, lineages, raw, tracked, 'lineage.json')
-    if out is not None:
-        return out
+    out = save_track_data(filename=filename,
+                          lineages=lineages,
+                          raw=raw,
+                          tracked=tracked,
+                          lineage_name='lineage.json')
+    return out
 
 
 def save_track_data(filename, lineages, raw, tracked, lineage_name):
