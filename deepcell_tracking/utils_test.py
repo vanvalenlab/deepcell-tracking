@@ -164,11 +164,42 @@ class TestTrackingUtils(object):
 
         # test save trks to bytes
         b = io.BytesIO()
-        out = utils.save_trks(b, lineage, X, y)
-        assert isinstance(out, io.BytesIO)
+        utils.save_trks(b, lineage, X, y)
 
         # load trks from bytes
-        loaded = utils.load_trks(out)
+        b.seek(0)
+        loaded = utils.load_trks(b)
+        assert loaded['lineages'] == lineage
+        np.testing.assert_array_equal(X, loaded['X'])
+        np.testing.assert_array_equal(y, loaded['y'])
+
+    def test_save_trk(self, tmpdir):
+        X = get_image(30, 30)
+        y = np.random.randint(low=0, high=10, size=X.shape)
+        lineage = [dict()]
+
+        tempdir = str(tmpdir)
+        with pytest.raises(ValueError):
+            badfilename = os.path.join(tempdir, 'x.trks')
+            utils.save_trk(badfilename, lineage, X, y)
+
+        filename = os.path.join(tempdir, 'x.trk')
+        utils.save_trk(filename, lineage, X, y)
+        assert os.path.isfile(filename)
+
+        # test saved tracks can be loaded
+        loaded = utils.load_trks(filename)
+        assert loaded['lineages'] == lineage
+        np.testing.assert_array_equal(X, loaded['X'])
+        np.testing.assert_array_equal(y, loaded['y'])
+
+        # test save trks to bytes
+        b = io.BytesIO()
+        utils.save_trk(b, lineage, X, y)
+
+        # load trks from bytes
+        b.seek(0)
+        loaded = utils.load_trks(b)
         assert loaded['lineages'] == lineage
         np.testing.assert_array_equal(X, loaded['X'])
         np.testing.assert_array_equal(y, loaded['y'])
