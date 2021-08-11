@@ -222,12 +222,11 @@ def save_trks(filename, lineages, raw, tracked):
     if not isinstance(filename, io.BytesIO) and ext != '.trks':
         raise ValueError('filename must end with `.trks`. Found %s' % filename)
 
-    out = save_track_data(filename=filename,
-                          lineages=lineages,
-                          raw=raw,
-                          tracked=tracked,
-                          lineage_name='lineages.json')
-    return out
+    save_track_data(filename=filename,
+                    lineages=lineages,
+                    raw=raw,
+                    tracked=tracked,
+                    lineage_name='lineages.json')
 
 
 def save_trk(filename, lineages, raw, tracked):
@@ -258,12 +257,11 @@ def save_trk(filename, lineages, raw, tracked):
         else:
             lineages = lineages[0]
 
-    out = save_track_data(filename=filename,
-                          lineages=lineages,
-                          raw=raw,
-                          tracked=tracked,
-                          lineage_name='lineage.json')
-    return out
+    save_track_data(filename=filename,
+                    lineages=lineages,
+                    raw=raw,
+                    tracked=tracked,
+                    lineage_name='lineage.json')
 
 
 def save_track_data(filename, lineages, raw, tracked, lineage_name):
@@ -277,9 +275,6 @@ def save_track_data(filename, lineages, raw, tracked, lineage_name):
         tracked (np.array): annotated image data.
         lineage_name (str): Filename for the lineage file in the tarfile, either 'lineages.json'
             or 'lineage.json'
-
-    Returns:
-        io.BytesIO: If filename is instance of io.BytesIO
     """
 
     if isinstance(filename, io.BytesIO):
@@ -308,10 +303,6 @@ def save_track_data(filename, lineages, raw, tracked, lineage_name):
             tracked_file.close()
             trks.add(tracked_file.name, 'tracked.npy')
             os.remove(tracked_file.name)
-
-    if isinstance(filename, io.BytesIO):
-        filename.seek(0)
-        return filename
 
 
 def trks_stats(filename):
