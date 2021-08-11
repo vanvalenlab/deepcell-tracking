@@ -749,7 +749,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         filename = str(filename)
 
         save_trk(filename=filename,
-                 lineages=track_review_dict['tracks'],
+                 lineage=track_review_dict['tracks'],
                  raw=track_review_dict['X'],
                  tracked=track_review_dict['y_tracked'])
 

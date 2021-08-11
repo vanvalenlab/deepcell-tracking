@@ -226,7 +226,7 @@ def save_trks(filename, lineages, raw, tracked):
                     lineage_name='lineages.json')
 
 
-def save_trk(filename, lineages, raw, tracked):
+def save_trk(filename, lineage, raw, tracked):
     """Saves raw, tracked, and lineage data for one movie into a trk_file.
 
     Args:
@@ -245,15 +245,15 @@ def save_trk(filename, lineages, raw, tracked):
         raise ValueError('filename must end with `.trk`. Found %s' % filename)
 
     # Check that lineages is a dictionary or list of length 1
-    if isinstance(lineages, list):
-        if len(lineages) > 1:
+    if isinstance(lineage, list):
+        if len(lineage) > 1:
             raise ValueError('For trk file, lineages must be a dictionary '
                              'or list with a single dictionary')
         else:
-            lineages = lineages[0]
+            lineage = lineage[0]
 
     save_track_data(filename=filename,
-                    lineages=lineages,
+                    lineages=lineage,
                     raw=raw,
                     tracked=tracked,
                     lineage_name='lineage.json')
