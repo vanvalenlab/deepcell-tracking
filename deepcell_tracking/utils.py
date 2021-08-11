@@ -212,9 +212,6 @@ def save_trks(filename, lineages, raw, tracked):
         raw (np.array): raw images data.
         tracked (np.array): annotated image data.
 
-    Returns:
-        io.BytesIO: If filename is instance of io.BytesIO
-
     Raises:
         ValueError: filename does not end in ".trks".
     """
@@ -233,14 +230,12 @@ def save_trk(filename, lineages, raw, tracked):
     """Saves raw, tracked, and lineage data into a trk_file.
 
     Args:
-        filename (str or io.BytesIO): full path to the final trk files or bytes object
-            to save the data to
-        lineages (list or dict): a list of a single dictionary or a single lineage dictionarys
+        filename (str or io.BytesIO): full path to the final trk files or bytes
+            object to save the data to
+        lineages (list or dict): a list of a single dictionary or a single
+            lineage dictionary
         raw (np.array): raw images data.
         tracked (np.array): annotated image data.
-
-    Returns:
-        io.BytesIO: If filename is instance of io.BytesIO
 
     Raises:
         ValueError: filename does not end in ".trks".
