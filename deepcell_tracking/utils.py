@@ -278,6 +278,8 @@ def save_track_data(filename, lineages, raw, tracked, lineage_name):
         kwargs = {'name': filename}
 
     with tarfile.open(mode='w:gz', **kwargs) as trks:
+        # disable auto deletion and close/delete manually
+        # to resolve double-opening issue on Windows.
         with tempfile.NamedTemporaryFile('w', delete=False) as lineages_file:
             json.dump(lineages, lineages_file, indent=4)
             lineages_file.flush()
