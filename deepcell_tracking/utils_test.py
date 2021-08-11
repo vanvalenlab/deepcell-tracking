@@ -183,6 +183,9 @@ class TestTrackingUtils(object):
             badfilename = os.path.join(tempdir, 'x.trks')
             utils.save_trk(badfilename, lineage, X, y)
 
+        with pytest.raises(ValueError):
+            utils.save_trk('x.trk', [{}, {}], X, y)
+
         filename = os.path.join(tempdir, 'x.trk')
         utils.save_trk(filename, lineage, X, y)
         assert os.path.isfile(filename)
@@ -203,6 +206,21 @@ class TestTrackingUtils(object):
         assert loaded['lineages'] == lineage
         np.testing.assert_array_equal(X, loaded['X'])
         np.testing.assert_array_equal(y, loaded['y'])
+
+    def test_load_trks(self, tmpdir):
+        filename = os.path.join(str(tmpdir), 'bad-lineage.trk')
+        X = get_image(30, 30)
+        y = np.random.randint(low=0, high=10, size=X.shape)
+        lineage = [dict()]
+
+        utils.save_track_data(filename=filename,
+                              lineages=lineage,
+                              raw=X,
+                              tracked=y,
+                              lineage_name='bad-lineage.json')
+
+        with pytest.raises(ValueError):
+            utils.load_trks(filename)
 
     def test_normalize_adj_matrix(self):
         frames = 3
@@ -393,6 +411,12 @@ class TestTrackingUtils(object):
         # test that input must be iterable
         with pytest.raises(TypeError):
             utils.concat_tracks(track_1)
+
+    def test_trks_stats(self):
+
+        # Test bad extension
+        with pytest.raises(ValueError):
+            utils.trks_stats('bad-extension.npz')
 
 
 class TestTrack(object):
