@@ -203,7 +203,7 @@ def trk_folder_to_trks(dirname, trks_filename):
 
 
 def save_trks(filename, lineages, raw, tracked):
-    """Saves raw, tracked, and lineage data into one trks_file.
+    """Saves raw, tracked, and lineage data from multiple movies into one trks_file.
 
     Args:
         filename (str or io.BytesIO): full path to the final trk files or bytes object
@@ -227,7 +227,7 @@ def save_trks(filename, lineages, raw, tracked):
 
 
 def save_trk(filename, lineages, raw, tracked):
-    """Saves raw, tracked, and lineage data into a trk_file.
+    """Saves raw, tracked, and lineage data for one movie into a trk_file.
 
     Args:
         filename (str or io.BytesIO): full path to the final trk files or bytes
