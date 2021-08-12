@@ -50,6 +50,7 @@ from deepcell_tracking.utils import clean_up_annotations
 from deepcell_tracking.utils import get_max_cells
 from deepcell_tracking.utils import normalize_adj_matrix
 from deepcell_tracking.utils import get_image_features
+from deepcell_tracking.utils import save_trk
 
 
 class CellTracker(object):  # pylint: disable=useless-object-inheritance
@@ -747,29 +748,10 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
         filename = str(filename)
 
-        with tarfile.open(filename, 'w:gz') as trks:
-            # disable auto deletion and close/delete manually
-            # to resolve double-opening issue on Windows.
-            with tempfile.NamedTemporaryFile('w', delete=False) as lineage:
-                json.dump(track_review_dict['tracks'], lineage, indent=4)
-                lineage.flush()
-                lineage.close()
-                trks.add(lineage.name, 'lineage.json')
-                os.remove(lineage.name)
-
-            with tempfile.NamedTemporaryFile(delete=False) as raw:
-                np.save(raw, track_review_dict['X'])
-                raw.flush()
-                raw.close()
-                trks.add(raw.name, 'raw.npy')
-                os.remove(raw.name)
-
-            with tempfile.NamedTemporaryFile(delete=False) as tracked:
-                np.save(tracked, track_review_dict['y_tracked'])
-                tracked.flush()
-                tracked.close()
-                trks.add(tracked.name, 'tracked.npy')
-                os.remove(tracked.name)
+        save_trk(filename=filename,
+                 lineage=track_review_dict['tracks'],
+                 raw=track_review_dict['X'],
+                 tracked=track_review_dict['y_tracked'])
 
     def _track_to_graph(self, tracks):
         """Create a graph from the lineage information"""

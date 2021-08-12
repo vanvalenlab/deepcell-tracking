@@ -132,42 +132,45 @@ def load_trks(filename):
     """Load a trk/trks file.
 
     Args:
-        filename (str): full path to the file including .trk/.trks.
+        filename (str or BytesIO): full path to the file including .trk/.trks
+            or BytesIO object with trk file data
 
     Returns:
         dict: A dictionary with raw, tracked, and lineage data.
     """
-    with tarfile.open(filename, 'r') as trks:
+    if isinstance(filename, io.BytesIO):
+        kwargs = {'fileobj': filename}
+    else:
+        kwargs = {'name': filename}
+
+    with tarfile.open(mode='r', **kwargs) as trks:
 
         # numpy can't read these from disk...
-        array_file = io.BytesIO()
-        array_file.write(trks.extractfile('raw.npy').read())
-        array_file.seek(0)
-        raw = np.load(array_file)
-        array_file.close()
+        with io.BytesIO() as array_file:
+            array_file.write(trks.extractfile('raw.npy').read())
+            array_file.seek(0)
+            raw = np.load(array_file)
 
-        array_file = io.BytesIO()
-        array_file.write(trks.extractfile('tracked.npy').read())
-        array_file.seek(0)
-        tracked = np.load(array_file)
-        array_file.close()
+        with io.BytesIO() as array_file:
+            array_file.write(trks.extractfile('tracked.npy').read())
+            array_file.seek(0)
+            tracked = np.load(array_file)
 
         # trks.extractfile opens a file in bytes mode, json can't use bytes.
-        _, file_extension = os.path.splitext(filename)
-
-        if file_extension == '.trks':
+        try:
             trk_data = trks.getmember('lineages.json')
-            lineages = json.loads(trks.extractfile(trk_data).read().decode())
-            # JSON only allows strings as keys, so convert them back to ints
-            for i, tracks in enumerate(lineages):
-                lineages[i] = {int(k): v for k, v in tracks.items()}
+        except KeyError:
+            try:
+                trk_data = trks.getmember('lineage.json')
+            except KeyError:
+                raise ValueError('Invalid .trk file, no lineage data found.')
 
-        elif file_extension == '.trk':
-            trk_data = trks.getmember('lineage.json')
-            lineage = json.loads(trks.extractfile(trk_data).read().decode())
-            # JSON only allows strings as keys, so convert them back to ints
-            lineages = []
-            lineages.append({int(k): v for k, v in lineage.items()})
+        lineages = json.loads(trks.extractfile(trk_data).read().decode())
+        lineages = lineages if isinstance(lineages, list) else [lineages]
+
+        # JSON only allows strings as keys, so convert them back to ints
+        for i, tracks in enumerate(lineages):
+            lineages[i] = {int(k): v for k, v in tracks.items()}
 
     return {'lineages': lineages, 'X': raw, 'y': tracked}
 
@@ -200,26 +203,88 @@ def trk_folder_to_trks(dirname, trks_filename):
 
 
 def save_trks(filename, lineages, raw, tracked):
-    """Saves raw, tracked, and lineage data into one trks_file.
+    """Saves raw, tracked, and lineage data from multiple movies into one trks_file.
 
     Args:
-        filename (str): full path to the final trk files.
-        lineages (dict): a list of dictionaries saved as a json.
+        filename (str or io.BytesIO): full path to the final trk files or bytes object
+            to save the data to
+        lineages (list): a list of dictionaries saved as a json.
         raw (np.array): raw images data.
         tracked (np.array): annotated image data.
 
     Raises:
         ValueError: filename does not end in ".trks".
     """
-    if not str(filename).lower().endswith('.trks'):
+    ext = os.path.splitext(str(filename))[-1]
+    if not isinstance(filename, io.BytesIO) and ext != '.trks':
         raise ValueError('filename must end with `.trks`. Found %s' % filename)
 
-    with tarfile.open(filename, 'w:gz') as trks:
+    save_track_data(filename=filename,
+                    lineages=lineages,
+                    raw=raw,
+                    tracked=tracked,
+                    lineage_name='lineages.json')
+
+
+def save_trk(filename, lineage, raw, tracked):
+    """Saves raw, tracked, and lineage data for one movie into a trk_file.
+
+    Args:
+        filename (str or io.BytesIO): full path to the final trk files or bytes
+            object to save the data to
+        lineages (list or dict): a list of a single dictionary or a single
+            lineage dictionary
+        raw (np.array): raw images data.
+        tracked (np.array): annotated image data.
+
+    Raises:
+        ValueError: filename does not end in ".trks".
+    """
+    ext = os.path.splitext(str(filename))[-1]
+    if not isinstance(filename, io.BytesIO) and ext != '.trk':
+        raise ValueError('filename must end with `.trk`. Found %s' % filename)
+
+    # Check that lineages is a dictionary or list of length 1
+    if isinstance(lineage, list):
+        if len(lineage) > 1:
+            raise ValueError('For trk file, lineages must be a dictionary '
+                             'or list with a single dictionary')
+        else:
+            lineage = lineage[0]
+
+    save_track_data(filename=filename,
+                    lineages=lineage,
+                    raw=raw,
+                    tracked=tracked,
+                    lineage_name='lineage.json')
+
+
+def save_track_data(filename, lineages, raw, tracked, lineage_name):
+    """Base function for saving tracking data as either trk or trks
+
+    Args:
+        filename (str or io.BytesIO): full path to the final trk files or bytes object
+            to save the data to
+        lineages (list or dict): a list of a single dictionary or a single lineage dictionarys
+        raw (np.array): raw images data.
+        tracked (np.array): annotated image data.
+        lineage_name (str): Filename for the lineage file in the tarfile, either 'lineages.json'
+            or 'lineage.json'
+    """
+
+    if isinstance(filename, io.BytesIO):
+        kwargs = {'fileobj': filename}
+    else:
+        kwargs = {'name': filename}
+
+    with tarfile.open(mode='w:gz', **kwargs) as trks:
+        # disable auto deletion and close/delete manually
+        # to resolve double-opening issue on Windows.
         with tempfile.NamedTemporaryFile('w', delete=False) as lineages_file:
             json.dump(lineages, lineages_file, indent=4)
             lineages_file.flush()
             lineages_file.close()
-            trks.add(lineages_file.name, 'lineages.json')
+            trks.add(lineages_file.name, lineage_name)
             os.remove(lineages_file.name)
 
         with tempfile.NamedTemporaryFile(delete=False) as raw_file:
