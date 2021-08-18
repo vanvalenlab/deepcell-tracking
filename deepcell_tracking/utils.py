@@ -35,6 +35,7 @@ import os
 import re
 import tarfile
 import tempfile
+import warnings
 
 import numpy as np
 
@@ -486,8 +487,13 @@ def is_valid_lineage(lineage):
         last_parent_frame = cell_lineage['frames'][-1]
 
         for daughter in cell_lineage['daughters']:
-            # get first frame of daughter
-            first_daughter_frame = lineage[daughter]['frames'][0]
+            try:
+                # get first frame of daughter
+                first_daughter_frame = lineage[daughter]['frames'][0]
+            except KeyError:
+                warnings.warn('lineage {} has invalid daughters: {}'.format(
+                    cell_lineage['label'], cell_lineage['daughters']))
+                return False
 
             # Check that daughter's start frame is one larger than parent end frame
             if first_daughter_frame - last_parent_frame != 1:
@@ -660,13 +666,13 @@ class Track(object):  # pylint: disable=useless-object-inheritance
 
     def _correct_lineages(self):
         """Ensure sequential labels for all batches"""
-        new_lineages = {}
+        new_lineages = []
         for batch in range(self.y.shape[0]):
 
             y_relabel, new_lineage = relabel_sequential_lineage(
                 self.y[batch], self.lineages[batch])
 
-            new_lineages[batch] = new_lineage
+            new_lineages.append(new_lineage)
             self.y[batch] = y_relabel
 
         self.lineages = new_lineages
