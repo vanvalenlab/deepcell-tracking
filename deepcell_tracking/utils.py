@@ -482,7 +482,7 @@ def is_valid_lineage(lineage):
     Returns:
         bool: Whether or not the lineage is valid.
     """
-    for cell_lineage in lineage.values():
+    for cell_label, cell_lineage in lineage.items():
         # Get last frame of parent
         last_parent_frame = cell_lineage['frames'][-1]
 
@@ -492,7 +492,7 @@ def is_valid_lineage(lineage):
                 first_daughter_frame = lineage[daughter]['frames'][0]
             except KeyError:
                 warnings.warn('lineage {} has invalid daughters: {}'.format(
-                    cell_lineage['label'], cell_lineage['daughters']))
+                    cell_label, cell_lineage['daughters']))
                 return False
 
             # Check that daughter's start frame is one larger than parent end frame
