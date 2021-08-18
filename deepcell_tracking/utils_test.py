@@ -349,6 +349,11 @@ class TestTrackingUtils(object):
         bad_lineage[2]['frames'] = [2]
         assert not utils.is_valid_lineage(bad_lineage)
 
+        # change one of cell 0's daughters to an invalid ID.
+        bad_lineage = copy.copy(lineage)
+        bad_lineage[0]['daughters'][0] = 3
+        assert not utils.is_valid_lineage(bad_lineage)
+
     def test_get_image_features(self):
         num_labels = 3
         y = get_annotated_image(num_labels=num_labels, sequential=True)
