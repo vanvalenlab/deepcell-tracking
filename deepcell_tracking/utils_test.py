@@ -360,13 +360,6 @@ class TestTrackingUtils(object):
         bad_lineage[parent_label]['frames'].append(1)
         assert not utils.is_valid_lineage(movie, bad_lineage)
 
-        # a daughter's frames should start immediatlely
-        # after the parent's last frame
-        for bad_frame in [0, 2]:
-            bad_lineage = copy.deepcopy(lineage)
-            bad_lineage[daughter_labels[0]]['frames'] = [bad_frame]
-            assert not utils.is_valid_lineage(movie, bad_lineage)
-
         # cell in lineage but not in movie is invalid
         max_label = np.max(movie)
         bad_label = np.max(movie) + 1
@@ -381,6 +374,15 @@ class TestTrackingUtils(object):
             np.expand_dims(new_frame, axis=0)
         ], axis=0)
         assert not utils.is_valid_lineage(bad_movie, lineage)
+
+        # a daughter's frames should start immediatlely
+        # after the parent's last frame
+        bad_frame = 0
+        bad_movie = copy.deepcopy(movie)
+        bad_movie[bad_frame, 0, 0] = bad_label
+        bad_lineage = copy.deepcopy(lineage)
+        bad_lineage[daughter_labels[0]]['frames'] = [bad_frame]
+        assert not utils.is_valid_lineage(bad_movie, bad_lineage)
 
         # all daughters must be in the lineage and in the movie
         bad_lineage = copy.deepcopy(lineage)
@@ -451,7 +453,6 @@ class TestTrackingUtils(object):
             utils.concat_tracks(track_1)
 
     def test_trks_stats(self):
-
         # Test bad extension
         with pytest.raises(ValueError):
             utils.trks_stats('bad-extension.npz')
