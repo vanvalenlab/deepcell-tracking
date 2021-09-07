@@ -379,7 +379,7 @@ class TestTrackingUtils(object):
         # after the parent's last frame
         bad_frame = 0
         bad_movie = copy.deepcopy(movie)
-        bad_movie[bad_frame, 0, 0] = bad_label
+        bad_movie[bad_frame, 0, 0] = daughter_labels[0]
         bad_lineage = copy.deepcopy(lineage)
         bad_lineage[daughter_labels[0]]['frames'] = [bad_frame]
         assert not utils.is_valid_lineage(bad_movie, bad_lineage)
