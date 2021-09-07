@@ -655,11 +655,8 @@ class Track(object):  # pylint: disable=useless-object-inheritance
         self.appearance_dim = appearance_dim
         self.distance_threshold = distance_threshold
 
-        # Correct lineages
+        # Correct lineages and remove bad batches
         self._correct_lineages()
-
-        # Remove bad batches
-        self._remove_invalid_batches()
 
         # Create feature dictionaries
         features_dict = self._get_features()
@@ -673,38 +670,20 @@ class Track(object):  # pylint: disable=useless-object-inheritance
         self.track_length = features_dict['track_length']
 
     def _correct_lineages(self):
-        """Ensure sequential labels for all batches"""
-        new_lineages = []
-        for batch in range(self.y.shape[0]):
-
-            y_relabel, new_lineage = relabel_sequential_lineage(
-                self.y[batch], self.lineages[batch])
-
-            new_lineages.append(new_lineage)
-            self.y[batch] = y_relabel
-
-        self.lineages = new_lineages
-
-    def _remove_invalid_batches(self):
-        """Remove all movies and lineages that are invalid.
-
-        All batches with a daughter cell starting in a frame
-        other than the parent's final frame will be dropped.
-        """
-        bad_batches = set()
-
-        for batch in range(self.y.shape[0]):
-            if not is_valid_lineage(self.lineages[batch]):
-                bad_batches.add(batch)
-
+        """Ensure valid lineages and sequential labels for all batches"""
         new_X = []
         new_y = []
         new_lineages = []
-        for batch in range(self.X.shape[0]):
-            if batch not in bad_batches:
+
+        for batch in range(self.y.shape[0]):
+            if is_valid_lineage(self.lineages[batch]):
+
+                y_relabel, new_lineage = relabel_sequential_lineage(
+                    self.y[batch], self.lineages[batch])
+
                 new_X.append(self.X[batch])
-                new_y.append(self.y[batch])
-                new_lineages.append(self.lineages[batch])
+                new_y.append(y_relabel)
+                new_lineages.append(new_lineage)
 
         self.X = np.stack(new_X, axis=0)
         self.y = np.stack(new_y, axis=0)
