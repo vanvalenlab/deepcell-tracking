@@ -369,8 +369,6 @@ class TestTrackingUtils(object):
 
         # cell in lineage but not in movie is invalid
         max_label = np.max(movie)
-        unique_labels = np.unique(movie)
-        unique_labels = unique_labels[unique_labels != 0]
         bad_label = np.max(movie) + 1
         bad_lineage = copy.deepcopy(lineage)
         bad_lineage[bad_label] = bad_lineage[max_label]
