@@ -479,32 +479,57 @@ def relabel_sequential_lineage(y, lineage):
     return y_relabel, new_lineage
 
 
-def is_valid_lineage(lineage):
+def is_valid_lineage(y, lineage):
     """Check if a cell lineage of a single movie is valid.
 
     Daughter cells must exist in the frame after the parent's final frame.
 
     Args:
+        y (numpy.array): The 3D label mask.
         lineage (dict): The cell lineages for a single movie.
 
     Returns:
         bool: Whether or not the lineage is valid.
     """
+    all_cells = np.unique(y)
+    all_cells = set([c for c in all_cells if c])
+    # every cell in the movie should be in the lineage
+    for cell in all_cells:
+        if cell not in lineage:
+            warnings.warn('Cell {} not found in lineage'.format(cell))
+            return False
+
+    # every lineage should have valid fields
     for cell_label, cell_lineage in lineage.items():
         # Get last frame of parent
+        if cell_label not in all_cells:
+            warnings.warn('Cell {} not found in the label image.'.format(
+                cell_label))
+            return False
+
+        # validate `frames`
+        y_true = np.sum(y == cell_label, axis=(1, 2))
+        y_index = np.where(y_true > 0)[0]
+        frames = list(y_index)
+        if frames != cell_lineage['frames']:
+            warnings.warn('Cell {} has invalid frames'.format(cell_label))
+            return False
+
         last_parent_frame = cell_lineage['frames'][-1]
 
         for daughter in cell_lineage['daughters']:
-            try:
-                # get first frame of daughter
-                first_daughter_frame = lineage[daughter]['frames'][0]
-            except KeyError:
+            if daughter not in all_cells or daughter not in lineage:
                 warnings.warn('lineage {} has invalid daughters: {}'.format(
                     cell_label, cell_lineage['daughters']))
                 return False
 
+            # get first frame of daughter
+            first_daughter_frame = lineage[daughter]['frames'][0]
+
             # Check that daughter's start frame is one larger than parent end frame
             if first_daughter_frame - last_parent_frame != 1:
+                warnings.warn('lineage {} has daughter {} before parent.'.format(
+                    cell_label, daughter))
                 return False
 
     return True  # all cell lineages are valid!
@@ -676,7 +701,7 @@ class Track(object):  # pylint: disable=useless-object-inheritance
         new_lineages = []
 
         for batch in range(self.y.shape[0]):
-            if is_valid_lineage(self.lineages[batch]):
+            if is_valid_lineage(self.y[batch], self.lineages[batch]):
 
                 y_relabel, new_lineage = relabel_sequential_lineage(
                     self.y[batch], self.lineages[batch])
