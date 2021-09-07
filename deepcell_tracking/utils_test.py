@@ -368,11 +368,8 @@ class TestTrackingUtils(object):
         assert not utils.is_valid_lineage(movie, bad_lineage)
 
         # cell in movie but not in lineage is invalid
-        new_frame = get_annotated_image(num_labels=1, sequential=False)
-        bad_movie = np.concatenate([
-            movie,
-            np.expand_dims(new_frame, axis=0)
-        ], axis=0)
+        bad_movie = copy.deepcopy(movie)
+        bad_movie[0, 0, 0] = bad_label
         assert not utils.is_valid_lineage(bad_movie, lineage)
 
         # a daughter's frames should start immediatlely
