@@ -382,9 +382,18 @@ class TestTrackingUtils(object):
         bad_lineage[daughter_labels[0]]['frames'] = [bad_frame]
         assert not utils.is_valid_lineage(bad_movie, bad_lineage)
 
-        # all daughters must be in the lineage and in the movie
+        # daughter not in lineage is invalid
+        bad_lineage = copy.deepcopy(lineage)
+        bad_movie = copy.deepcopy(movie)
+        daughter_idx = np.where(movie == lineage[parent_label]['daughters'][0])
+        bad_movie[daughter_idx] = bad_label
+        bad_lineage[parent_label]['daughters'][0] = bad_label
+        assert not utils.is_valid_lineage(bad_movie, bad_lineage)
+
+        # daughter not in movie is invalid
         bad_lineage = copy.deepcopy(lineage)
         bad_lineage[parent_label]['daughters'][0] = bad_label
+        bad_lineage[bad_label] = bad_lineage[bad_lineage[parent_label]['daughters'][1]]
         assert not utils.is_valid_lineage(movie, bad_lineage)
 
         # test daughter frames are empty
