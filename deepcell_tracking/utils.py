@@ -467,9 +467,8 @@ def relabel_sequential_lineage(y, lineage):
             if not new_daughter:  # missing labels get mapped to 0
                 warnings.warn('Cell {} has daughter {} which is not found '
                               'in the label image `y`.'.format(cell_id, d))
-
-            # TODO: should this be in an else block?
-            new_lineage[new_cell_id]['daughters'].append(new_daughter)
+            else:
+                new_lineage[new_cell_id]['daughters'].append(new_daughter)
 
         # Fix frames
         y_true = np.sum(y == cell_id, axis=(1, 2))
