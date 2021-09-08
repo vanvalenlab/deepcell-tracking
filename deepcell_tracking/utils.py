@@ -461,7 +461,14 @@ def relabel_sequential_lineage(y, lineage):
 
         # Fix daughters
         daughters = lineage[cell_id]['daughters']
-        new_lineage[new_cell_id]['daughters'] = [fw[d] for d in daughters]
+        new_lineage[new_cell_id]['daughters'] = []
+        for d in daughters:
+            new_daughter = fw[d]
+            if not new_daughter:  # missing labels get mapped to 0
+                warnings.warn('Cell {} has daughter {} which is not found '
+                              'in the label image `y`.'.format(cell_id, d))
+            else:
+                new_lineage[new_cell_id]['daughters'].append(new_daughter)
 
         # Fix frames
         y_true = np.sum(y == cell_id, axis=(1, 2))
@@ -471,32 +478,61 @@ def relabel_sequential_lineage(y, lineage):
     return y_relabel, new_lineage
 
 
-def is_valid_lineage(lineage):
+def is_valid_lineage(y, lineage):
     """Check if a cell lineage of a single movie is valid.
 
     Daughter cells must exist in the frame after the parent's final frame.
 
     Args:
+        y (numpy.array): The 3D label mask.
         lineage (dict): The cell lineages for a single movie.
 
     Returns:
         bool: Whether or not the lineage is valid.
     """
+    all_cells = np.unique(y)
+    all_cells = set([c for c in all_cells if c])
+    # every cell in the movie should be in the lineage
+    for cell in all_cells:
+        if cell not in lineage:
+            warnings.warn('Cell {} not found in lineage'.format(cell))
+            return False
+
+    # every lineage should have valid fields
     for cell_label, cell_lineage in lineage.items():
         # Get last frame of parent
+        if cell_label not in all_cells:
+            warnings.warn('Cell {} not found in the label image.'.format(
+                cell_label))
+            return False
+
+        # validate `frames`
+        y_true = np.sum(y == cell_label, axis=(1, 2))
+        y_index = np.where(y_true > 0)[0]
+        frames = list(y_index)
+        if frames != cell_lineage['frames']:
+            warnings.warn('Cell {} has invalid frames'.format(cell_label))
+            return False
+
         last_parent_frame = cell_lineage['frames'][-1]
 
         for daughter in cell_lineage['daughters']:
-            try:
-                # get first frame of daughter
-                first_daughter_frame = lineage[daughter]['frames'][0]
-            except KeyError:
+            if daughter not in all_cells or daughter not in lineage:
                 warnings.warn('lineage {} has invalid daughters: {}'.format(
                     cell_label, cell_lineage['daughters']))
                 return False
 
+            # get first frame of daughter
+            try:
+                first_daughter_frame = lineage[daughter]['frames'][0]
+            except IndexError:  # frames is empty?
+                warnings.warn('Daughter {} has no frames'.format(daughter))
+                return False
+
             # Check that daughter's start frame is one larger than parent end frame
             if first_daughter_frame - last_parent_frame != 1:
+                warnings.warn('lineage {} has daughter {} before parent.'.format(
+                    cell_label, daughter))
                 return False
 
     return True  # all cell lineages are valid!
@@ -647,11 +683,8 @@ class Track(object):  # pylint: disable=useless-object-inheritance
         self.appearance_dim = appearance_dim
         self.distance_threshold = distance_threshold
 
-        # Correct lineages
+        # Correct lineages and remove bad batches
         self._correct_lineages()
-
-        # Remove bad batches
-        self._remove_invalid_batches()
 
         # Create feature dictionaries
         features_dict = self._get_features()
@@ -665,38 +698,20 @@ class Track(object):  # pylint: disable=useless-object-inheritance
         self.track_length = features_dict['track_length']
 
     def _correct_lineages(self):
-        """Ensure sequential labels for all batches"""
-        new_lineages = []
-        for batch in range(self.y.shape[0]):
-
-            y_relabel, new_lineage = relabel_sequential_lineage(
-                self.y[batch], self.lineages[batch])
-
-            new_lineages.append(new_lineage)
-            self.y[batch] = y_relabel
-
-        self.lineages = new_lineages
-
-    def _remove_invalid_batches(self):
-        """Remove all movies and lineages that are invalid.
-
-        All batches with a daughter cell starting in a frame
-        other than the parent's final frame will be dropped.
-        """
-        bad_batches = set()
-
-        for batch in range(self.y.shape[0]):
-            if not is_valid_lineage(self.lineages[batch]):
-                bad_batches.add(batch)
-
+        """Ensure valid lineages and sequential labels for all batches"""
         new_X = []
         new_y = []
         new_lineages = []
-        for batch in range(self.X.shape[0]):
-            if batch not in bad_batches:
+
+        for batch in range(self.y.shape[0]):
+            if is_valid_lineage(self.y[batch], self.lineages[batch]):
+
+                y_relabel, new_lineage = relabel_sequential_lineage(
+                    self.y[batch], self.lineages[batch])
+
                 new_X.append(self.X[batch])
-                new_y.append(self.y[batch])
-                new_lineages.append(self.lineages[batch])
+                new_y.append(y_relabel)
+                new_lineages.append(new_lineage)
 
         self.X = np.stack(new_X, axis=0)
         self.y = np.stack(new_y, axis=0)

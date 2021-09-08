@@ -325,34 +325,81 @@ class TestTrackingUtils(object):
             assert not new_lineage[d]['daughters']
 
     def test_is_valid_lineage(self):
-        lineage = {
-            0: {'frames': [0],
-                'daughters': [1, 2],
-                'capped': True,
-                'frame_div': 1,
-                'parent': None},
-            1: {'frames': [1],
-                'daughters': [],
-                'capped': False,
-                'frame_div': 1,
-                'parent': 0},
-            2: {'frames': [1],
-                'daughters': [],
-                'capped': False,
-                'frame_div': 1,
-                'parent': 0},
-        }
-        assert utils.is_valid_lineage(lineage)
+        image1 = get_annotated_image(num_labels=1, sequential=False)
+        image2 = get_annotated_image(num_labels=2, sequential=False)
+        movie = np.stack([image1, image2], axis=0)
 
-        # change cell 2's daughter frame to 2, should fail
-        bad_lineage = copy.copy(lineage)
-        bad_lineage[2]['frames'] = [2]
-        assert not utils.is_valid_lineage(bad_lineage)
+        # create dummy lineage
+        lineage = {}
+        for frame in range(movie.shape[0]):
+            unique_labels = np.unique(movie[frame])
+            unique_labels = unique_labels[unique_labels != 0]
+            for unique_label in unique_labels:
+                lineage[unique_label] = {
+                    'frames': [frame],
+                    'parent': None,
+                    'daughters': [],
+                    'label': unique_label,
+                }
 
-        # change one of cell 0's daughters to an invalid ID.
-        bad_lineage = copy.copy(lineage)
-        bad_lineage[0]['daughters'][0] = 3
-        assert not utils.is_valid_lineage(bad_lineage)
+        # assign parents and daughters
+        parent_label = np.unique(movie[0])
+        parent_label = parent_label[parent_label != 0][0]
+
+        daughter_labels = np.unique(movie[1])
+        daughter_labels = [d for d in daughter_labels if d]
+
+        lineage[parent_label]['daughters'] = daughter_labels
+        for d in daughter_labels:
+            lineage[d]['parent'] = parent_label
+
+        assert utils.is_valid_lineage(movie, lineage)
+
+        # a cell's frames should match the label array
+        bad_lineage = copy.deepcopy(lineage)
+        bad_lineage[parent_label]['frames'].append(1)
+        assert not utils.is_valid_lineage(movie, bad_lineage)
+
+        # cell in lineage but not in movie is invalid
+        max_label = np.max(movie)
+        bad_label = np.max(movie) + 1
+        bad_lineage = copy.deepcopy(lineage)
+        bad_lineage[bad_label] = bad_lineage[max_label]
+        assert not utils.is_valid_lineage(movie, bad_lineage)
+
+        # cell in movie but not in lineage is invalid
+        bad_movie = copy.deepcopy(movie)
+        bad_movie[0, 0, 0] = bad_label
+        assert not utils.is_valid_lineage(bad_movie, lineage)
+
+        # a daughter's frames should start immediately
+        # after the parent's last frame
+        # (not strictly true in data, but required for GNN models)
+        bad_frame = 0
+        bad_movie = copy.deepcopy(movie)
+        bad_movie[bad_frame, 0, 0] = daughter_labels[0]
+        bad_lineage = copy.deepcopy(lineage)
+        bad_lineage[daughter_labels[0]]['frames'] = [bad_frame]
+        assert not utils.is_valid_lineage(bad_movie, bad_lineage)
+
+        # daughter not in lineage is invalid
+        bad_lineage = copy.deepcopy(lineage)
+        bad_movie = copy.deepcopy(movie)
+        daughter_idx = np.where(movie == lineage[parent_label]['daughters'][0])
+        bad_movie[daughter_idx] = bad_label
+        bad_lineage[parent_label]['daughters'][0] = bad_label
+        assert not utils.is_valid_lineage(bad_movie, bad_lineage)
+
+        # daughter not in movie is invalid
+        bad_lineage = copy.deepcopy(lineage)
+        bad_lineage[parent_label]['daughters'][0] = bad_label
+        bad_lineage[bad_label] = bad_lineage[bad_lineage[parent_label]['daughters'][1]]
+        assert not utils.is_valid_lineage(movie, bad_lineage)
+
+        # test daughter frames are empty
+        bad_lineage = copy.deepcopy(lineage)
+        bad_lineage[daughter_labels[0]]['frames'] = []
+        assert not utils.is_valid_lineage(movie, bad_lineage)
 
     def test_get_image_features(self):
         num_labels = 3
@@ -418,7 +465,6 @@ class TestTrackingUtils(object):
             utils.concat_tracks(track_1)
 
     def test_trks_stats(self):
-
         # Test bad extension
         with pytest.raises(ValueError):
             utils.trks_stats('bad-extension.npz')
