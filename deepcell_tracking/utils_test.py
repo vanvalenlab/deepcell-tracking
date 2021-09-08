@@ -372,8 +372,9 @@ class TestTrackingUtils(object):
         bad_movie[0, 0, 0] = bad_label
         assert not utils.is_valid_lineage(bad_movie, lineage)
 
-        # a daughter's frames should start immediatlely
+        # a daughter's frames should start immediately
         # after the parent's last frame
+        # (not strictly true in data, but required for GNN models)
         bad_frame = 0
         bad_movie = copy.deepcopy(movie)
         bad_movie[bad_frame, 0, 0] = daughter_labels[0]
@@ -384,6 +385,11 @@ class TestTrackingUtils(object):
         # all daughters must be in the lineage and in the movie
         bad_lineage = copy.deepcopy(lineage)
         bad_lineage[parent_label]['daughters'][0] = bad_label
+        assert not utils.is_valid_lineage(movie, bad_lineage)
+
+        # test daughter frames are empty
+        bad_lineage = copy.deepcopy(lineage)
+        bad_lineage[daughter_labels[0]]['frames'] = []
         assert not utils.is_valid_lineage(movie, bad_lineage)
 
     def test_get_image_features(self):

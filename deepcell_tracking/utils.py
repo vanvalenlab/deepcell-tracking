@@ -524,7 +524,11 @@ def is_valid_lineage(y, lineage):
                 return False
 
             # get first frame of daughter
-            first_daughter_frame = lineage[daughter]['frames'][0]
+            try:
+                first_daughter_frame = lineage[daughter]['frames'][0]
+            except IndexError:  # frames is empty?
+                warnings.warn('Daughter {} has no frames'.format(daughter))
+                return False
 
             # Check that daughter's start frame is one larger than parent end frame
             if first_daughter_frame - last_parent_frame != 1:
