@@ -535,6 +535,27 @@ def is_valid_lineage(y, lineage):
                     cell_label, daughter))
                 return False
 
+        # TODO: test parent in lineage
+        parent = cell_lineage.get('parent')
+        if parent:
+            try:
+                parent_lineage = lineage[parent]
+            except KeyError:
+                warnings.warn('Parent {} is not present in the lineage'.format(
+                    cell_lineage['parent']))
+                return False
+            try:
+                last_parent_frame = parent_lineage['frames'][-1]
+                first_daughter_frame = cell_lineage['frames'][0]
+            except IndexError:  # frames is empty?
+                warnings.warn('Cell {} has no frames'.format(parent))
+                return False
+            # Check that daughter's start frame is one larger than parent end frame
+            if first_daughter_frame - last_parent_frame != 1:
+                warnings.warn('lineage {} has daughter {} before parent.'.format(
+                    cell_label, daughter))
+                return False
+
     return True  # all cell lineages are valid!
 
 
