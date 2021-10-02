@@ -437,57 +437,7 @@ class TestTrackingUtils(object):
         assert labels.shape == expected_shape
         np.testing.assert_array_equal(labels, np.array(list(range(1, num_labels + 1))))
 
-    def test_concat_tracks(self):
-        num_labels = 3
-
-        data = get_dummy_data(num_labels)
-        track_1 = utils.Track(tracked_data=data)
-        track_2 = utils.Track(tracked_data=data)
-
-        data = utils.concat_tracks([track_1, track_2])
-
-        for k, v in data.items():
-            starting_batch = 0
-            for t in (track_1, track_2):
-                assert hasattr(t, k)
-                w = getattr(t, k)
-                # data is put into top left corner of array
-                v_sub = v[
-                    starting_batch:starting_batch + w.shape[0],
-                    0:w.shape[1],
-                    0:w.shape[2],
-                    0:w.shape[3]
-                ]
-                np.testing.assert_array_equal(v_sub, w)
-
-        # test that input must be iterable
-        with pytest.raises(TypeError):
-            utils.concat_tracks(track_1)
-
     def test_trks_stats(self):
         # Test bad extension
         with pytest.raises(ValueError):
             utils.trks_stats('bad-extension.npz')
-
-
-class TestTrack(object):
-
-    def test_init(self, mocker):
-        num_labels = 3
-
-        data = get_dummy_data(num_labels)
-
-        # invalidate one lineage
-        mocker.patch('deepcell_tracking.utils.load_trks',
-                     lambda x: data)
-
-        track1 = utils.Track(tracked_data=data)
-        track2 = utils.Track(path='path/to/data')
-
-        np.testing.assert_array_equal(track1.appearances, track2.appearances)
-        np.testing.assert_array_equal(
-            track1.temporal_adj_matrices,
-            track2.temporal_adj_matrices)
-
-        with pytest.raises(ValueError):
-            utils.Track()
