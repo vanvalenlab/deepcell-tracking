@@ -64,7 +64,7 @@ setup(name=NAME,
                         'scikit-image>=0.14.5',
                         'deepcell-toolbox~=0.10.0'],
       extras_require={
-          'tests': ['pytest',
+          'tests': ['pytest<6',
                     'pytest-pep8',
                     'pytest-cov',
                     'pytest-mock']},
