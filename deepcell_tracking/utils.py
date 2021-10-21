@@ -492,11 +492,6 @@ def is_valid_lineage(y, lineage):
     """
     all_cells = np.unique(y)
     all_cells = set([c for c in all_cells if c])
-    # every cell in the movie should be in the lineage
-    for cell in all_cells:
-        if cell not in lineage:
-            warnings.warn('Cell {} not found in lineage'.format(cell))
-            return False
 
     # every lineage should have valid fields
     for cell_label, cell_lineage in lineage.items():
@@ -505,6 +500,9 @@ def is_valid_lineage(y, lineage):
             warnings.warn('Cell {} not found in the label image.'.format(
                 cell_label))
             return False
+
+        # any cells leftover are missing lineage
+        all_cells.remove(cell_label)
 
         # validate `frames`
         y_true = np.sum(y == cell_label, axis=(1, 2))
@@ -555,6 +553,11 @@ def is_valid_lineage(y, lineage):
                 warnings.warn('lineage {} has daughter {} before parent.'.format(
                     parent, cell_label))
                 return False
+
+    if all_cells:  # all cells with lineages should be removed
+        warnings.warn('Cells missing their lineage: {}'.format(
+            list(all_cells)))
+        return False
 
     return True  # all cell lineages are valid!
 
