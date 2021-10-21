@@ -550,8 +550,11 @@ def is_valid_lineage(y, lineage):
                 return False
             # Check that daughter's start frame is one larger than parent end frame
             if first_daughter_frame - last_parent_frame != 1:
-                warnings.warn('lineage {} has daughter {} before parent.'.format(
-                    parent, cell_label))
+                warnings.warn(
+                    'Cell {} ends in frame {} but daughter {} first '
+                    'appears in frame {}.'.format(
+                        parent, last_parent_frame, cell_label,
+                        first_daughter_frame))
                 return False
 
     if all_cells:  # all cells with lineages should be removed
