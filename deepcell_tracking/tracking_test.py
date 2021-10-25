@@ -199,4 +199,4 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
             data = utils.load_trks(os.path.join(tempdir, 'all.trks'))
 
             # test trks_stats
-            utils.trks_stats(os.path.join(tempdir, 'test.trk'))
+            utils.trks_stats(os.path.join(tempdir, 'all.trks'))
