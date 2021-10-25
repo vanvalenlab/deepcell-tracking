@@ -471,8 +471,8 @@ def relabel_sequential_lineage(y, lineage):
                 new_lineage[new_cell_id]['daughters'].append(new_daughter)
 
         # Fix frames
-        y_true = np.sum(y == cell_id, axis=(1, 2))
-        y_index = np.where(y_true > 0)[0]
+        y_true = np.any(y == cell_id, axis=(1, 2))
+        y_index = y_true.nonzero()[0]
         new_lineage[new_cell_id]['frames'] = list(y_index)
 
     return y_relabel, new_lineage
@@ -505,8 +505,8 @@ def is_valid_lineage(y, lineage):
         all_cells.remove(cell_label)
 
         # validate `frames`
-        y_true = np.sum(y == cell_label, axis=(1, 2))
-        y_index = np.where(y_true > 0)[0]
+        y_true = np.any(y == cell_label, axis=(1, 2))
+        y_index = y_true.nonzero()[0]
         frames = list(y_index)
         if frames != cell_lineage['frames']:
             warnings.warn('Cell {} has invalid frames'.format(cell_label))
