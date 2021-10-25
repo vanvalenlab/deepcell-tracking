@@ -315,51 +315,46 @@ def trks_stats(filename):
     """
     ext = os.path.splitext(filename)[-1].lower()
     if ext not in {'.trks', '.trk'}:
-        raise ValueError('`trks_stats` expects a .trk or .trks but found a ' +
-                         str(ext))
+        raise ValueError(
+            '`trks_stats` expects a .trk or .trks but found a {}'.format(ext))
 
     training_data = load_trks(filename)
     X = training_data['X']
     y = training_data['y']
-    daughters = [{cell: fields['daughters']
-                  for cell, fields in tracks.items()}
-                 for tracks in training_data['lineages']]
+    lineages = training_data['lineages']
 
     print('Dataset Statistics: ')
     print('Image data shape: ', X.shape)
-    print('Number of lineages (should equal batch size): ',
-          len(training_data['lineages']))
+    print('Number of lineages (should equal batch size): ', len(lineages))
+
+    total_tracks = 0
+    total_divisions = 0
 
     # Calculate cell density
     frame_area = X.shape[2] * X.shape[3]
 
     avg_cells_in_frame = []
-    for batch in range(y.shape[0]):
-        num_cells_in_frame = []
-        for frame in y[batch]:
-            cells_in_frame = len(np.unique(frame)) - 1  # unique returns 0 (BKGD)
-            num_cells_in_frame.append(cells_in_frame)
-        avg_cells_in_frame.append(np.average(num_cells_in_frame))
-    avg_cells_per_sq_pixel = np.average(avg_cells_in_frame) / frame_area
-
-    # Calculate division information
-    total_tracks = 0
-    total_divisions = 0
     avg_frame_counts_in_batches = []
-    for batch, daughter_batch in enumerate(daughters):
-        num_tracks_in_batch = len(daughter_batch)
-        num_div_in_batch = len([c for c in daughter_batch if daughter_batch[c]])
-        total_tracks = total_tracks + num_tracks_in_batch
-        total_divisions = total_divisions + num_div_in_batch
-        frame_counts = []
-        for cell_id in daughter_batch:
-            frame_count = 0
-            for frame in y[batch]:
-                cells_in_frame = np.unique(frame)
-                if cell_id in cells_in_frame:
-                    frame_count += 1
-            frame_counts.append(frame_count)
-        avg_frame_counts_in_batches.append(np.average(frame_counts))
+    for batch in range(y.shape[0]):
+        tracks = lineages[batch]
+        total_tracks += len(tracks)
+        num_frames_per_track = []
+
+        for cell_lineage in tracks.values():
+            num_frames_per_track.append(len(cell_lineage['frames']))
+            if cell_lineage.get('daughters', []):
+                total_divisions += 1
+        avg_frame_counts_in_batches.append(np.average(num_frames_per_track))
+
+        num_cells_in_frame = []
+        for frame in range(len(y[batch])):
+            y_frame = y[batch, frame]
+            cells_in_frame = np.unique(y_frame)
+            cells_in_frame = np.delete(cells_in_frame, 0)  # rm background
+            num_cells_in_frame.append(len(cells_in_frame))
+        avg_cells_in_frame.append(np.average(num_cells_in_frame))
+
+    avg_cells_per_sq_pixel = np.average(avg_cells_in_frame) / frame_area
     avg_num_frames_per_track = np.average(avg_frame_counts_in_batches)
 
     print('Total number of unique tracks (cells)      - ', total_tracks)
