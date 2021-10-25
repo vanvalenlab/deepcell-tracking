@@ -471,8 +471,8 @@ def relabel_sequential_lineage(y, lineage):
                 new_lineage[new_cell_id]['daughters'].append(new_daughter)
 
         # Fix frames
-        y_true = np.sum(y == cell_id, axis=(1, 2))
-        y_index = np.where(y_true > 0)[0]
+        y_true = np.any(y == cell_id, axis=(1, 2))
+        y_index = y_true.nonzero()[0]
         new_lineage[new_cell_id]['frames'] = list(y_index)
 
     return y_relabel, new_lineage
@@ -492,11 +492,6 @@ def is_valid_lineage(y, lineage):
     """
     all_cells = np.unique(y)
     all_cells = set([c for c in all_cells if c])
-    # every cell in the movie should be in the lineage
-    for cell in all_cells:
-        if cell not in lineage:
-            warnings.warn('Cell {} not found in lineage'.format(cell))
-            return False
 
     # every lineage should have valid fields
     for cell_label, cell_lineage in lineage.items():
@@ -506,9 +501,12 @@ def is_valid_lineage(y, lineage):
                 cell_label))
             return False
 
+        # any cells leftover are missing lineage
+        all_cells.remove(cell_label)
+
         # validate `frames`
-        y_true = np.sum(y == cell_label, axis=(1, 2))
-        y_index = np.where(y_true > 0)[0]
+        y_true = np.any(y == cell_label, axis=(1, 2))
+        y_index = y_true.nonzero()[0]
         frames = list(y_index)
         if frames != cell_lineage['frames']:
             warnings.warn('Cell {} has invalid frames'.format(cell_label))
@@ -552,9 +550,17 @@ def is_valid_lineage(y, lineage):
                 return False
             # Check that daughter's start frame is one larger than parent end frame
             if first_daughter_frame - last_parent_frame != 1:
-                warnings.warn('lineage {} has daughter {} before parent.'.format(
-                    parent, cell_label))
+                warnings.warn(
+                    'Cell {} ends in frame {} but daughter {} first '
+                    'appears in frame {}.'.format(
+                        parent, last_parent_frame, cell_label,
+                        first_daughter_frame))
                 return False
+
+    if all_cells:  # all cells with lineages should be removed
+        warnings.warn('Cells missing their lineage: {}'.format(
+            list(all_cells)))
+        return False
 
     return True  # all cell lineages are valid!
 
