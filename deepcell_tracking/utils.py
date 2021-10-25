@@ -352,7 +352,7 @@ def trks_stats(filename):
         total_tracks = total_tracks + num_tracks_in_batch
         total_divisions = total_divisions + num_div_in_batch
         frame_counts = []
-        for cell_id in daughter_batch.keys():
+        for cell_id in daughter_batch:
             frame_count = 0
             for frame in y[batch]:
                 cells_in_frame = np.unique(frame)
