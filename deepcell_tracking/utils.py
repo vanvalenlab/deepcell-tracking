@@ -488,13 +488,16 @@ def is_valid_lineage(y, lineage):
     all_cells = np.unique(y)
     all_cells = set([c for c in all_cells if c])
 
+    is_valid = True
+
     # every lineage should have valid fields
     for cell_label, cell_lineage in lineage.items():
         # Get last frame of parent
         if cell_label not in all_cells:
             warnings.warn('Cell {} not found in the label image.'.format(
                 cell_label))
-            return False
+            is_valid = False
+            continue
 
         # any cells leftover are missing lineage
         all_cells.remove(cell_label)
@@ -505,28 +508,33 @@ def is_valid_lineage(y, lineage):
         frames = list(y_index)
         if frames != cell_lineage['frames']:
             warnings.warn('Cell {} has invalid frames'.format(cell_label))
-            return False
+            is_valid = False
+            continue  # no need to test further
 
         last_parent_frame = cell_lineage['frames'][-1]
 
         for daughter in cell_lineage['daughters']:
-            if daughter not in all_cells or daughter not in lineage:
-                warnings.warn('lineage {} has invalid daughters: {}'.format(
-                    cell_label, cell_lineage['daughters']))
-                return False
+            if daughter not in lineage:
+                warnings.warn('Lineage {} has daughter {} not in lineage'.format(
+                    cell_label, daughter))
+                is_valid = False
+                continue  # no need to test further
 
             # get first frame of daughter
             try:
                 first_daughter_frame = lineage[daughter]['frames'][0]
             except IndexError:  # frames is empty?
                 warnings.warn('Daughter {} has no frames'.format(daughter))
-                return False
+                is_valid = False
+                continue  # no need to test further
 
             # Check that daughter's start frame is one larger than parent end frame
             if first_daughter_frame - last_parent_frame != 1:
-                warnings.warn('lineage {} has daughter {} before parent.'.format(
-                    cell_label, daughter))
-                return False
+                warnings.warn('Lineage {} has daughter {} in a '
+                              'non-subsequent frame.'.format(
+                                  cell_label, daughter))
+                is_valid = False
+                continue  # no need to test further
 
         # TODO: test parent in lineage
         parent = cell_lineage.get('parent')
@@ -536,13 +544,15 @@ def is_valid_lineage(y, lineage):
             except KeyError:
                 warnings.warn('Parent {} is not present in the lineage'.format(
                     cell_lineage['parent']))
-                return False
+                is_valid = False
+                continue  # no need to test further
             try:
                 last_parent_frame = parent_lineage['frames'][-1]
                 first_daughter_frame = cell_lineage['frames'][0]
             except IndexError:  # frames is empty?
                 warnings.warn('Cell {} has no frames'.format(parent))
-                return False
+                is_valid = False
+                continue  # no need to test further
             # Check that daughter's start frame is one larger than parent end frame
             if first_daughter_frame - last_parent_frame != 1:
                 warnings.warn(
@@ -550,14 +560,15 @@ def is_valid_lineage(y, lineage):
                     'appears in frame {}.'.format(
                         parent, last_parent_frame, cell_label,
                         first_daughter_frame))
-                return False
+                is_valid = False
+                continue  # no need to test further
 
     if all_cells:  # all cells with lineages should be removed
         warnings.warn('Cells missing their lineage: {}'.format(
             list(all_cells)))
-        return False
+        is_valid = False
 
-    return True  # all cell lineages are valid!
+    return is_valid  # if unchanged, all cell lineages are valid!
 
 
 def get_image_features(X, y, appearance_dim=32):

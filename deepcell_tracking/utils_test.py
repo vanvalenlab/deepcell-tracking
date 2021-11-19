@@ -401,6 +401,17 @@ class TestTrackingUtils(object):
         bad_lineage[daughter_labels[0]]['frames'] = []
         assert not utils.is_valid_lineage(movie, bad_lineage)
 
+        # parent ID > daughters ID is OK
+        new_parent = max(np.unique(movie)) + 2
+        relabeled_movie = np.where(movie == parent_label, new_parent, movie)
+        relabeled_lineage = copy.deepcopy(lineage)
+        relabeled_lineage[new_parent] = lineage[parent_label]
+        del relabeled_lineage[parent_label]
+        for daughter in relabeled_lineage[new_parent]['daughters']:
+            if relabeled_lineage[daughter]['parent'] == parent_label:
+                relabeled_lineage[daughter]['parent'] = new_parent
+        assert utils.is_valid_lineage(relabeled_movie, relabeled_lineage)
+
     def test_get_image_features(self):
         num_labels = 3
         y = get_annotated_image(num_labels=num_labels, sequential=True)
