@@ -515,8 +515,8 @@ def is_valid_lineage(y, lineage):
 
         for daughter in cell_lineage['daughters']:
             if daughter not in lineage:
-                warnings.warn('lineage {} has invalid daughters: {}'.format(
-                    cell_label, cell_lineage['daughters']))
+                warnings.warn('Lineage {} has daughter {} not in lineage'.format(
+                    cell_label, daughter))
                 is_valid = False
                 continue  # no need to test further
 
@@ -530,8 +530,9 @@ def is_valid_lineage(y, lineage):
 
             # Check that daughter's start frame is one larger than parent end frame
             if first_daughter_frame - last_parent_frame != 1:
-                warnings.warn('lineage {} has daughter {} before parent.'.format(
-                    cell_label, daughter))
+                warnings.warn('Lineage {} has daughter {} in a '
+                              'non-subsequent frame.'.format(
+                                  cell_label, daughter))
                 is_valid = False
                 continue  # no need to test further
 
