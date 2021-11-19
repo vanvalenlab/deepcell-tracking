@@ -497,10 +497,10 @@ def is_valid_lineage(y, lineage):
             warnings.warn('Cell {} not found in the label image.'.format(
                 cell_label))
             is_valid = False
-        
-        else:
-            # any cells leftover are missing lineage
-            all_cells.remove(cell_label)
+            continue
+
+        # any cells leftover are missing lineage
+        all_cells.remove(cell_label)
 
         # validate `frames`
         y_true = np.any(y == cell_label, axis=(1, 2))
@@ -509,6 +509,7 @@ def is_valid_lineage(y, lineage):
         if frames != cell_lineage['frames']:
             warnings.warn('Cell {} has invalid frames'.format(cell_label))
             is_valid = False
+            continue  # no need to test further
 
         last_parent_frame = cell_lineage['frames'][-1]
 
@@ -517,6 +518,7 @@ def is_valid_lineage(y, lineage):
                 warnings.warn('lineage {} has invalid daughters: {}'.format(
                     cell_label, cell_lineage['daughters']))
                 is_valid = False
+                continue  # no need to test further
 
             # get first frame of daughter
             try:
@@ -524,12 +526,14 @@ def is_valid_lineage(y, lineage):
             except IndexError:  # frames is empty?
                 warnings.warn('Daughter {} has no frames'.format(daughter))
                 is_valid = False
+                continue  # no need to test further
 
             # Check that daughter's start frame is one larger than parent end frame
             if first_daughter_frame - last_parent_frame != 1:
                 warnings.warn('lineage {} has daughter {} before parent.'.format(
                     cell_label, daughter))
                 is_valid = False
+                continue  # no need to test further
 
         # TODO: test parent in lineage
         parent = cell_lineage.get('parent')
@@ -540,12 +544,14 @@ def is_valid_lineage(y, lineage):
                 warnings.warn('Parent {} is not present in the lineage'.format(
                     cell_lineage['parent']))
                 is_valid = False
+                continue  # no need to test further
             try:
                 last_parent_frame = parent_lineage['frames'][-1]
                 first_daughter_frame = cell_lineage['frames'][0]
             except IndexError:  # frames is empty?
                 warnings.warn('Cell {} has no frames'.format(parent))
                 is_valid = False
+                continue  # no need to test further
             # Check that daughter's start frame is one larger than parent end frame
             if first_daughter_frame - last_parent_frame != 1:
                 warnings.warn(
@@ -554,6 +560,7 @@ def is_valid_lineage(y, lineage):
                         parent, last_parent_frame, cell_label,
                         first_daughter_frame))
                 is_valid = False
+                continue  # no need to test further
 
     if all_cells:  # all cells with lineages should be removed
         warnings.warn('Cells missing their lineage: {}'.format(
