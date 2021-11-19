@@ -497,9 +497,10 @@ def is_valid_lineage(y, lineage):
             warnings.warn('Cell {} not found in the label image.'.format(
                 cell_label))
             is_valid = False
-
-        # any cells leftover are missing lineage
-        all_cells.remove(cell_label)
+        
+        else:
+            # any cells leftover are missing lineage
+            all_cells.remove(cell_label)
 
         # validate `frames`
         y_true = np.any(y == cell_label, axis=(1, 2))
