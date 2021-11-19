@@ -510,7 +510,7 @@ def is_valid_lineage(y, lineage):
         last_parent_frame = cell_lineage['frames'][-1]
 
         for daughter in cell_lineage['daughters']:
-            if daughter not in all_cells or daughter not in lineage:
+            if daughter not in lineage:
                 warnings.warn('lineage {} has invalid daughters: {}'.format(
                     cell_label, cell_lineage['daughters']))
                 return False
