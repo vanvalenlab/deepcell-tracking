@@ -452,3 +452,11 @@ class TestTrackingUtils(object):
         # Test bad extension
         with pytest.raises(ValueError):
             utils.trks_stats('bad-extension.npz')
+
+        # No inputs
+        with pytest.raises(ValueError):
+            utils.trks_stats()
+
+        data = get_dummy_data()
+        stats = utils.trks_stats(**data)
+        assert isinstance(stats, dict)

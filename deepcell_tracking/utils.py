@@ -303,7 +303,7 @@ def save_track_data(filename, lineages, raw, tracked, lineage_name):
             os.remove(tracked_file.name)
 
 
-def trks_stats(filename):
+def trks_stats(filename=None, X=None, y=None, lineages=None):
     """For a given trks_file, find the Number of cell tracks,
        the Number of frames per track, and the Number of divisions.
 
@@ -313,15 +313,19 @@ def trks_stats(filename):
     Raises:
         ValueError: filename is not a .trk or .trks file.
     """
-    ext = os.path.splitext(filename)[-1].lower()
-    if ext not in {'.trks', '.trk'}:
-        raise ValueError(
-            '`trks_stats` expects a .trk or .trks but found a {}'.format(ext))
+    if filename:
+        ext = os.path.splitext(filename)[-1].lower()
+        if ext not in {'.trks', '.trk'}:
+            raise ValueError(
+                '`trks_stats` expects a .trk or .trks but found a {}'.format(ext))
 
-    training_data = load_trks(filename)
-    X = training_data['X']
-    y = training_data['y']
-    lineages = training_data['lineages']
+        training_data = load_trks(filename)
+        X = training_data['X']
+        y = training_data['y']
+        lineages = training_data['lineages']
+
+    if not filename and not all(X, y, lineages):
+        raise ValueError('Either filename or X, y, and lineages must be provided as input')
 
     print('Dataset Statistics: ')
     print('Image data shape: ', X.shape)
@@ -361,6 +365,13 @@ def trks_stats(filename):
     print('Total number of divisions                  - ', total_divisions)
     print('Average cell density (cells/100 sq pixels) - ', avg_cells_per_sq_pixel * 100)
     print('Average number of frames per track         - ', int(avg_num_frames_per_track))
+
+    return {
+        'n_lineages': len(lineages),
+        'total_tracks': total_tracks,
+        'total_divisions': total_divisions,
+        'avg_cell_density': avg_cells_per_sq_pixel * 100
+    }
 
 
 def get_max_cells(y):
