@@ -369,7 +369,7 @@ def trks_stats(filename=None, X=None, y=None, lineages=None):
     return {
         'n_lineages': len(lineages),
         'total_tracks': total_tracks,
-        'total_divisions': total_divisions,
+        'num_div': total_divisions,
         'avg_cell_density': avg_cells_per_sq_pixel * 100
     }
 
