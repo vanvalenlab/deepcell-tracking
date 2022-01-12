@@ -324,7 +324,7 @@ def trks_stats(filename=None, X=None, y=None, lineages=None):
         y = training_data['y']
         lineages = training_data['lineages']
 
-    if not filename and not all(X, y, lineages):
+    if not filename and not all([X, y, lineages]):
         raise ValueError('Either filename or X, y, and lineages must be provided as input')
 
     print('Dataset Statistics: ')
