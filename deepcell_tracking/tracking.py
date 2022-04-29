@@ -95,8 +95,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                  data_format='channels_last'):
 
         if not len(movie.shape) == 4 or not len(annotation.shape) == 4:
-            raise ValueError('Input data and labels but be rank 4 '
-                             '(frames, x, y, channels).  Got {} and {}.'.format(
+            raise ValueError('Input data and labels must be rank 4 (frames, x, y, channels). '
+                             'Got rank {} (X) and rank {} (y).'.format(
                                  len(movie.shape), len(annotation.shape)))
 
         if not movie.shape[:-1] == annotation.shape[:-1]:
