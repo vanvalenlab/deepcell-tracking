@@ -1,4 +1,4 @@
-# Copyright 2016-2021 The Van Valen Lab at the California Institute of
+# Copyright 2016-2022 The Van Valen Lab at the California Institute of
 # Technology (Caltech), with support from the Paul Allen Family Foundation,
 # Google, & National Institutes of Health (NIH) under Grant U24CA224309-01.
 # All rights reserved.
@@ -95,8 +95,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                  data_format='channels_last'):
 
         if not len(movie.shape) == 4 or not len(annotation.shape) == 4:
-            raise ValueError('Input data and labels but be rank 4 '
-                             '(frames, x, y, channels).  Got {} and {}.'.format(
+            raise ValueError('Input data and labels must be rank 4 (frames, x, y, channels). '
+                             'Got rank {} (X) and rank {} (y).'.format(
                                  len(movie.shape), len(annotation.shape)))
 
         if not movie.shape[:-1] == annotation.shape[:-1]:
