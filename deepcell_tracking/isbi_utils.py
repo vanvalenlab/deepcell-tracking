@@ -407,7 +407,7 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None)
     return div_results
 
 
-def calculate_summary_stats(true_positive, false_positive, false_negative, total_divisions):
+def calculate_summary_stats(true_positive, false_positive, false_negative, total_divisions, n_digits=2):
     """Calculate additional summary statistics for tracking performance
     based on results of classify_divisions
 
@@ -418,7 +418,10 @@ def calculate_summary_stats(true_positive, false_positive, false_negative, total
         false_positive (int): False positives
         false_negative (int): False negatives
         total_divisions (int): Total number of ground truth divisions
+        n_digits (int, optional): Number of digits to round to. Default 2.
     """
+
+    _round = lambda x: round(x, n_digits)
 
     try:
         recall = true_positive / (true_positive + false_negative)
@@ -446,9 +449,9 @@ def calculate_summary_stats(true_positive, false_positive, false_negative, total
         fraction_miss = 0
 
     return {
-        'recall': recall,
-        'precision': precision,
-        'F1': f1,
-        'mitotic branching correctness': mbc,
-        'fraction missed divisions': fraction_miss
+        'Recall': _round(recall),
+        'Precision': _round(precision),
+        'F1': _round(f1),
+        'Mitotic branching correctness': _round(mbc),
+        'Fraction missed divisions': _round(fraction_miss)
     }
