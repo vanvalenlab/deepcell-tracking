@@ -37,7 +37,7 @@ with open(os.path.join(here, 'README.md'), 'r', 'utf-8') as f:
     readme = f.read()
 
 
-VERSION = '0.5.5'
+VERSION = '0.5.6rc'
 NAME = 'DeepCell_Tracking'
 DESCRIPTION = 'Tracking cells and lineage with deep learning.'
 LICENSE = 'LICENSE'
