@@ -351,23 +351,12 @@ def classify_divisions(G_gt, G_res):
     # Count any remaining res nodes as false positives
     false_positive += len(div_res)
 
-    # Calculate additional stats
-    recall = correct / (correct + missed)
-    precision = correct / (correct + false_positive)
-    f1 = 2 * (recall * precision) / (recall + precision)
-    mbc = correct / (correct + missed + false_positive)
-    total_miss = (missed + false_positive) / len(div_gt)
-
     return {
         'Correct division': correct,
         'Mismatch division': incorrect,
         'False positive division': false_positive,
         'False negative division': missed,
-        'Recall': recall,
-        'Precision': precision,
-        'F1': f1,
-        'Mitotic Branching Correctness': mbc,
-        'Total missed divisions': total_miss
+        'Total divisions': len(div_gt)
     }
 
 
@@ -416,3 +405,50 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None)
     div_results = classify_divisions(G_gt, G_res)
 
     return div_results
+
+
+def calculate_summary_stats(true_positive, false_positive, false_negative, total_divisions):
+    """Calculate additional summary statistics for tracking performance
+    based on results of classify_divisions
+
+    Catch ZeroDivisionError and set to 0 instead
+
+    Args:
+        true_positive (int): True positive or "correct divisions"
+        false_positive (int): False positives
+        false_negative (int): False negatives
+        total_divisions (int): Total number of ground truth divisions
+    """
+
+    try:
+        recall = true_positive / (true_positive + false_negative)
+    except ZeroDivisionError:
+        recall = 0
+
+    try:
+        precision = true_positive / (true_positive + false_positive)
+    except ZeroDivisionError:
+        precision = 0
+
+    try:
+        f1 = 2 * (recall * precision) / (recall + precision)
+    except ZeroDivisionError:
+        f1 = 0
+
+    try:
+        mbc = true_positive / (true_positive + false_negative + false_positive)
+    except ZeroDivisionError:
+        mbc = 0
+
+    try:
+        fraction_miss = (false_negative + false_positive) / total_divisions
+    except ZeroDivisionError:
+        fraction_miss = 0
+
+    return {
+        'recall': recall,
+        'precision': precision,
+        'F1': f1,
+        'mitotic branching correctness': mbc,
+        'fraction missed divisions': fraction_miss
+    }
