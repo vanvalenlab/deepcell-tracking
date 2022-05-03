@@ -351,11 +351,23 @@ def classify_divisions(G_gt, G_res):
     # Count any remaining res nodes as false positives
     false_positive += len(div_res)
 
+    # Calculate additional stats
+    recall = correct / (correct + missed)
+    precision = correct / (correct + false_positive)
+    f1 = 2 * (recall * precision) / (recall + precision)
+    mbc = correct / (correct + missed + false_positive)
+    total_miss = (missed + false_positive) / len(div_gt)
+
     return {
         'Correct division': correct,
-        'Incorrect division': incorrect,
+        'Mismatch division': incorrect,
         'False positive division': false_positive,
-        'False negative division': missed
+        'False negative division': missed,
+        'Recall': recall,
+        'Precision': precision,
+        'F1': f1,
+        'Mitotic Branching Correctness': mbc,
+        'Total missed divisions': total_miss
     }
 
 
@@ -396,11 +408,11 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None)
         # node_key maps gt nodes onto resnodes so must be applied to gt
         G_res = isbi_to_graph(res, node_key=node_key)
         G_gt = isbi_to_graph(gt)
-        div_results = classify_divisions(G_gt, G_res)
     else:
         node_key = {g: r for g, r in zip(cells_gt, cells_res)}
         G_res = isbi_to_graph(res)
         G_gt = isbi_to_graph(gt, node_key=node_key)
-        div_results = classify_divisions(G_gt, G_res)
+
+    div_results = classify_divisions(G_gt, G_res)
 
     return div_results
