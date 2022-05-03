@@ -184,7 +184,7 @@ class TestIsbiUtils(object):
         assert stats['False positive division'] == 1  # node 1_3
         assert stats['False negative division'] == 1  # node 4_3
         assert stats['Mismatch division'] == 1  # node 3_3
-        assert stats['Total divisions'] == 2
+        assert stats['Total divisions'] == 3
 
     def test_contig_tracks(self):
         # test already contiguous

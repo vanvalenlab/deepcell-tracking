@@ -407,7 +407,11 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None)
     return div_results
 
 
-def calculate_summary_stats(true_positive, false_positive, false_negative, total_divisions, n_digits=2):
+def calculate_summary_stats(true_positive,
+                            false_positive,
+                            false_negative,
+                            total_divisions,
+                            n_digits=2):
     """Calculate additional summary statistics for tracking performance
     based on results of classify_divisions
 
