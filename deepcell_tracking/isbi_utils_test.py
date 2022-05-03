@@ -183,7 +183,8 @@ class TestIsbiUtils(object):
         assert stats['Correct division'] == 1  # the only correct one
         assert stats['False positive division'] == 1  # node 1_3
         assert stats['False negative division'] == 1  # node 4_3
-        assert stats['Incorrect division'] == 1  # node 3_3
+        assert stats['Mismatch division'] == 1  # node 3_3
+        assert stats['Total divisions'] == 2
 
     def test_contig_tracks(self):
         # test already contiguous
@@ -326,7 +327,8 @@ class TestIsbiUtils(object):
                 trks.add(tracked.name, 'tracked.npy')
                 os.remove(tracked.name)
 
-        expected = {'Correct division': 1, 'Incorrect division': 0,
-                    'False positive division': 0, 'False negative division': 0}
+        expected = {'Correct division': 1, 'Mismatch division': 0,
+                    'False positive division': 0, 'False negative division': 0,
+                    'Total divisions': 1}
         results = isbi_utils.benchmark_division_performance(trk_gt, trk_res)
         assert results == expected
