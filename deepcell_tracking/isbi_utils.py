@@ -353,9 +353,10 @@ def classify_divisions(G_gt, G_res):
 
     return {
         'Correct division': correct,
-        'Incorrect division': incorrect,
+        'Mismatch division': incorrect,
         'False positive division': false_positive,
-        'False negative division': missed
+        'False negative division': missed,
+        'Total divisions': len(div_gt)
     }
 
 
@@ -396,11 +397,65 @@ def benchmark_division_performance(trk_gt, trk_res, path_gt=None, path_res=None)
         # node_key maps gt nodes onto resnodes so must be applied to gt
         G_res = isbi_to_graph(res, node_key=node_key)
         G_gt = isbi_to_graph(gt)
-        div_results = classify_divisions(G_gt, G_res)
     else:
         node_key = {g: r for g, r in zip(cells_gt, cells_res)}
         G_res = isbi_to_graph(res)
         G_gt = isbi_to_graph(gt, node_key=node_key)
-        div_results = classify_divisions(G_gt, G_res)
+
+    div_results = classify_divisions(G_gt, G_res)
 
     return div_results
+
+
+def calculate_summary_stats(true_positive,
+                            false_positive,
+                            false_negative,
+                            total_divisions,
+                            n_digits=2):
+    """Calculate additional summary statistics for tracking performance
+    based on results of classify_divisions
+
+    Catch ZeroDivisionError and set to 0 instead
+
+    Args:
+        true_positive (int): True positive or "correct divisions"
+        false_positive (int): False positives
+        false_negative (int): False negatives
+        total_divisions (int): Total number of ground truth divisions
+        n_digits (int, optional): Number of digits to round to. Default 2.
+    """
+
+    _round = lambda x: round(x, n_digits)
+
+    try:
+        recall = true_positive / (true_positive + false_negative)
+    except ZeroDivisionError:
+        recall = 0
+
+    try:
+        precision = true_positive / (true_positive + false_positive)
+    except ZeroDivisionError:
+        precision = 0
+
+    try:
+        f1 = 2 * (recall * precision) / (recall + precision)
+    except ZeroDivisionError:
+        f1 = 0
+
+    try:
+        mbc = true_positive / (true_positive + false_negative + false_positive)
+    except ZeroDivisionError:
+        mbc = 0
+
+    try:
+        fraction_miss = (false_negative + false_positive) / total_divisions
+    except ZeroDivisionError:
+        fraction_miss = 0
+
+    return {
+        'Recall': _round(recall),
+        'Precision': _round(precision),
+        'F1': _round(f1),
+        'Mitotic branching correctness': _round(mbc),
+        'Fraction missed divisions': _round(fraction_miss)
+    }
