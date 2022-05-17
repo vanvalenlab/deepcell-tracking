@@ -37,7 +37,7 @@ with open(os.path.join(here, 'README.md'), 'r', 'utf-8') as f:
     readme = f.read()
 
 
-VERSION = '0.5.6'
+VERSION = '0.5.7'
 NAME = 'DeepCell_Tracking'
 DESCRIPTION = 'Tracking cells and lineage with deep learning.'
 LICENSE = 'LICENSE'
@@ -61,7 +61,8 @@ setup(name=NAME,
                         'pandas',
                         'scipy',
                         'scikit-image>=0.14.5',
-                        'deepcell-toolbox~=0.10.0'],
+                        'deepcell-toolbox~=0.11.2'
+                        ],
       extras_require={
           'tests': ['pytest<6',
                     'pytest-pep8',
@@ -73,7 +74,6 @@ setup(name=NAME,
       classifiers=[
           'Programming Language :: Python',
           'Programming Language :: Python :: 3',
-          'Programming Language :: Python :: 3.6',
           'Programming Language :: Python :: 3.7',
           'Programming Language :: Python :: 3.8',
           'Programming Language :: Python :: 3.9'])
