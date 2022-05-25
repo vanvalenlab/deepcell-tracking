@@ -42,6 +42,73 @@ from deepcell_tracking.trk_io import load_trks
 from deepcell_tracking.isbi_utils import trk_to_isbi, isbi_to_graph, match_nodes
 
 
+def classify_divisions(G_gt, G_res):
+    """Compare two graphs and calculate the cell division confusion matrix.
+    WARNING: This function will only work if the labels underlying both
+    graphs are the same. E.G. the parents only match if the same label
+    splits in the same frame - but each movie isn't guaranteed to be labeled
+    in the same way (with the same order). Should be used with match_nodes
+    Args:
+        G_gt (networkx.Graph): Ground truth cell lineage graph.
+        G_res (networkx.Graph): Predicted cell lineage graph.
+    Returns:
+        dict: Diciontary of all division statistics.
+    """
+    # Identify nodes with parent attribute
+    div_gt = [node for node, d in G_gt.nodes(data=True)
+              if d.get('division', False)]
+    div_res = [node for node, d in G_res.nodes(data=True)
+               if d.get('division', False)]
+
+    correct = 0         # Correct division
+    incorrect = 0       # Wrong division
+    false_positive = 0  # False positive division
+    missed = 0          # Missed division
+
+    for node in div_gt:
+
+        pred_gt = list(G_gt.pred[node])
+        succ_gt = list(G_gt.succ[node])
+
+        # Check if res node was also called a division
+        if node in div_res:
+            pred_res = list(G_gt.pred[node])
+            succ_res = list(G_res.succ[node])
+
+            # Parents and daughters are the same, perfect!
+            if (Counter(pred_gt) == Counter(pred_res) and
+                    Counter(succ_gt) == Counter(succ_res)):
+                correct += 1
+
+            else:  # what went wrong?
+                incorrect += 1
+                errors = ['out degree = {}'.format(G_res.out_degree(node))]
+                if Counter(succ_gt) != Counter(succ_res):
+                    errors.append('daughters mismatch')
+                if Counter(pred_gt) != Counter(pred_res):
+                    errors.append('parents mismatch')
+                if G_res.out_degree(node) == G_gt.out_degree(node):
+                    errors.append('gt and res degree equal')
+                print(node, '{}.'.format(', '.join(errors)))
+
+            div_res.remove(node)
+
+        else:  # valid division not in results, it was missed
+            print('missed node {} division completely'.format(node))
+            missed += 1
+
+    # Count any remaining res nodes as false positives
+    false_positive += len(div_res)
+
+    return {
+        'Correct division': correct,
+        'Mismatch division': incorrect,
+        'False positive division': false_positive,
+        'False negative division': missed,
+        'Total divisions': len(div_gt)
+    }
+
+
 class Metrics:
     def __init__(self, trk_gt, trk_res, threshold=1):
         """Compare two related .trk files (one being the GT of the other)
@@ -88,56 +155,12 @@ class Metrics:
         self._classify_divisions()
 
     def _classify_divisions(self):
-        """Compare two graphs and calculate the cell division confusion matrix.
-
-        WARNING: This function will only work if the labels underlying both
-        graphs are the same. E.G. the parents only match if the same label
-        splits in the same frame - but each movie isn't guaranteed to be labeled
-        in the same way (with the same order). Should be used with match_nodes
-        """
-        # Identify nodes with parent attribute
-        div_gt = [node for node, d in self.G_gt.nodes(data=True)
-                  if d.get('division', False)]
-        div_res = [node for node, d in self.G_res.nodes(data=True)
-                   if d.get('division', False)]
-
-        for node in div_gt:
-
-            pred_gt = list(self.G_gt.pred[node])
-            succ_gt = list(self.G_gt.succ[node])
-
-            # Check if res node was also called a division
-            if node in div_res:
-                pred_res = list(self.G_gt.pred[node])
-                succ_res = list(self.G_res.succ[node])
-
-                # Parents and daughters are the same, perfect!
-                if (Counter(pred_gt) == Counter(pred_res) and
-                        Counter(succ_gt) == Counter(succ_res)):
-                    self.correct_div += 1
-
-                else:  # what went wrong?
-                    self.incorrect_div += 1
-                    errors = ['out degree = {}'.format(self.G_res.out_degree(node))]
-                    if Counter(succ_gt) != Counter(succ_res):
-                        errors.append('daughters mismatch')
-                    if Counter(pred_gt) != Counter(pred_res):
-                        errors.append('parents mismatch')
-                    if self.G_res.out_degree(node) == self.G_gt.out_degree(node):
-                        errors.append('gt and res degree equal')
-                    print(node, '{}.'.format(', '.join(errors)))
-
-                div_res.remove(node)
-
-            else:  # valid division not in results, it was missed
-                print('missed node {} division completely'.format(node))
-                self.missed_div += 1
-
-        # Count any remaining res nodes as false positives
-        self.false_positive_div += len(div_res)
-
-        # Count total ground truth divisions
-        self.total_div = len(div_gt)
+        stats = classify_divisions(self.G_gt, self.G_res)
+        self.correct_div += stats['Correct division']
+        self.incorrect_div += stats['Mismatch division']
+        self.false_positive_div += stats['False positive division']
+        self.missed_div += stats['False negative division']
+        self.total_div += stats['Total divisions']
 
 
 class DivisionReport:
