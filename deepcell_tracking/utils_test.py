@@ -38,7 +38,6 @@ import skimage as sk
 import pytest
 
 from deepcell_tracking import utils
-from deepcell_tracking.test_utils import get_image
 from deepcell_tracking.test_utils import get_annotated_image
 from deepcell_tracking.test_utils import get_annotated_movie
 
@@ -141,86 +140,6 @@ class TestTrackingUtils(object):
         pairs = utils.count_pairs(
             y, same_probability=prob, data_format='channels_first')
         assert pairs == expected
-
-    def test_save_trks(self, tmpdir):
-        X = get_image(30, 30)
-        y = np.random.randint(low=0, high=10, size=X.shape)
-        lineage = [dict()]
-
-        tempdir = str(tmpdir)
-        with pytest.raises(ValueError):
-            badfilename = os.path.join(tempdir, 'x.trk')
-            utils.save_trks(badfilename, lineage, X, y)
-
-        filename = os.path.join(tempdir, 'x.trks')
-        utils.save_trks(filename, lineage, X, y)
-        assert os.path.isfile(filename)
-
-        # test saved tracks can be loaded
-        loaded = utils.load_trks(filename)
-        assert loaded['lineages'] == lineage
-        np.testing.assert_array_equal(X, loaded['X'])
-        np.testing.assert_array_equal(y, loaded['y'])
-
-        # test save trks to bytes
-        b = io.BytesIO()
-        utils.save_trks(b, lineage, X, y)
-
-        # load trks from bytes
-        b.seek(0)
-        loaded = utils.load_trks(b)
-        assert loaded['lineages'] == lineage
-        np.testing.assert_array_equal(X, loaded['X'])
-        np.testing.assert_array_equal(y, loaded['y'])
-
-    def test_save_trk(self, tmpdir):
-        X = get_image(30, 30)
-        y = np.random.randint(low=0, high=10, size=X.shape)
-        lineage = [dict()]
-
-        tempdir = str(tmpdir)
-        with pytest.raises(ValueError):
-            badfilename = os.path.join(tempdir, 'x.trks')
-            utils.save_trk(badfilename, lineage, X, y)
-
-        with pytest.raises(ValueError):
-            utils.save_trk('x.trk', [{}, {}], X, y)
-
-        filename = os.path.join(tempdir, 'x.trk')
-        utils.save_trk(filename, lineage, X, y)
-        assert os.path.isfile(filename)
-
-        # test saved tracks can be loaded
-        loaded = utils.load_trks(filename)
-        assert loaded['lineages'] == lineage
-        np.testing.assert_array_equal(X, loaded['X'])
-        np.testing.assert_array_equal(y, loaded['y'])
-
-        # test save trks to bytes
-        b = io.BytesIO()
-        utils.save_trk(b, lineage, X, y)
-
-        # load trks from bytes
-        b.seek(0)
-        loaded = utils.load_trks(b)
-        assert loaded['lineages'] == lineage
-        np.testing.assert_array_equal(X, loaded['X'])
-        np.testing.assert_array_equal(y, loaded['y'])
-
-    def test_load_trks(self, tmpdir):
-        filename = os.path.join(str(tmpdir), 'bad-lineage.trk')
-        X = get_image(30, 30)
-        y = np.random.randint(low=0, high=10, size=X.shape)
-        lineage = [dict()]
-
-        utils.save_track_data(filename=filename,
-                              lineages=lineage,
-                              raw=X,
-                              tracked=y,
-                              lineage_name='bad-lineage.json')
-
-        with pytest.raises(ValueError):
-            utils.load_trks(filename)
 
     def test_normalize_adj_matrix(self):
         frames = 3
