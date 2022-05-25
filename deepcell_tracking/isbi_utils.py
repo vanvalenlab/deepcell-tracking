@@ -38,7 +38,7 @@ import pandas as pd
 import warnings
 
 from deepcell_toolbox import compute_overlap
-from deepcell_tracking.utils import load_trks
+from deepcell_tracking.trk_io import load_trks
 
 # Import for backward compatability
 from deepcell_tracking.utils import contig_tracks
