@@ -144,13 +144,15 @@ def contig_tracks(label, batch_info, batch_tracked):
     return batch_info, batch_tracked
 
 
-def match_nodes(gt, res):
+def match_nodes(gt, res, threshold=1):
     """Relabel predicted track to match GT track labels.
 
     Args:
         gt (np arr): label movie (y) from ground truth .trk file.
         res (np arr): label movie (y) from predicted results .trk file
-        threshold (int): threshold value for IoU to count as same cell
+        threshold (optional, float): threshold value for IoU to count as same cell. Default 1.
+            If segmentations are identical, 1 works well.
+            For imperfect segmentations try 0.6-0.8 to get better matching
 
     Returns:
         gtcells (np arr): Array of overlapping ids in the gt movie.
@@ -195,7 +197,7 @@ def match_nodes(gt, res):
             union = np.logical_or(gt_frame == iou_gt_idx, res_frame == iou_res_idx)
             iou[frame, iou_gt_idx, iou_res_idx] = intersection.sum() / union.sum()
 
-    gtcells, rescells = np.where(np.nansum(iou, axis=0) >= 1)
+    gtcells, rescells = np.where(np.nansum(iou, axis=0) >= threshold)
 
     return gtcells, rescells
 
