@@ -79,10 +79,10 @@ class Metrics:
             self.G_gt = isbi_to_graph(gt, node_key=node_key)
 
         # Initialize division metrics
-        self.correct = 0         # Correct division
-        self.incorrect = 0       # Wrong division
-        self.false_positive = 0  # False positive division
-        self.missed = 0          # Missed division
+        self.correct_div = 0         # Correct division
+        self.incorrect_div = 0       # Wrong division
+        self.false_positive_div = 0  # False positive division
+        self.missed_div = 0          # Missed division
         self.total_div = 0       # Total divisions in ground truth
 
         self._classify_divisions()
@@ -114,10 +114,10 @@ class Metrics:
                 # Parents and daughters are the same, perfect!
                 if (Counter(pred_gt) == Counter(pred_res) and
                         Counter(succ_gt) == Counter(succ_res)):
-                    self.correct += 1
+                    self.correct_div += 1
 
                 else:  # what went wrong?
-                    self.incorrect += 1
+                    self.incorrect_div += 1
                     errors = ['out degree = {}'.format(self.G_res.out_degree(node))]
                     if Counter(succ_gt) != Counter(succ_res):
                         errors.append('daughters mismatch')
@@ -131,10 +131,10 @@ class Metrics:
 
             else:  # valid division not in results, it was missed
                 print('missed node {} division completely'.format(node))
-                self.missed += 1
+                self.missed_div += 1
 
         # Count any remaining res nodes as false positives
-        self.false_positive += len(div_res)
+        self.false_positive_div += len(div_res)
 
         # Count total ground truth divisions
         self.total_div = len(div_gt)
@@ -156,10 +156,10 @@ class DivisionReport:
         if not isinstance(metrics, Metrics):
             raise ValueError('Must be an instance of `Metrics`')
 
-        self.correct += metrics.correct
-        self.incorrect += metrics.incorrect
-        self.false_positive += metrics.false_positive
-        self.missed += metrics.missed
+        self.correct += metrics.correct_div
+        self.incorrect += metrics.incorrect_div
+        self.false_positive += metrics.false_positive_div
+        self.missed += metrics.missed_div
         self.total_div += metrics.total_div
 
     @property
@@ -202,3 +202,18 @@ class DivisionReport:
             frac = 0
         return frac
 
+    def to_dict(self, n_digits=2):
+        _round = lambda x: round(x, n_digits)
+
+        return {
+            'Correct division': self.correct,
+            'Mismatch division': self.incorrect,
+            'False positive division': self.false_positive,
+            'False negative division': self.missed,
+            'Total divisions': self.total_div,
+            'Recall': _round(self.recall),
+            'Precision': _round(self.precision),
+            'F1': _round(self.f1),
+            'Mitotic branching correctness': _round(self.mitotic_branching_correctnessbc),
+            'Fraction missed divisions': _round(self.fraction_missed)
+        }
