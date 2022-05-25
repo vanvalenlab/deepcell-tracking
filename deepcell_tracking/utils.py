@@ -641,3 +641,65 @@ def get_image_features(X, y, appearance_dim=32):
         'morphologies': morphologies,
         # 'adj_matrix': adj_matrix,
     }
+
+
+def contig_tracks(label, batch_info, batch_tracked):
+    """Check for contiguous tracks (tracks should only consist of consecutive frames).
+
+    Split one track into two if neccesary
+
+    Args:
+        label (int): label of the cell.
+        batch_info (dict): a track's lineage info
+        batch_tracked (dict): the new image data associated with the lineage.
+
+    Returns:
+        tuple(dict, dict): updated batch_info and batch_tracked.
+    """
+    frame_div_missing = False
+
+    frames = batch_info[label]['frames']
+
+    for i, frame in enumerate(frames):
+        # If the next frame is available and contiguous we should move on to
+        # the next frame. Otherwise, if the next frame is available and
+        # NONcontiguous we should separate this track into two.
+        if i + 1 <= len(frames) - 1 and frame + 1 != frames[i + 1]:
+            frame_div = batch_info[label].get('frame_div')
+            if frame_div is None:
+                frame_div_missing = True  # TODO: is this necessary?
+
+            # Create a new track to hold the information from this
+            # frame forward and add it to the batch.
+            new_label = max(batch_info) + 1
+            batch_info[new_label] = {
+                'old_label': label,
+                'label': new_label,
+                'frames': frames[i + 1:],
+                'daughters': batch_info[label]['daughters'],
+                'frame_div': frame_div,
+                'parent': None
+            }
+
+            for d in batch_info[new_label]['daughters']:
+                batch_info[d]['parent'] = new_label
+
+            for f in frames[i + 1:]:
+                batch_tracked[f][batch_tracked[f] == label] = new_label
+
+            # Adjust the info of the current track to vacate the new track info
+            batch_info[label]['frames'] = frames[0:i + 1]
+            batch_info[label]['daughters'] = []
+            batch_info[label]['frame_div'] = None
+
+            break  # Because we are splitting tracks recursively, we stop here
+
+        # If the current frame is the last frame then were done
+        # Either the last frame is contiguous and we don't alter batch_info
+        # or it's not and it's been made into a new track by the previous
+        # iteration of the loop
+
+        if frame_div_missing:
+            print('Warning: frame_div is missing')
+
+    return batch_info, batch_tracked
