@@ -39,7 +39,7 @@ import warnings
 
 from deepcell_toolbox import compute_overlap
 from deepcell_tracking.trk_io import load_trks
-from deepcell_tracking.isbi_utils import trk_to_isbi, isbi_to_graph, match_nodes
+from deepcell_tracking.isbi_utils import trk_to_isbi, isbi_to_graph
 
 
 def classify_divisions(G_gt, G_res):
@@ -161,6 +161,53 @@ def calculate_summary_stats(true_positive,
     }
 
 
+def calculate_association_accuracy(lineage_gt, linage_res, cells_gt, cells_res):
+    """Calculate the association accuracy for each ground truth lineage
+
+    Defined as the number of true positive associations between cells divided by
+    the total number of ground truth associations. Associations are equivalent to
+    the edges that connect cells in a graph
+
+    When more than one predicted lineage is associated with a ground truth lineage
+    the association accuracy score is calculated for each predicted lineage
+
+    Args:
+        lineage_gt (dict): Ground trugh lineages
+        linage_res (dict): Predicted lineages
+        cells_gt (list): List of ground truthcell ids from `match_nodes`
+        cells_res (list): List of result cell ids from `match_nodes`
+    """
+
+
+def calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt, cells_res):
+    """Calculate the target effectiveness. Final score can be obtained by dividing
+    true_positive by total
+
+    The TE measure considers the number of cell instances correctly associated within
+    a track with respect to the total number of cells in a track
+
+    Args:
+        lineage_gt (dict): Ground trugh lineages
+        linage_res (dict): Predicted lineages
+        cells_gt (list): List of ground truthcell ids from `match_nodes`
+        cells_res (list): List of result cell ids from `match_nodes`
+
+    Returns:
+        true_positive: Number of true positive assignments of cells to lineages
+        total: Number of cells present in ground truth
+    """
+    true_positive = 0
+    total = 0
+
+    for g_idx, r_idx in zip(cells_gt, cells_res):
+        g_frames = lineage_gt[g_idx]
+        r_frames = lineage_res[r_idx]
+        true_positive += sum(r in g_frames for r in r_frames)
+        total += len(g_frames)
+
+    return true_positive, total
+
+
 class Metrics:
     def __init__(self, trk_gt, trk_res, threshold=1):
         """Compare two related .trk files (one being the GT of the other)
@@ -214,81 +261,3 @@ class Metrics:
         self.missed_div += stats['False negative division']
         self.total_div += stats['Total divisions']
 
-
-class DivisionReport:
-    def __init__(self):
-        # Collect Metrics objects
-        self.results = []
-
-        # Initialize division metrics
-        self.correct = 0         # Correct division / true positive
-        self.incorrect = 0       # Wrong division
-        self.false_positive = 0  # False positive division
-        self.missed = 0          # Missed division / false negative
-        self.total_div = 0       # Total divisions in ground truth
-
-    def add_metrics(self, metrics):
-        if not isinstance(metrics, Metrics):
-            raise ValueError('Must be an instance of `Metrics`')
-
-        self.correct += metrics.correct_div
-        self.incorrect += metrics.incorrect_div
-        self.false_positive += metrics.false_positive_div
-        self.missed += metrics.missed_div
-        self.total_div += metrics.total_div
-
-    @property
-    def recall(self):
-        try:
-            recall = self.correct / (self.correct + self.missed)
-        except ZeroDivisionError:
-            recall = 0
-        return recall
-
-    @property
-    def precision(self):
-        try:
-            precision = self.correct / (self.correct + self.false_positive)
-        except ZeroDivisionError:
-            precision = 0
-        return precision
-
-    @property
-    def f1(self):
-        try:
-            f1 = 2 * (self.recall * self.precision) / (self.recall + self.precision)
-        except ZeroDivisionError:
-            f1 = 0
-        return f1
-
-    @property
-    def mitotic_branching_correctness(self):
-        try:
-            mbc = self.correct / (self.correct + self.missed + self.false_positive)
-        except ZeroDivisionError:
-            mbc = 0
-        return mbc
-
-    @property
-    def fraction_missed(self):
-        try:
-            frac = (self.missed + self.false_positive) / self.total_div
-        except ZeroDivisionError:
-            frac = 0
-        return frac
-
-    def to_dict(self, n_digits=2):
-        _round = lambda x: round(x, n_digits)
-
-        return {
-            'Correct division': self.correct,
-            'Mismatch division': self.incorrect,
-            'False positive division': self.false_positive,
-            'False negative division': self.missed,
-            'Total divisions': self.total_div,
-            'Recall': _round(self.recall),
-            'Precision': _round(self.precision),
-            'F1': _round(self.f1),
-            'Mitotic branching correctness': _round(self.mitotic_branching_correctnessbc),
-            'Fraction missed divisions': _round(self.fraction_missed)
-        }
