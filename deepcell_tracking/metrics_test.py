@@ -73,90 +73,103 @@ def test_classify_divisions():
 
     stats = metrics.classify_divisions(G, H)
 
-    assert stats['Correct division'] == 1  # the only correct one
-    assert stats['False positive division'] == 1  # node 1_3
-    assert stats['False negative division'] == 1  # node 4_3
-    assert stats['Mismatch division'] == 1  # node 3_3
-    assert stats['Total divisions'] == 3
+    assert stats['correct_division'] == 1  # the only correct one
+    assert stats['false_positive_division'] == 1  # node 1_3
+    assert stats['false_negative_division'] == 1  # node 4_3
+    assert stats['mismatch_division'] == 1  # node 3_3
+    assert stats['total_divisions'] == 3
 
 
-class TestMetrics:
+def test_calculate_association_accuracy():
+    raise NotImplementedError
 
-    def test_init(self, tmpdir):
-        trk_gt = os.path.join(str(tmpdir), 'test_benchmark_gt.trk')
-        trk_res = os.path.join(str(tmpdir), 'test_benchmark_res.trk')
 
-        # Generate lineage data
-        tracks_gt = {1: {'label': 1, 'frames': [1, 2], 'daughters': [],
-                        'capped': False, 'frame_div': None, 'parent': 3},
-                        2: {'label': 2, 'frames': [1, 2], 'daughters': [],
-                        'capped': False, 'frame_div': None, 'parent': 3},
-                        3: {'label': 3, 'frames': [0], 'daughters': [1, 2],
-                        'capped': False, 'frame_div': 1, 'parent': None}}
-        X_gt = []
-        # Generate tracked movie
-        y_gt = get_annotated_movie(img_size=256,
-                                    labels_per_frame=3,
-                                    frames=3,
-                                    mov_type='sequential', seed=0,
-                                    data_format='channels_last')
-        # Let results be same as ground truth
-        tracks_res = tracks_gt
-        X_res = []
-        y_res = y_gt
+def test_calculate_target_effectiveness():
+    raise NotImplementedError
 
-        # Save gt and res data to .trk files
-        with tarfile.open(trk_gt, 'w:gz') as trks:
-            # disable auto deletion and close/delete manually
-            # to resolve double-opening issue on Windows.
-            with tempfile.NamedTemporaryFile('w', delete=False) as lineage:
-                json.dump(tracks_gt, lineage, indent=4)
-                lineage.flush()
-                lineage.close()
-                trks.add(lineage.name, 'lineage.json')
-                os.remove(lineage.name)
 
-            with tempfile.NamedTemporaryFile(delete=False) as raw:
-                np.save(raw, X_gt)
-                raw.flush()
-                raw.close()
-                trks.add(raw.name, 'raw.npy')
-                os.remove(raw.name)
+def test_calculate_summary_stats():
+    raise NotImplementedError
 
-            with tempfile.NamedTemporaryFile(delete=False) as tracked:
-                np.save(tracked, y_gt)
-                tracked.flush()
-                tracked.close()
-                trks.add(tracked.name, 'tracked.npy')
-                os.remove(tracked.name)
 
-        with tarfile.open(trk_res, 'w:gz') as trks:
-            # disable auto deletion and close/delete manually
-            # to resolve double-opening issue on Windows.
-            with tempfile.NamedTemporaryFile('w', delete=False) as lineage:
-                json.dump(tracks_res, lineage, indent=4)
-                lineage.flush()
-                lineage.close()
-                trks.add(lineage.name, 'lineage.json')
-                os.remove(lineage.name)
+def test_benchmark_tracking_performance(tmpdir):
+    trk_gt = os.path.join(str(tmpdir), 'test_benchmark_gt.trk')
+    trk_res = os.path.join(str(tmpdir), 'test_benchmark_res.trk')
 
-            with tempfile.NamedTemporaryFile(delete=False) as raw:
-                np.save(raw, X_res)
-                raw.flush()
-                raw.close()
-                trks.add(raw.name, 'raw.npy')
-                os.remove(raw.name)
+    # Generate lineage data
+    tracks_gt = {1: {'label': 1, 'frames': [1, 2], 'daughters': [],
+                    'capped': False, 'frame_div': None, 'parent': 3},
+                    2: {'label': 2, 'frames': [1, 2], 'daughters': [],
+                    'capped': False, 'frame_div': None, 'parent': 3},
+                    3: {'label': 3, 'frames': [0], 'daughters': [1, 2],
+                    'capped': False, 'frame_div': 1, 'parent': None}}
+    X_gt = []
+    # Generate tracked movie
+    y_gt = get_annotated_movie(img_size=256,
+                                labels_per_frame=3,
+                                frames=3,
+                                mov_type='sequential', seed=0,
+                                data_format='channels_last')
+    # Let results be same as ground truth
+    tracks_res = tracks_gt
+    X_res = []
+    y_res = y_gt
 
-            with tempfile.NamedTemporaryFile(delete=False) as tracked:
-                np.save(tracked, y_res)
-                tracked.flush()
-                tracked.close()
-                trks.add(tracked.name, 'tracked.npy')
-                os.remove(tracked.name)
+    # Save gt and res data to .trk files
+    with tarfile.open(trk_gt, 'w:gz') as trks:
+        # disable auto deletion and close/delete manually
+        # to resolve double-opening issue on Windows.
+        with tempfile.NamedTemporaryFile('w', delete=False) as lineage:
+            json.dump(tracks_gt, lineage, indent=4)
+            lineage.flush()
+            lineage.close()
+            trks.add(lineage.name, 'lineage.json')
+            os.remove(lineage.name)
 
-        m = metrics.Metrics(trk_gt, trk_res)
-        assert m.correct_div == 1
-        assert m.incorrect_div == 0
-        assert m.false_positive_div == 0
-        assert m.missed_div == 0
-        assert m.total_div == 1
+        with tempfile.NamedTemporaryFile(delete=False) as raw:
+            np.save(raw, X_gt)
+            raw.flush()
+            raw.close()
+            trks.add(raw.name, 'raw.npy')
+            os.remove(raw.name)
+
+        with tempfile.NamedTemporaryFile(delete=False) as tracked:
+            np.save(tracked, y_gt)
+            tracked.flush()
+            tracked.close()
+            trks.add(tracked.name, 'tracked.npy')
+            os.remove(tracked.name)
+
+    with tarfile.open(trk_res, 'w:gz') as trks:
+        # disable auto deletion and close/delete manually
+        # to resolve double-opening issue on Windows.
+        with tempfile.NamedTemporaryFile('w', delete=False) as lineage:
+            json.dump(tracks_res, lineage, indent=4)
+            lineage.flush()
+            lineage.close()
+            trks.add(lineage.name, 'lineage.json')
+            os.remove(lineage.name)
+
+        with tempfile.NamedTemporaryFile(delete=False) as raw:
+            np.save(raw, X_res)
+            raw.flush()
+            raw.close()
+            trks.add(raw.name, 'raw.npy')
+            os.remove(raw.name)
+
+        with tempfile.NamedTemporaryFile(delete=False) as tracked:
+            np.save(tracked, y_res)
+            tracked.flush()
+            tracked.close()
+            trks.add(tracked.name, 'tracked.npy')
+            os.remove(tracked.name)
+
+    stats = metrics.benchmark_tracking_performance(trk_gt, trk_res)
+    assert stats['correct_division'] == 1
+    assert stats['mismatch_division'] == 0
+    assert stats['false_positive_division'] == 0
+    assert stats['false_negative_division'] == 0
+    assert stats['total_divisions'] == 1
+
+    for k in ['aa_total', 'aa_tp', 'te_total', 'te_tp']:
+        assert k in stats
