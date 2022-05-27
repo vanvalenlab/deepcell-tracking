@@ -160,7 +160,7 @@ def calculate_association_accuracy(lineage_gt, lineage_res, cells_gt, cells_res)
         # Calculate gt edges
         g_frames = g_lin['frames']
         g_edges = ['{}-{}'.format(t0, t1) for t0, t1 in zip(g_frames[:-1], g_frames[1:])]
-        total += g_edges
+        total += len(g_edges)
 
         # Check for any mappings
         if g_idx in cells_gt:
@@ -326,8 +326,8 @@ def benchmark_tracking_performance(trk_gt, trk_res, threshold=1):
     division_stats = classify_divisions(G_gt, G_res, cells_gt, cells_res)
     stats.update(division_stats)
 
-    stats['aa_total'], stats['aa_tp'] = calculate_association_accuracy(G_gt, G_res)
+    stats['aa_tp'], stats['aa_total'] = calculate_association_accuracy(lineage_gt, lineage_res, cells_gt, cells_res)
 
-    stats['te_total'], stats['te_tp'] = calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt, cells_res)
+    stats['te_tp'], stats['te_total'] = calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt, cells_res)
 
     return stats
