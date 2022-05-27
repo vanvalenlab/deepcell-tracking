@@ -32,6 +32,7 @@ from __future__ import print_function
 from collections import Counter
 
 import numpy as np
+import networkx as nx
 
 from deepcell_tracking.trk_io import load_trks
 from deepcell_tracking.utils import match_nodes, trk_to_graph
@@ -135,6 +136,93 @@ def classify_divisions(G_gt, G_res, cells_gt=[], cells_res=[]):
     }
 
 
+def calculate_association_accuracy(lineage_gt, lineage_res, cells_gt, cells_res):
+    """Calculate the association accuracy for each ground truth lineage
+
+    Defined as the number of true positive associations between cells divided by
+    the total number of ground truth associations. Associations are equivalent to
+    the edges that connect cells in a graph
+
+    Args:
+        lineage_gt (dict): Ground truth lineages
+        linage_res (dict): Predicted lineages
+        cells_gt (list): List of ground truth cell ids from `match_nodes`
+        cells_res (list): List of result cell ids from `match_nodes`
+
+    Returns:
+        int: Number of true positive associations
+        int: Total number of associations
+    """
+    true_positive = 0
+    total = 0
+
+    for g_idx, g_lin in lineage_gt.items():
+        # Calculate gt edges
+        g_frames = g_lin['frames']
+        g_edges = ['{}-{}'.format(t0, t1) for t0, t1 in zip(g_frames[:-1], g_frames[1:])]
+        total += g_edges
+
+        # Check for any mappings
+        if g_idx in cells_gt:
+            scores = []
+            for r_idx in cells_res[cells_gt == g_idx]:
+                r_frames = lineage_res[r_idx]['frames']
+                r_edges = ['{}-{}'.format(t0, t1) for t0, t1 in zip(r_frames[:-1], r_frames[1:])]
+                scores.append(sum(r in g_edges for r in r_edges))
+            true_positive += max(scores)
+
+        # Check if the idx already matches
+        elif g_idx in lineage_res:
+            r_frames = lineage_res[g_idx]['frames']
+            r_edges = ['{}-{}'.format(t0, t1) for t0, t1 in zip(r_frames[:-1], r_frames[1:])]
+            true_positive += sum(r in g_edges for r in r_edges)
+
+    return true_positive, total
+
+
+def calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt, cells_res):
+    """Calculate the target effectiveness. Final score can be obtained by dividing
+    true_positive by total
+
+    The TE measure considers the number of cell instances correctly associated within
+    a track with respect to the total number of cells in a track. Only the best possible
+    true positive score is recorded for each ground truth lineage
+
+    Args:
+        lineage_gt (dict): Ground truth lineages
+        linage_res (dict): Predicted lineages
+        cells_gt (list): List of ground truth cell ids from `match_nodes`
+        cells_res (list): List of result cell ids from `match_nodes`
+
+    Returns:
+        int: Number of true positive assignments of cells to lineages
+        int: Number of cells present in ground truth
+    """
+    true_positive = 0
+    total = 0
+
+    for g_idx, g_lin in lineage_gt.items():
+        # Check for any mappings
+        if g_idx in cells_gt:
+            # Collect candidates for overlaps, but only save the best
+            scores = []
+            for r_idx in cells_res[cells_gt == g_idx]:
+                r_frames = lineage_res[r_idx]['frames']
+                scores.append(sum(r in g_lin['frames'] for r in r_frames))
+
+            true_positive += max(scores)
+
+        # Check if the idx already matches
+        elif g_idx in lineage_res:
+            r_frames = lineage_res[g_idx]['frames']
+            true_positive += sum(r in g_lin['frames'] for r in r_frames)
+
+        # Save total assigments for this gt lineage
+        total += len(g_lin['frames'])
+
+    return true_positive, total
+
+
 def calculate_summary_stats(correct_division,
                             false_positive_division,
                             false_negative_division,
@@ -205,64 +293,6 @@ def calculate_summary_stats(correct_division,
         'Association Accuracy': _round(aa),
         'Target Effectiveness': _round(te)
     }
-
-
-def calculate_association_accuracy(G_gt, G_res):
-    """Calculate the association accuracy for each ground truth lineage
-
-    Defined as the number of true positive associations between cells divided by
-    the total number of ground truth associations. Associations are equivalent to
-    the edges that connect cells in a graph
-
-    Args:
-        G_gt (networkx.Graph): Ground truth cell lineage graph.
-        G_res (networkx.Graph): Predicted cell lineage graph.
-
-    Returns:
-        int: Number of true positive associations
-        int: Total number of associations
-    """
-    true_positive = sum(r in G_gt.edges() for r in G_res.edges())
-    total = len(G_gt.edges())
-
-    return true_positive, total
-
-
-def calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt, cells_res):
-    """Calculate the target effectiveness. Final score can be obtained by dividing
-    true_positive by total
-
-    The TE measure considers the number of cell instances correctly associated within
-    a track with respect to the total number of cells in a track. Only the best possible
-    true positive score is recorded for each ground truth lineage
-
-    Args:
-        lineage_gt (dict): Ground truth lineages
-        linage_res (dict): Predicted lineages
-        cells_gt (list): List of ground truth cell ids from `match_nodes`
-        cells_res (list): List of result cell ids from `match_nodes`
-
-    Returns:
-        int: Number of true positive assignments of cells to lineages
-        int: Number of cells present in ground truth
-    """
-    true_positive = 0
-    total = 0
-
-    for g_idx, g_lin in lineage_gt.items():
-        # Collect candidates for overlaps, but only save the best
-        scores = []
-
-        for r_idx in cells_res[cells_gt == g_idx]:
-            r_frames = lineage_res[r_idx]['frames']
-            scores.append(sum(r in g_lin['frames'] for r in r_frames))
-
-        # Save total assigments and best score
-        total += len(g_lin['frames'])
-        if len(scores) > 0:
-            true_positive += max(scores)
-
-    return true_positive, total
 
 
 def benchmark_tracking_performance(trk_gt, trk_res, threshold=1):
