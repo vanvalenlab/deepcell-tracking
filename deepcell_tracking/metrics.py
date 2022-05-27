@@ -39,13 +39,16 @@ from deepcell_tracking.utils import match_nodes, trk_to_graph
 
 def classify_divisions(G_gt, G_res):
     """Compare two graphs and calculate the cell division confusion matrix.
+
     WARNING: This function will only work if the labels underlying both
     graphs are the same. E.G. the parents only match if the same label
     splits in the same frame - but each movie isn't guaranteed to be labeled
     in the same way (with the same order). Should be used with match_nodes
+
     Args:
         G_gt (networkx.Graph): Ground truth cell lineage graph.
         G_res (networkx.Graph): Predicted cell lineage graph.
+
     Returns:
         dict: Diciontary of all division statistics.
     """
@@ -96,39 +99,47 @@ def classify_divisions(G_gt, G_res):
     false_positive += len(div_res)
 
     return {
-        'Correct division': correct,
-        'Mismatch division': incorrect,
-        'False positive division': false_positive,
-        'False negative division': missed,
-        'Total divisions': len(div_gt)
+        'correct_division': correct,
+        'mismatch_division': incorrect,
+        'false_positive_division': false_positive,
+        'false_negative_division': missed,
+        'total_divisions': len(div_gt)
     }
 
 
-def calculate_summary_stats(true_positive,
-                            false_positive,
-                            false_negative,
+def calculate_summary_stats(correct_division,
+                            false_positive_division,
+                            false_negative_division,
                             total_divisions,
+                            aa_total, aa_tp,
+                            te_total, te_tp,
                             n_digits=2):
     """Calculate additional summary statistics for tracking performance
     based on results of classify_divisions
+
     Catch ZeroDivisionError and set to 0 instead
+
     Args:
-        true_positive (int): True positive or "correct divisions"
-        false_positive (int): False positives
-        false_negative (int): False negatives
+        correct_division (int): True positive or "correct divisions"
+        false_positive_division (int): False positives
+        false_negative_division (int): False negatives
         total_divisions (int): Total number of ground truth divisions
+        aa_total (int): Total number of ground truth associations
+        aa_tp (int): True positive associations
+        te_total (int): Total number of target assignments
+        te_tp (int): True positive target assignments
         n_digits (int, optional): Number of digits to round to. Default 2.
     """
 
     _round = lambda x: round(x, n_digits)
 
     try:
-        recall = true_positive / (true_positive + false_negative)
+        recall = correct_division / (correct_division + false_negative_division)
     except ZeroDivisionError:
         recall = 0
 
     try:
-        precision = true_positive / (true_positive + false_positive)
+        precision = correct_division / (correct_division + false_positive_division)
     except ZeroDivisionError:
         precision = 0
 
@@ -138,40 +149,56 @@ def calculate_summary_stats(true_positive,
         f1 = 0
 
     try:
-        mbc = true_positive / (true_positive + false_negative + false_positive)
+        mbc = correct_division / (correct_division + false_negative_division + false_positive_division)
     except ZeroDivisionError:
         mbc = 0
 
     try:
-        fraction_miss = (false_negative + false_positive) / total_divisions
+        fraction_miss = (false_negative_division + false_positive_division) / total_divisions
     except ZeroDivisionError:
         fraction_miss = 0
 
+    try:
+        aa = aa_tp / aa_total
+    except ZeroDivisionError:
+        aa = 0
+
+    try:
+        te = te_tp / te_total
+    except ZeroDivisionError:
+        te = 0
+
     return {
-        'Recall': _round(recall),
-        'Precision': _round(precision),
-        'F1': _round(f1),
+        'Division Recall': _round(recall),
+        'Division Precision': _round(precision),
+        'Division F1': _round(f1),
         'Mitotic branching correctness': _round(mbc),
-        'Fraction missed divisions': _round(fraction_miss)
+        'Fraction missed divisions': _round(fraction_miss),
+        'Association Accuracy': _round(aa),
+        'Target Effectiveness': _round(te)
     }
 
 
-def calculate_association_accuracy(lineage_gt, linage_res, cells_gt, cells_res):
+def calculate_association_accuracy(G_gt, G_res):
     """Calculate the association accuracy for each ground truth lineage
 
     Defined as the number of true positive associations between cells divided by
     the total number of ground truth associations. Associations are equivalent to
     the edges that connect cells in a graph
 
-    When more than one predicted lineage is associated with a ground truth lineage
-    the association accuracy score is calculated for each predicted lineage
-
     Args:
-        lineage_gt (dict): Ground trugh lineages
-        linage_res (dict): Predicted lineages
-        cells_gt (list): List of ground truthcell ids from `match_nodes`
-        cells_res (list): List of result cell ids from `match_nodes`
+        G_gt (networkx.Graph): Ground truth cell lineage graph.
+        G_res (networkx.Graph): Predicted cell lineage graph.
+
+    Returns:
+        int: Number of true positive associations
+        int: Total number of associations
     """
+    true_positive = sum(r in G_gt.edges() for r in G_res.edges())
+    total = len(G_gt.edges())
+
+
+    return true_positive / total
 
 
 def calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt, cells_res):
@@ -179,75 +206,81 @@ def calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt, cells_res)
     true_positive by total
 
     The TE measure considers the number of cell instances correctly associated within
-    a track with respect to the total number of cells in a track
+    a track with respect to the total number of cells in a track. Only the best possible
+    true positive score is recorded for each ground truth lineage
 
     Args:
-        lineage_gt (dict): Ground trugh lineages
+        lineage_gt (dict): Ground truth lineages
         linage_res (dict): Predicted lineages
         cells_gt (list): List of ground truthcell ids from `match_nodes`
         cells_res (list): List of result cell ids from `match_nodes`
 
     Returns:
-        true_positive: Number of true positive assignments of cells to lineages
-        total: Number of cells present in ground truth
+        int: Number of true positive assignments of cells to lineages
+        int: Number of cells present in ground truth
     """
     true_positive = 0
     total = 0
 
-    for g_idx, r_idx in zip(cells_gt, cells_res):
-        g_frames = lineage_gt[g_idx]
-        r_frames = lineage_res[r_idx]
-        true_positive += sum(r in g_frames for r in r_frames)
-        total += len(g_frames)
+    for g_idx, g_lin in lineage_gt.items():
+        # Collect candidates for overlaps, but only save the best
+        scores = []
+
+        for r_idx in cells_res[cells_gt == g_idx]:
+            r_frames = lineage_res[r_idx]['frames']
+            scores.append(sum(r in g_lin['frames'] for r in r_frames))
+
+        # Save total assigments and best score
+        total += len(g_lin['frames'])
+        if len(scores) > 0:
+            true_positive += max(scores)
 
     return true_positive, total
 
 
-class Metrics:
-    def __init__(self, trk_gt, trk_res, threshold=1):
-        """Compare two related .trk files (one being the GT of the other)
+def benchmark_tracking_performance(trk_gt, trk_res, threshold=1):
+    """Compare two related .trk files (one being the GT of the other)
 
-        Args:
-            trk_gt (path): Path to the ground truth .trk file.
-            trk_res (path): Path to the predicted results .trk file.
-            threshold (optional, float): threshold value for IoU to count as same cell. Default 1.
-                If segmentations are identical, 1 works well.
-                For imperfect segmentations try 0.6-0.8 to get better matching
-        """
+    Calculate division statistics, target effectiveness and association accuracy
 
-        # Load data
-        trks = load_trks(trk_gt)
-        self.lineage_gt, self.y_gt = trks['lineages'][0], trks['y']
-        trks = load_trks(trk_res)
-        self.lineage_res, self.y_res = trks['lineages'][0], trks['y']
+    Args:
+        trk_gt (path): Path to the ground truth .trk file.
+        trk_res (path): Path to the predicted results .trk file.
+        threshold (optional, float): threshold value for IoU to count as same cell. Default 1.
+            If segmentations are identical, 1 works well.
+            For imperfect segmentations try 0.6-0.8 to get better matching
+    """
+    stats = {}
 
-        # Match up labels in GT to Results to allow for direct comparisons
-        self.cells_gt, self.cells_res = match_nodes(self.y_gt, self.y_res, threshold)
+     # Load data
+    trks = load_trks(trk_gt)
+    lineage_gt, y_gt = trks['lineages'][0], trks['y']
+    trks = load_trks(trk_res)
+    lineage_res, y_res = trks['lineages'][0], trks['y']
 
-        # Generate graphs
-        if len(np.unique(self.cells_res)) < len(np.unique(self.cells_gt)):
-            node_key = {r: g for g, r in zip(self.cells_gt, self.cells_res)}
-            # node_key maps gt nodes onto resnodes so must be applied to gt
-            self.G_res = trk_to_graph(self.lineage_res, node_key=node_key)
-            self.G_gt = trk_to_graph(self.lineage_gt)
-        else:
-            node_key = {g: r for g, r in zip(self.cells_gt, self.cells_res)}
-            self.G_res = trk_to_graph(self.lineage_res)
-            self.G_gt = trk_to_graph(self.lineage_gt, node_key=node_key)
+    # Match up labels in GT to Results to allow for direct comparisons
+    cells_gt, cells_res = match_nodes(y_gt, y_res, threshold)
 
-        # Initialize division metrics
-        self.correct_div = 0         # Correct division
-        self.incorrect_div = 0       # Wrong division
-        self.false_positive_div = 0  # False positive division
-        self.missed_div = 0          # Missed division
-        self.total_div = 0       # Total divisions in ground truth
+    # Generate graphs
+    if len(np.unique(cells_res)) < len(np.unique(cells_gt)):
+        node_key = {r: g for g, r in zip(cells_gt, cells_res)}
+        # node_key maps gt nodes onto resnodes so must be applied to gt
+        G_res = trk_to_graph(lineage_res, node_key=node_key)
+        G_gt = trk_to_graph(lineage_gt)
+    else:
+        node_key = {g: r for g, r in zip(cells_gt, cells_res)}
+        G_res = trk_to_graph(lineage_res)
+        G_gt = trk_to_graph(lineage_gt, node_key=node_key)
 
-        self._classify_divisions()
+    division_stats = classify_divisions(G_gt, G_res)
+    stats.update(division_stats)
 
-    def _classify_divisions(self):
-        stats = classify_divisions(self.G_gt, self.G_res)
-        self.correct_div += stats['Correct division']
-        self.incorrect_div += stats['Mismatch division']
-        self.false_positive_div += stats['False positive division']
-        self.missed_div += stats['False negative division']
-        self.total_div += stats['Total divisions']
+    total, tp = calculate_association_accuracy(G_gt, G_res)
+    stats['aa_total'] = total
+    stats['aa_tp'] = tp
+
+    total, tp = calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt, cells_res)
+    stats['te_total'] = total
+    stats['te_tp'] = tp
+
+    return stats
