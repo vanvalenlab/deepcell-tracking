@@ -175,7 +175,7 @@ def isbi_to_graph(df, node_key=None):
     if node_key is not None:
         df[['Cell_ID', 'Parent_ID']] = df[['Cell_ID', 'Parent_ID']].replace(node_key)
 
-    edges = pd.DataFrame()
+    edges = []
 
     all_ids = set()
     single_nodes = set()
@@ -191,7 +191,7 @@ def isbi_to_graph(df, node_key=None):
 
         all_ids.update(cellids)
 
-        edges = edges.append(pd.DataFrame({
+        edges.append(pd.DataFrame({
             'source': cellids[0:-1],
             'target': cellids[1:],
         }))
@@ -212,7 +212,7 @@ def isbi_to_graph(df, node_key=None):
 
         target = '{}_{}'.format(row['Cell_ID'], row['Start'])
 
-        edges = edges.append(pd.DataFrame({
+        edges.append(pd.DataFrame({
             'source': [source],
             'target': [target]
         }))
@@ -220,6 +220,7 @@ def isbi_to_graph(df, node_key=None):
         attributes[source] = {'division': True}
 
     # Create graph
+    edges = pd.concat(edges)
     G = nx.from_pandas_edgelist(edges, source='source', target='target',
                                 create_using=nx.DiGraph)
     nx.set_node_attributes(G, attributes)
