@@ -44,9 +44,7 @@ from skimage.segmentation import relabel_sequential
 from deepcell_toolbox.utils import resize
 from deepcell_toolbox import compute_overlap
 
-# Imports for backward compatibility
-from deepcell_tracking.trk_io import load_trks, trk_folder_to_trks
-from deepcell_tracking.trk_io import save_trks, save_trk, save_track_data
+from deepcell_tracking.trk_io import load_trks
 
 
 def clean_up_annotations(y, uid=None, data_format='channels_last'):

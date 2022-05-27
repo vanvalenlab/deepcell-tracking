@@ -38,6 +38,7 @@ import pytest
 
 from deepcell_tracking import tracking
 from deepcell_tracking import utils
+from deepcell_tracking import trk_io
 from deepcell_tracking.test_utils import get_annotated_movie
 
 
@@ -186,17 +187,17 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
             # TODO: move utility tests into utils_test.py
 
             # test trk_folder_to_trks
-            utils.trk_folder_to_trks(tempdir, os.path.join(tempdir, 'all.trks'))
+            trk_io.trk_folder_to_trks(tempdir, os.path.join(tempdir, 'all.trks'))
             assert os.path.isfile(os.path.join(tempdir, 'all.trks'))
 
             # test load_trks
-            data = utils.load_trks(post_saved_path)
+            data = trk_io.load_trks(post_saved_path)
             assert isinstance(data['lineages'], list)
             assert all(isinstance(d, dict) for d in data['lineages'])
             np.testing.assert_equal(data['X'], tracker.X)
             np.testing.assert_equal(data['y'], tracker.y_tracked)
             # load trks instead of trk
-            data = utils.load_trks(os.path.join(tempdir, 'all.trks'))
+            data = trk_io.load_trks(os.path.join(tempdir, 'all.trks'))
 
             # test trks_stats
             utils.trks_stats(os.path.join(tempdir, 'all.trks'))
