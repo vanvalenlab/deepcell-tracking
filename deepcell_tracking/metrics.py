@@ -30,16 +30,11 @@ from __future__ import division
 from __future__ import print_function
 
 from collections import Counter
-from skimage.measure import regionprops
 
-import networkx as nx
 import numpy as np
-import pandas as pd
-import warnings
 
-from deepcell_toolbox import compute_overlap
 from deepcell_tracking.trk_io import load_trks
-from deepcell_tracking.isbi_utils import trk_to_isbi, isbi_to_graph
+from deepcell_tracking.utils import match_nodes, trk_to_graph
 
 
 def classify_divisions(G_gt, G_res):
@@ -226,10 +221,6 @@ class Metrics:
         trks = load_trks(trk_res)
         self.lineage_res, self.y_res = trks['lineages'][0], trks['y']
 
-        # Produce ISBI style array to work with
-        gt = trk_to_isbi(self.lineage_gt)
-        res = trk_to_isbi(self.lineage_res)
-
         # Match up labels in GT to Results to allow for direct comparisons
         self.cells_gt, self.cells_res = match_nodes(self.y_gt, self.y_res, threshold)
 
@@ -237,12 +228,12 @@ class Metrics:
         if len(np.unique(self.cells_res)) < len(np.unique(self.cells_gt)):
             node_key = {r: g for g, r in zip(self.cells_gt, self.cells_res)}
             # node_key maps gt nodes onto resnodes so must be applied to gt
-            self.G_res = isbi_to_graph(res, node_key=node_key)
-            self.G_gt = isbi_to_graph(gt)
+            self.G_res = trk_to_graph(self.lineage_res, node_key=node_key)
+            self.G_gt = trk_to_graph(self.lineage_gt)
         else:
             node_key = {g: r for g, r in zip(self.cells_gt, self.cells_res)}
-            self.G_res = isbi_to_graph(res)
-            self.G_gt = isbi_to_graph(gt, node_key=node_key)
+            self.G_res = trk_to_graph(self.lineage_res)
+            self.G_gt = trk_to_graph(self.lineage_gt, node_key=node_key)
 
         # Initialize division metrics
         self.correct_div = 0         # Correct division
@@ -260,4 +251,3 @@ class Metrics:
         self.false_positive_div += stats['False positive division']
         self.missed_div += stats['False negative division']
         self.total_div += stats['Total divisions']
-

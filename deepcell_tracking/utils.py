@@ -33,6 +33,8 @@ import os
 import warnings
 
 import numpy as np
+import networkx as nx
+import pandas as pd
 
 from scipy.spatial.distance import cdist
 
@@ -530,6 +532,7 @@ def contig_tracks(label, batch_info, batch_tracked):
 
     return batch_info, batch_tracked
 
+
 def match_nodes(gt, res, threshold=1):
     """Relabel predicted track to match GT track labels.
 
@@ -586,3 +589,67 @@ def match_nodes(gt, res, threshold=1):
     gtcells, rescells = np.where(np.nansum(iou, axis=0) >= threshold)
 
     return gtcells, rescells
+
+
+def trk_to_graph(lineage, node_key=None):
+    """Converts a lineage dictionary into a graph representation of the lineages
+
+    Args:
+        lineage (dict): Dictionary of lineage data
+        node_key (dict): Map between gt nodes and result nodes
+
+    Returns:
+        networkx.Graph: Graph representation of the lineage data.
+    """
+    edges = []
+
+    all_ids = set()
+    single_nodes = set()
+    attributes = {}
+
+    for i, lin in lineage.items():
+        # Update cell id if node_key is available
+        if node_key and (i in node_key):
+            idx = node_key[i]
+        else:
+            idx = i
+
+        cellids = ['{}_{}'.format(idx, t) for t in lin['frames']]
+
+        if len(cellids) == 1:
+            single_nodes.add(cellids[0])
+
+        all_ids.update(cellids)
+        edges.append(pd.DataFrame({
+            'source': cellids[0:-1],
+            'target': cellids[1:]
+        }))
+
+        # Add connections to any daughters
+        source = '{}_{}'.format(idx, max(lin['frames']))
+        for d in lin['daughters']:
+            # Update cell id if node_key is available
+            if node_key and (i in node_key):
+                d_idx = node_key[d]
+            else:
+                d_idx = d
+
+            # Assume daughter appears in next frame
+            target = '{}_{}'.format(d_idx, max(lin['frames']) + 1)
+            edges.append(pd.DataFrame({
+                'source': [source],
+                'target': [target]
+            }))
+
+            attributes[source] = {'division': True}
+
+    # Create graph
+    edges = pd.concat(edges)
+    G = nx.from_pandas_edgelist(edges, source='source', target='target', create_using=nx.DiGraph)
+    nx.set_node_attributes(G, attributes)
+
+    # Add all isolates to graph
+    for cell_id in single_nodes:
+        G.add_node(cell_id)
+
+    return G
