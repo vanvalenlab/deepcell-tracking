@@ -448,3 +448,6 @@ class TestTrackingUtils(object):
             # because movies have the same first frame, every
             # iteration of unique values should match original label
             assert gt_cell == rescells[loc * 3]
+
+    def test_trk_to_graph(self):
+        raise NotImplementedError
