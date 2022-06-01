@@ -36,8 +36,6 @@ import numpy as np
 import networkx as nx
 import pandas as pd
 
-from scipy.spatial.distance import cdist
-
 from skimage.measure import regionprops
 from skimage.segmentation import relabel_sequential
 
@@ -45,6 +43,9 @@ from deepcell_toolbox.utils import resize
 from deepcell_toolbox import compute_overlap
 
 from deepcell_tracking.trk_io import load_trks
+
+# Imports for backwards compatibility
+from deepcell_tracking.trk_io import save_trks, save_trk, save_track_data, trk_folder_to_trks
 
 
 def clean_up_annotations(y, uid=None, data_format='channels_last'):

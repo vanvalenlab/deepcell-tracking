@@ -32,6 +32,7 @@ from deepcell_tracking.tracking import CellTracker
 from deepcell_tracking import isbi_utils
 from deepcell_tracking import utils
 from deepcell_tracking import trk_io
+from deepcell_tracking import metrics
 
 del absolute_import
 del division

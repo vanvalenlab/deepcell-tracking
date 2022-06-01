@@ -23,16 +23,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Utility functions for the ISBI data format."""
+"""Functions for evaluating tracking performance"""
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
 from collections import Counter
-
-import numpy as np
-import networkx as nx
 
 from deepcell_tracking.trk_io import load_trks
 from deepcell_tracking.utils import match_nodes, trk_to_graph
