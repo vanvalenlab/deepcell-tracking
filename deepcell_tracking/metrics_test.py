@@ -102,18 +102,33 @@ def test_calculate_association_accuracy():
     with pytest.raises(ValueError):
         metrics.calculate_association_accuracy({}, {}, [], [0])
 
-    tracks_gt = {1: {'label': 1, 'frames': [1, 2], 'daughters': [],
-                    'capped': False, 'frame_div': None, 'parent': 3},
-                    2: {'label': 2, 'frames': [1, 2], 'daughters': [],
-                    'capped': False, 'frame_div': None, 'parent': 3},
-                    3: {'label': 3, 'frames': [0], 'daughters': [1, 2],
-                    'capped': False, 'frame_div': 1, 'parent': None}}
+    tracks_gt = {1: {'label': 1, 'frames': [1, 2, 3], 'daughters': [],
+                     'capped': False, 'frame_div': None, 'parent': 3},
+                 2: {'label': 2, 'frames': [1, 2], 'daughters': [],
+                     'capped': False, 'frame_div': None, 'parent': 3},
+                 3: {'label': 3, 'frames': [0], 'daughters': [1, 2],
+                     'capped': False, 'frame_div': 1, 'parent': None}}
+
+    tracks_res = copy.deepcopy(tracks_gt)
+    tracks_res[1]['frames'] = [1, 2]  # Introduce a missing edge
 
     # Test with no mapping needed
+    tp, total = metrics.calculate_association_accuracy(tracks_gt, tracks_res)
+    assert tp == 2
+    assert total == 3  # Total edges in gt excluding division connections
+
+    # Map gt 2 onto res 12
+    tracks_res[12] = tracks_res[2]
+    del tracks_res[2]
+    tracks_res[12]['label'] = 12
+    tracks_res[3]['daughters'] = [1, 12]
 
     # Test with mapping of some cells
-
-    # Test mapping of all cells
+    tp, total = metrics.calculate_association_accuracy(
+        tracks_gt, tracks_res,
+        np.array([2]), np.array([12]))
+    assert tp == 2
+    assert total == 3  # Total edges in gt excluding division connections
 
 
 def test_calculate_target_effectiveness():
@@ -121,7 +136,33 @@ def test_calculate_target_effectiveness():
     with pytest.raises(ValueError):
         metrics.calculate_target_effectiveness({}, {}, [], [0])
 
-    raise NotImplementedError
+    tracks_gt = {1: {'label': 1, 'frames': [1, 2, 3], 'daughters': [],
+                     'capped': False, 'frame_div': None, 'parent': 3},
+                 2: {'label': 2, 'frames': [1, 2], 'daughters': [],
+                     'capped': False, 'frame_div': None, 'parent': 3},
+                 3: {'label': 3, 'frames': [0], 'daughters': [1, 2],
+                     'capped': False, 'frame_div': 1, 'parent': None}}
+
+    tracks_res = copy.deepcopy(tracks_gt)
+    tracks_res[1]['frames'] = [1, 2]  # Introduce a missing edge
+
+    # Test with no mapping needed
+    tp, total = metrics.calculate_target_effectiveness(tracks_gt, tracks_res)
+    assert tp == 5
+    assert total == 6
+
+    # Map gt 2 onto res 12
+    tracks_res[12] = tracks_res[2]
+    del tracks_res[2]
+    tracks_res[12]['label'] = 12
+    tracks_res[3]['daughters'] = [1, 12]
+
+    # Test with mapping of some cells
+    tp, total = metrics.calculate_target_effectiveness(
+        tracks_gt, tracks_res,
+        np.array([2]), np.array([12]))
+    assert tp == 5
+    assert total == 6
 
 
 def test_benchmark_tracking_performance(tmpdir):

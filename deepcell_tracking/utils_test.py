@@ -450,4 +450,34 @@ class TestTrackingUtils(object):
             assert gt_cell == rescells[loc * 3]
 
     def test_trk_to_graph(self):
-        raise NotImplementedError
+        tracks_gt = {1: {'label': 1, 'frames': [1, 2, 3], 'daughters': [],
+                         'capped': False, 'frame_div': None, 'parent': 3},
+                     2: {'label': 2, 'frames': [1, 2], 'daughters': [],
+                         'capped': False, 'frame_div': None, 'parent': 3},
+                     3: {'label': 3, 'frames': [0], 'daughters': [1, 2],
+                         'capped': False, 'frame_div': 1, 'parent': None},
+                     4: {'label': 4, 'frames': [0], 'daughters': [],
+                         'capped': False, 'frame_div': None, 'parent': None}
+                     }
+
+        G = utils.trk_to_graph(tracks_gt)
+
+        # Calculate possible node ids
+        nodes = []
+        for id, lin in tracks_gt.items():
+            nodes.extend(['{}_{}'.format(id, t) for t in lin['frames']])
+
+        # Check that number of nodes match
+        assert len(nodes) == len(G.nodes)
+
+        # Check that all expected nodes are present
+        for n in nodes:
+            assert n in G
+
+        # Check that division of cell 3 is recorded properly
+        parent = '3_0'
+        daughters = ['2_1', '1_1']
+
+        assert G.nodes[parent]['division'] is True
+        for d in daughters:
+            assert G.has_edge(parent, d)
