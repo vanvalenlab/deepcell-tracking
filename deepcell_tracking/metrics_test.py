@@ -34,6 +34,7 @@ import os
 import tarfile
 import tempfile
 import json
+import pytest
 
 import networkx as nx
 import numpy as np
@@ -79,16 +80,47 @@ def test_classify_divisions():
     assert stats['mismatch_division'] == 1  # node 3_3
     assert stats['total_divisions'] == 3
 
+    # lists must be the same length
+    with pytest.raises(ValueError):
+        metrics.classify_divisions(G, H, [], [0])
+
+    #Test with a simple node mapping
+    cells_gt, cells_res = np.array([2]), np.array([12])
+    node_key = {'2_0': '12_0', '2_1': '12_1', '2_2': '12_2'}
+    H_renamed = nx.relabel_nodes(H, node_key)
+
+    stats = metrics.classify_divisions(G, H_renamed, cells_gt=cells_gt, cells_res=cells_res)
+    assert stats['correct_division'] == 1  # the only correct one
+    assert stats['false_positive_division'] == 1  # node 1_3
+    assert stats['false_negative_division'] == 1  # node 4_3
+    assert stats['mismatch_division'] == 1  # node 3_3
+    assert stats['total_divisions'] == 3
+
 
 def test_calculate_association_accuracy():
-    raise NotImplementedError
+    # lists must be the same length
+    with pytest.raises(ValueError):
+        metrics.calculate_association_accuracy({}, {}, [], [0])
+
+    tracks_gt = {1: {'label': 1, 'frames': [1, 2], 'daughters': [],
+                    'capped': False, 'frame_div': None, 'parent': 3},
+                    2: {'label': 2, 'frames': [1, 2], 'daughters': [],
+                    'capped': False, 'frame_div': None, 'parent': 3},
+                    3: {'label': 3, 'frames': [0], 'daughters': [1, 2],
+                    'capped': False, 'frame_div': 1, 'parent': None}}
+
+    # Test with no mapping needed
+
+    # Test with mapping of some cells
+
+    # Test mapping of all cells
 
 
 def test_calculate_target_effectiveness():
-    raise NotImplementedError
+    # lists must be the same length
+    with pytest.raises(ValueError):
+        metrics.calculate_target_effectiveness({}, {}, [], [0])
 
-
-def test_calculate_summary_stats():
     raise NotImplementedError
 
 

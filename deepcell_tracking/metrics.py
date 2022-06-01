@@ -38,6 +38,33 @@ from deepcell_tracking.trk_io import load_trks
 from deepcell_tracking.utils import match_nodes, trk_to_graph
 
 
+def map_node(gt_node, G_res, cells_gt, cells_res):
+    """Finds the res node that matches the gt_node submitted
+
+    Args:
+        gt_node (str): String matching form '{cell id}_{frame}'
+        G_res (networkx.graph): Graph of the results
+        cells_gt (np.array): Array containing ground truth cell ids corresponding to res ids
+        cells_res (np.array): Array containing corresponding res ids
+    """
+    idx = int(gt_node.split('_')[0])
+    frame = int(gt_node.split('_')[1])
+
+    if idx in cells_gt:
+        for r_idx in cells_res[cells_gt == idx]:
+            # Check if node exists with the right frame
+            r_node = '{}_{}'.format(r_idx, frame)
+            if r_node in G_res.nodes:
+                return r_node
+        else:
+            # Can't find result node so return original gt node
+            return gt_node
+    elif gt_node in G_res.nodes:
+        return gt_node
+    else:
+        return gt_node
+
+
 def classify_divisions(G_gt, G_res, cells_gt=[], cells_res=[]):
     """Compare two graphs and calculate the cell division confusion matrix.
 
@@ -49,12 +76,21 @@ def classify_divisions(G_gt, G_res, cells_gt=[], cells_res=[]):
     Args:
         G_gt (networkx.Graph): Ground truth cell lineage graph.
         G_res (networkx.Graph): Predicted cell lineage graph.
-        cells_gt (list): List of ground truth cell ids from `match_nodes`
-        cells_res (list): List of result cell ids from `match_nodes`
+        cells_gt (np.ndarray): List of ground truth cell ids from `match_nodes`
+        cells_res (np.ndarray): List of result cell ids from `match_nodes`
 
     Returns:
-        dict: Diciontary of all division statistics.
+        dict: Diciontary of all division statistics
+
+    Raises:
+        ValueError: cells_gt and cells_res must be the same length
     """
+    if len(cells_gt) != len(cells_res):
+        raise ValueError('cells_gt and cells_res must be the same length.')
+
+    def _map_node(gt_node):
+        return map_node(gt_node, G_res, cells_gt, cells_res)
+
     # Identify nodes with parent attribute
     div_gt = [node for node, d in G_gt.nodes(data=True)
               if d.get('division', False)]
@@ -93,8 +129,9 @@ def classify_divisions(G_gt, G_res, cells_gt=[], cells_res=[]):
 
         # If we found the results node, evaluate division result
         # Get gt predecessors and successors for comparsion
-        pred_gt = list(G_gt.pred[node])
-        succ_gt = list(G_gt.succ[node])
+        # Map gt nodes onto results nodes if possible
+        pred_gt = [_map_node(n) for n in G_gt.pred[node]]
+        succ_gt = [_map_node(n) for n in G_gt.succ[node]]
 
         # Check if res node was also called a division
         if r_node in div_res:
@@ -136,7 +173,7 @@ def classify_divisions(G_gt, G_res, cells_gt=[], cells_res=[]):
     }
 
 
-def calculate_association_accuracy(lineage_gt, lineage_res, cells_gt, cells_res):
+def calculate_association_accuracy(lineage_gt, lineage_res, cells_gt=[], cells_res=[]):
     """Calculate the association accuracy for each ground truth lineage
 
     Defined as the number of true positive associations between cells divided by
@@ -152,7 +189,13 @@ def calculate_association_accuracy(lineage_gt, lineage_res, cells_gt, cells_res)
     Returns:
         int: Number of true positive associations
         int: Total number of associations
+
+    Raises:
+        ValueError: cells_gt and cells_res must be the same length
     """
+    if len(cells_gt) != len(cells_res):
+        raise ValueError('cells_gt and cells_res must be the same length.')
+
     true_positive = 0
     total = 0
 
@@ -180,7 +223,7 @@ def calculate_association_accuracy(lineage_gt, lineage_res, cells_gt, cells_res)
     return true_positive, total
 
 
-def calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt, cells_res):
+def calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt=[], cells_res=[]):
     """Calculate the target effectiveness. Final score can be obtained by dividing
     true_positive by total
 
@@ -197,7 +240,13 @@ def calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt, cells_res)
     Returns:
         int: Number of true positive assignments of cells to lineages
         int: Number of cells present in ground truth
+
+    Raises:
+        ValueError: cells_gt and cells_res must be the same length
     """
+    if len(cells_gt) != len(cells_res):
+        raise ValueError('cells_gt and cells_res must be the same length.')
+
     true_positive = 0
     total = 0
 
