@@ -311,7 +311,9 @@ def calculate_summary_stats(correct_division,
         f1 = 0
 
     try:
-        mbc = correct_division / (correct_division + false_negative_division + false_positive_division)
+        mbc = correct_division / (correct_division
+                                  + false_negative_division
+                                  + false_positive_division)
     except ZeroDivisionError:
         mbc = 0
 
@@ -355,7 +357,7 @@ def benchmark_tracking_performance(trk_gt, trk_res, threshold=1):
     """
     stats = {}
 
-     # Load data
+    # Load data
     trks = load_trks(trk_gt)
     lineage_gt, y_gt = trks['lineages'][0], trks['y']
     trks = load_trks(trk_res)
@@ -372,8 +374,10 @@ def benchmark_tracking_performance(trk_gt, trk_res, threshold=1):
     division_stats = classify_divisions(G_gt, G_res, cells_gt, cells_res)
     stats.update(division_stats)
 
-    stats['aa_tp'], stats['aa_total'] = calculate_association_accuracy(lineage_gt, lineage_res, cells_gt, cells_res)
+    stats['aa_tp'], stats['aa_total'] = calculate_association_accuracy(lineage_gt, lineage_res,
+                                                                       cells_gt, cells_res)
 
-    stats['te_tp'], stats['te_total'] = calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt, cells_res)
+    stats['te_tp'], stats['te_total'] = calculate_target_effectiveness(lineage_gt, lineage_res,
+                                                                       cells_gt, cells_res)
 
     return stats

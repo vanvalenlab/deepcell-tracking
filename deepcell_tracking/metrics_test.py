@@ -84,7 +84,7 @@ def test_classify_divisions():
     with pytest.raises(ValueError):
         metrics.classify_divisions(G, H, [], [0])
 
-    #Test with a simple node mapping
+    # Test with a simple node mapping
     cells_gt, cells_res = np.array([2]), np.array([12])
     node_key = {'2_0': '12_0', '2_1': '12_1', '2_2': '12_2'}
     H_renamed = nx.relabel_nodes(H, node_key)
@@ -171,18 +171,18 @@ def test_benchmark_tracking_performance(tmpdir):
 
     # Generate lineage data
     tracks_gt = {1: {'label': 1, 'frames': [1, 2], 'daughters': [],
-                    'capped': False, 'frame_div': None, 'parent': 3},
-                    2: {'label': 2, 'frames': [1, 2], 'daughters': [],
-                    'capped': False, 'frame_div': None, 'parent': 3},
-                    3: {'label': 3, 'frames': [0], 'daughters': [1, 2],
-                    'capped': False, 'frame_div': 1, 'parent': None}}
+                     'capped': False, 'frame_div': None, 'parent': 3},
+                 2: {'label': 2, 'frames': [1, 2], 'daughters': [],
+                     'capped': False, 'frame_div': None, 'parent': 3},
+                 3: {'label': 3, 'frames': [0], 'daughters': [1, 2],
+                     'capped': False, 'frame_div': 1, 'parent': None}}
     X_gt = []
     # Generate tracked movie
     y_gt = get_annotated_movie(img_size=256,
-                                labels_per_frame=3,
-                                frames=3,
-                                mov_type='sequential', seed=0,
-                                data_format='channels_last')
+                               labels_per_frame=3,
+                               frames=3,
+                               mov_type='sequential', seed=0,
+                               data_format='channels_last')
     # Let results be same as ground truth
     tracks_res = tracks_gt
     X_res = []
