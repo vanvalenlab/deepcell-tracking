@@ -622,7 +622,8 @@ def get_image_features(X, y, appearance_dim=32, crop_mode='resize', norm=True):
         props = regionprops(y_padded[..., 0], cache=False)
 
     # iterate over all objects in y
-    props = regionprops(y[..., 0], cache=False)
+    if crop_mode == 'resize':
+        props = regionprops(y[..., 0], cache=False)
 
     for i, prop in enumerate(props):
 
