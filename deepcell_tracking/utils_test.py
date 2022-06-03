@@ -367,6 +367,13 @@ class TestTrackingUtils(object):
         assert labels.shape == expected_shape
         np.testing.assert_array_equal(labels, np.array(list(range(1, num_labels + 1))))
 
+        # test appearance - fixed crop
+        features = utils.get_image_features(X, y, appearance_dim,
+                                            crop_mode='fixed', norm=True)
+        appearances = features['appearances']
+        expected_shape = (num_labels, appearance_dim, appearance_dim, X.shape[-1])
+        assert appearances.shape == expected_shape
+
     def test_trks_stats(self):
         # Test bad extension
         with pytest.raises(ValueError):
