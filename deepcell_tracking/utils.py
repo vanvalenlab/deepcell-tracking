@@ -591,6 +591,9 @@ def get_image_features(X, y, appearance_dim=32, crop_mode='resize', norm=True):
         appearance_dim (int): The resized shape of the appearance feature.
         crop_mode (str): Whether to do a fixed crop or to crop and resize
             to create the appearance features
+        norm (bool): Whether to remove non cell features and normalize the
+            foreground pixels by zero-meaning and dividing by the standard
+            deviation. Applies to fixed crop mode only.
 
     Returns:
         dict: A dictionary of feature names to np.arrays of shape
