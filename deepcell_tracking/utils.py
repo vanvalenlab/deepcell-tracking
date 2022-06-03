@@ -610,10 +610,9 @@ def get_image_features(X, y, appearance_dim=32, crop_mode='resize', norm=True):
     morphologies = np.zeros((num_labels, 3), dtype='float32')
     appearances = np.zeros((num_labels, appearance_dim,
                             appearance_dim, X.shape[-1]), dtype='float32')
-   
+
     # Zero-pad the X array for fixed crop mode
     pad_width = ((0, 0),
-                 (0, 0),
                  (appearance_dim, appearance_dim),
                  (appearance_dim, appearance_dim),
                  (0, 0))
