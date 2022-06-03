@@ -665,9 +665,9 @@ def get_image_features(X, y, appearance_dim=32, crop_mode='resize', norm=True):
 
                 # Check data and normalize
                 if len(idx) > 0:
-                    mean = np.mean(app[np.nonzero(app)])
-                    std = np.std(app[np.nonzero(app)])
-                    app[np.nonzero(app)] = (app[np.nonzero(app)] - mean) / std
+                    mean = np.mean(app[idx])
+                    std = np.std(app[idx])
+                    app[idx] = (app[idx] - mean) / std
 
             appearances[i] = app
 
