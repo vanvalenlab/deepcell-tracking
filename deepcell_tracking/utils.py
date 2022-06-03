@@ -656,8 +656,8 @@ def get_image_features(X, y, appearance_dim=32, crop_mode='resize', norm=True):
             minc = int(cent[1]) - delta
             maxc = int(cent[1]) + delta
 
-            app = np.copy(Xbt[minr:maxr, minc:maxc, :])
-            label = np.copy(ybt[minr:maxr, minc:maxc])
+            app = np.copy(X_padded[minr:maxr, minc:maxc, :])
+            label = np.copy(y_padded[minr:maxr, minc:maxc])
 
             # Use label as a mask to zero out non-label information
             app = app * (label == prop.label)
