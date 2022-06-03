@@ -650,7 +650,7 @@ def get_image_features(X, y, appearance_dim=32, crop_mode='resize', norm=True):
             appearances[i] = appearance
 
         if crop_mode == 'fixed':
-            cent = np.array(prop_padded.centroid)
+            cent = np.array(prop.centroid)
             delta = appearance_dim // 2
             minr = int(cent[0]) - delta
             maxr = int(cent[0]) + delta
