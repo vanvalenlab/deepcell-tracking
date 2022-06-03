@@ -624,7 +624,7 @@ def get_image_features(X, y, appearance_dim=32, crop_mode='resize', norm=True):
     # iterate over all objects in y
     props = regionprops(y[..., 0], cache=False)
 
-    for i, (prop, prop_padded) in enumerate(zip(props, props_padded)):
+    for i, prop in enumerate(props):
 
         # Get label
         labels[i] = prop.label
