@@ -612,8 +612,7 @@ def get_image_features(X, y, appearance_dim=32, crop_mode='resize', norm=True):
                             appearance_dim, X.shape[-1]), dtype='float32')
 
     # Zero-pad the X array for fixed crop mode
-    pad_width = ((0, 0),
-                 (appearance_dim, appearance_dim),
+    pad_width = ((appearance_dim, appearance_dim),
                  (appearance_dim, appearance_dim),
                  (0, 0))
     X_padded = np.pad(X, pad_width=pad_width)
