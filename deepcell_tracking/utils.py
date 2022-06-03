@@ -658,12 +658,12 @@ def get_image_features(X, y, appearance_dim=32, crop_mode='resize', norm=True):
             app = np.copy(X_padded[minr:maxr, minc:maxc, :])
             label = np.copy(y_padded[minr:maxr, minc:maxc])
 
-            # Use label as a mask to zero out non-label information
-            app = app * (label == prop.label)
-            idx = np.nonzero(app)
-
-            # Check data and normalize
             if norm:
+                # Use label as a mask to zero out non-label information
+                app = app * (label == prop.label)
+                idx = np.nonzero(app)
+
+                # Check data and normalize
                 if len(idx) > 0:
                     mean = np.mean(app[np.nonzero(app)])
                     std = np.std(app[np.nonzero(app)])
