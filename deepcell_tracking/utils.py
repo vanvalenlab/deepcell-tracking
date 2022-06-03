@@ -582,18 +582,24 @@ def is_valid_lineage(y, lineage):
     return is_valid  # if unchanged, all cell lineages are valid!
 
 
-def get_image_features(X, y, appearance_dim=32):
+def get_image_features(X, y, appearance_dim=32, crop_mode='resize', norm=True):
     """Return features for every object in the array.
 
     Args:
         X (np.array): a 3D numpy array of raw data of shape (x, y, c).
         y (np.array): a 3D numpy array of integer labels of shape (x, y, 1).
         appearance_dim (int): The resized shape of the appearance feature.
+        crop_mode (str): Whether to do a fixed crop or to crop and resize
+            to create the appearance features
 
     Returns:
         dict: A dictionary of feature names to np.arrays of shape
             (n, c) or (n, x, y, c) where n is the number of objects.
     """
+
+    if crop_mode not in ['resize', 'fixed']:
+        raise ValueError('crop_mode must be either resize or fixed')
+
     appearance_dim = int(appearance_dim)
 
     # each feature will be ordered based on the label.
@@ -604,10 +610,22 @@ def get_image_features(X, y, appearance_dim=32):
     morphologies = np.zeros((num_labels, 3), dtype='float32')
     appearances = np.zeros((num_labels, appearance_dim,
                             appearance_dim, X.shape[-1]), dtype='float32')
+   
+    # Zero-pad the X array for fixed crop mode
+    pad_width = ((0, 0),
+                 (0, 0),
+                 (appearance_dim, appearance_dim),
+                 (appearance_dim, appearance_dim),
+                 (0, 0))
+    X_padded = np.pad(X, pad_width=pad_width)
+    y_padded = np.pad(y, pad_width=pad_width)
 
     # iterate over all objects in y
     props = regionprops(y[..., 0], cache=False)
-    for i, prop in enumerate(props):
+    props_padded = regionprops(y_padded[..., 0], cache=False)
+
+    for i, (prop, prop_padded) in enumerate(zip(props, props_padded)):
+
         # Get label
         labels[i] = prop.label
 
@@ -623,21 +641,41 @@ def get_image_features(X, y, appearance_dim=32):
         ])
         morphologies[i] = morphology
 
-        # Get appearance
-        minr, minc, maxr, maxc = prop.bbox
-        appearance = np.copy(X[minr:maxr, minc:maxc, :])
-        resize_shape = (appearance_dim, appearance_dim)
-        appearance = resize(appearance, resize_shape)
-        appearances[i] = appearance
+        if crop_mode == 'resize':
+            # Get appearance
+            minr, minc, maxr, maxc = prop.bbox
+            appearance = np.copy(X[minr:maxr, minc:maxc, :])
+            resize_shape = (appearance_dim, appearance_dim)
+            appearance = resize(appearance, resize_shape)
+            appearances[i] = appearance
 
-    # Get adjacency matrix
-    # distance = cdist(centroids, centroids, metric='euclidean') < distance_threshold
-    # adj_matrix = distance.astype('float32')
+        if crop_mode == 'fixed':
+            cent = np.array(prop_padded.centroid)
+            delta = appearance_dim // 2
+            minr = int(cent[0]) - delta
+            maxr = int(cent[0]) + delta
+            minc = int(cent[1]) - delta
+            maxc = int(cent[1]) + delta
+
+            app = np.copy(Xbt[minr:maxr, minc:maxc, :])
+            label = np.copy(ybt[minr:maxr, minc:maxc])
+
+            # Use label as a mask to zero out non-label information
+            app = app * (label == prop.label)
+            idx = np.nonzero(app)
+
+            # Check data and normalize
+            if norm:
+                if len(idx) > 0:
+                    mean = np.mean(app[np.nonzero(app)])
+                    std = np.std(app[np.nonzero(app)])
+                    app[np.nonzero(app)] = (app[np.nonzero(app)] - mean) / std
+
+            appearances[i] = app
 
     return {
         'appearances': appearances,
         'centroids': centroids,
         'labels': labels,
         'morphologies': morphologies,
-        # 'adj_matrix': adj_matrix,
     }
