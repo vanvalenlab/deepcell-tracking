@@ -38,7 +38,6 @@ import skimage as sk
 import pytest
 
 from deepcell_tracking import utils
-from deepcell_tracking.test_utils import get_image
 from deepcell_tracking.test_utils import get_annotated_image
 from deepcell_tracking.test_utils import get_annotated_movie
 
@@ -141,86 +140,6 @@ class TestTrackingUtils(object):
         pairs = utils.count_pairs(
             y, same_probability=prob, data_format='channels_first')
         assert pairs == expected
-
-    def test_save_trks(self, tmpdir):
-        X = get_image(30, 30)
-        y = np.random.randint(low=0, high=10, size=X.shape)
-        lineage = [dict()]
-
-        tempdir = str(tmpdir)
-        with pytest.raises(ValueError):
-            badfilename = os.path.join(tempdir, 'x.trk')
-            utils.save_trks(badfilename, lineage, X, y)
-
-        filename = os.path.join(tempdir, 'x.trks')
-        utils.save_trks(filename, lineage, X, y)
-        assert os.path.isfile(filename)
-
-        # test saved tracks can be loaded
-        loaded = utils.load_trks(filename)
-        assert loaded['lineages'] == lineage
-        np.testing.assert_array_equal(X, loaded['X'])
-        np.testing.assert_array_equal(y, loaded['y'])
-
-        # test save trks to bytes
-        b = io.BytesIO()
-        utils.save_trks(b, lineage, X, y)
-
-        # load trks from bytes
-        b.seek(0)
-        loaded = utils.load_trks(b)
-        assert loaded['lineages'] == lineage
-        np.testing.assert_array_equal(X, loaded['X'])
-        np.testing.assert_array_equal(y, loaded['y'])
-
-    def test_save_trk(self, tmpdir):
-        X = get_image(30, 30)
-        y = np.random.randint(low=0, high=10, size=X.shape)
-        lineage = [dict()]
-
-        tempdir = str(tmpdir)
-        with pytest.raises(ValueError):
-            badfilename = os.path.join(tempdir, 'x.trks')
-            utils.save_trk(badfilename, lineage, X, y)
-
-        with pytest.raises(ValueError):
-            utils.save_trk('x.trk', [{}, {}], X, y)
-
-        filename = os.path.join(tempdir, 'x.trk')
-        utils.save_trk(filename, lineage, X, y)
-        assert os.path.isfile(filename)
-
-        # test saved tracks can be loaded
-        loaded = utils.load_trks(filename)
-        assert loaded['lineages'] == lineage
-        np.testing.assert_array_equal(X, loaded['X'])
-        np.testing.assert_array_equal(y, loaded['y'])
-
-        # test save trks to bytes
-        b = io.BytesIO()
-        utils.save_trk(b, lineage, X, y)
-
-        # load trks from bytes
-        b.seek(0)
-        loaded = utils.load_trks(b)
-        assert loaded['lineages'] == lineage
-        np.testing.assert_array_equal(X, loaded['X'])
-        np.testing.assert_array_equal(y, loaded['y'])
-
-    def test_load_trks(self, tmpdir):
-        filename = os.path.join(str(tmpdir), 'bad-lineage.trk')
-        X = get_image(30, 30)
-        y = np.random.randint(low=0, high=10, size=X.shape)
-        lineage = [dict()]
-
-        utils.save_track_data(filename=filename,
-                              lineages=lineage,
-                              raw=X,
-                              tracked=y,
-                              lineage_name='bad-lineage.json')
-
-        with pytest.raises(ValueError):
-            utils.load_trks(filename)
 
     def test_normalize_adj_matrix(self):
         frames = 3
@@ -460,3 +379,105 @@ class TestTrackingUtils(object):
         data = get_dummy_data()
         stats = utils.trks_stats(**data)
         assert isinstance(stats, dict)
+
+    def test_contig_tracks(self):
+        # test already contiguous
+        frames = 5
+        track = {
+            1: {
+                'label': 1,
+                'frames': [0, 1, 2],
+                'daughters': [2, 3],
+                'parent': None,
+            },
+            2: {
+                'label': 2,
+                'frames': [3, 4],
+                'daughters': [],
+                'parent': 1
+            },
+            3: {
+                'label': 3,
+                'frames': [3, 4],
+                'daughters': [],
+                'parent': 1
+            }
+        }
+        original_track = copy.copy(track)
+        original_daughters = original_track[1]['daughters']
+        y = np.random.randint(0, 4, size=(frames, 40, 40, 1))
+        new_track, _ = utils.contig_tracks(1, track, y)
+        assert original_track == new_track
+
+        # test non-contiguous
+        track = copy.copy(original_track)
+        track[1]['frames'].append(4)
+        new_track, _ = utils.contig_tracks(1, track, y)
+
+        assert len(new_track) == len(original_track) + 1
+        assert new_track[1]['frames'] == original_track[1]['frames']
+        daughters = new_track[max(new_track)]['daughters']
+        assert daughters == original_daughters
+        for d in daughters:
+            assert new_track[d]['parent'] == max(new_track)
+
+    def test_match_nodes(self):
+        # creat dummy movie to test against
+        labels_per_frame = 5
+        frames = 3
+        y1 = get_annotated_movie(img_size=256,
+                                 labels_per_frame=labels_per_frame,
+                                 frames=frames,
+                                 mov_type='repeated', seed=1,
+                                 data_format='channels_last')
+        # test same movie
+        gtcells, rescells = utils.match_nodes(y1, y1)
+        for gt_cell, res_cell in zip(gtcells, rescells):
+            assert gt_cell == res_cell
+
+        # test different movie (with known values)
+        y2 = get_annotated_movie(img_size=256,
+                                 labels_per_frame=labels_per_frame,
+                                 frames=frames,
+                                 mov_type='sequential', seed=1,
+                                 data_format='channels_last')
+        gtcells, rescells = utils.match_nodes(y1, y2)
+
+        assert len(rescells) == len(gtcells)
+        for loc, gt_cell in enumerate(np.unique(gtcells)):
+            # because movies have the same first frame, every
+            # iteration of unique values should match original label
+            assert gt_cell == rescells[loc * 3]
+
+    def test_trk_to_graph(self):
+        tracks_gt = {1: {'label': 1, 'frames': [1, 2, 3], 'daughters': [],
+                         'capped': False, 'frame_div': None, 'parent': 3},
+                     2: {'label': 2, 'frames': [1, 2], 'daughters': [],
+                         'capped': False, 'frame_div': None, 'parent': 3},
+                     3: {'label': 3, 'frames': [0], 'daughters': [1, 2],
+                         'capped': False, 'frame_div': 1, 'parent': None},
+                     4: {'label': 4, 'frames': [0], 'daughters': [],
+                         'capped': False, 'frame_div': None, 'parent': None}
+                     }
+
+        G = utils.trk_to_graph(tracks_gt)
+
+        # Calculate possible node ids
+        nodes = []
+        for id, lin in tracks_gt.items():
+            nodes.extend(['{}_{}'.format(id, t) for t in lin['frames']])
+
+        # Check that number of nodes match
+        assert len(nodes) == len(G.nodes)
+
+        # Check that all expected nodes are present
+        for n in nodes:
+            assert n in G
+
+        # Check that division of cell 3 is recorded properly
+        parent = '3_0'
+        daughters = ['2_1', '1_1']
+
+        assert G.nodes[parent]['division'] is True
+        for d in daughters:
+            assert G.has_edge(parent, d)

@@ -50,7 +50,7 @@ from deepcell_tracking.utils import clean_up_annotations
 from deepcell_tracking.utils import get_max_cells
 from deepcell_tracking.utils import normalize_adj_matrix
 from deepcell_tracking.utils import get_image_features
-from deepcell_tracking.utils import save_trk
+from deepcell_tracking.trk_io import save_trk
 
 
 class CellTracker(object):  # pylint: disable=useless-object-inheritance

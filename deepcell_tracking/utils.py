@@ -29,22 +29,23 @@ from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
 
-import io
-import json
 import os
-import re
-import tarfile
-import tempfile
 import warnings
 
 import numpy as np
-
-from scipy.spatial.distance import cdist
+import networkx as nx
+import pandas as pd
 
 from skimage.measure import regionprops
 from skimage.segmentation import relabel_sequential
 
 from deepcell_toolbox.utils import resize
+from deepcell_toolbox import compute_overlap
+
+from deepcell_tracking.trk_io import load_trks
+
+# Imports for backwards compatibility
+from deepcell_tracking.trk_io import save_trks, save_trk, save_track_data, trk_folder_to_trks
 
 
 def clean_up_annotations(y, uid=None, data_format='channels_last'):
@@ -127,180 +128,6 @@ def count_pairs(y, same_probability=0.5, data_format='channels_last'):
         # Add this batch cell-pairings to the total count
         total_pairs += cell_pairings
     return total_pairs
-
-
-def load_trks(filename):
-    """Load a trk/trks file.
-
-    Args:
-        filename (str or BytesIO): full path to the file including .trk/.trks
-            or BytesIO object with trk file data
-
-    Returns:
-        dict: A dictionary with raw, tracked, and lineage data.
-    """
-    if isinstance(filename, io.BytesIO):
-        kwargs = {'fileobj': filename}
-    else:
-        kwargs = {'name': filename}
-
-    with tarfile.open(mode='r', **kwargs) as trks:
-
-        # numpy can't read these from disk...
-        with io.BytesIO() as array_file:
-            array_file.write(trks.extractfile('raw.npy').read())
-            array_file.seek(0)
-            raw = np.load(array_file)
-
-        with io.BytesIO() as array_file:
-            array_file.write(trks.extractfile('tracked.npy').read())
-            array_file.seek(0)
-            tracked = np.load(array_file)
-
-        # trks.extractfile opens a file in bytes mode, json can't use bytes.
-        try:
-            trk_data = trks.getmember('lineages.json')
-        except KeyError:
-            try:
-                trk_data = trks.getmember('lineage.json')
-            except KeyError:
-                raise ValueError('Invalid .trk file, no lineage data found.')
-
-        lineages = json.loads(trks.extractfile(trk_data).read().decode())
-        lineages = lineages if isinstance(lineages, list) else [lineages]
-
-        # JSON only allows strings as keys, so convert them back to ints
-        for i, tracks in enumerate(lineages):
-            lineages[i] = {int(k): v for k, v in tracks.items()}
-
-    return {'lineages': lineages, 'X': raw, 'y': tracked}
-
-
-def trk_folder_to_trks(dirname, trks_filename):
-    """Compiles a directory of trk files into one trks_file.
-
-    Args:
-        dirname (str): full path to the directory containing multiple trk files.
-        trks_filename (str): desired filename (the name should end in .trks).
-    """
-    lineages = []
-    raw = []
-    tracked = []
-
-    convert = lambda text: int(text) if text.isdigit() else text
-    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
-    file_list = os.listdir(dirname)
-    file_list_sorted = sorted(file_list, key=alphanum_key)
-
-    for filename in file_list_sorted:
-        trk = load_trks(os.path.join(dirname, filename))
-        lineages.append(trk['lineages'][0])  # this is loading a single track
-        raw.append(trk['X'])
-        tracked.append(trk['y'])
-
-    file_path = os.path.join(os.path.dirname(dirname), trks_filename)
-
-    save_trks(file_path, lineages, raw, tracked)
-
-
-def save_trks(filename, lineages, raw, tracked):
-    """Saves raw, tracked, and lineage data from multiple movies into one trks_file.
-
-    Args:
-        filename (str or io.BytesIO): full path to the final trk files or bytes object
-            to save the data to
-        lineages (list): a list of dictionaries saved as a json.
-        raw (np.array): raw images data.
-        tracked (np.array): annotated image data.
-
-    Raises:
-        ValueError: filename does not end in ".trks".
-    """
-    ext = os.path.splitext(str(filename))[-1]
-    if not isinstance(filename, io.BytesIO) and ext != '.trks':
-        raise ValueError('filename must end with `.trks`. Found %s' % filename)
-
-    save_track_data(filename=filename,
-                    lineages=lineages,
-                    raw=raw,
-                    tracked=tracked,
-                    lineage_name='lineages.json')
-
-
-def save_trk(filename, lineage, raw, tracked):
-    """Saves raw, tracked, and lineage data for one movie into a trk_file.
-
-    Args:
-        filename (str or io.BytesIO): full path to the final trk files or bytes
-            object to save the data to
-        lineages (list or dict): a list of a single dictionary or a single
-            lineage dictionary
-        raw (np.array): raw images data.
-        tracked (np.array): annotated image data.
-
-    Raises:
-        ValueError: filename does not end in ".trks".
-    """
-    ext = os.path.splitext(str(filename))[-1]
-    if not isinstance(filename, io.BytesIO) and ext != '.trk':
-        raise ValueError('filename must end with `.trk`. Found %s' % filename)
-
-    # Check that lineages is a dictionary or list of length 1
-    if isinstance(lineage, list):
-        if len(lineage) > 1:
-            raise ValueError('For trk file, lineages must be a dictionary '
-                             'or list with a single dictionary')
-        else:
-            lineage = lineage[0]
-
-    save_track_data(filename=filename,
-                    lineages=lineage,
-                    raw=raw,
-                    tracked=tracked,
-                    lineage_name='lineage.json')
-
-
-def save_track_data(filename, lineages, raw, tracked, lineage_name):
-    """Base function for saving tracking data as either trk or trks
-
-    Args:
-        filename (str or io.BytesIO): full path to the final trk files or bytes object
-            to save the data to
-        lineages (list or dict): a list of a single dictionary or a single lineage dictionarys
-        raw (np.array): raw images data.
-        tracked (np.array): annotated image data.
-        lineage_name (str): Filename for the lineage file in the tarfile, either 'lineages.json'
-            or 'lineage.json'
-    """
-
-    if isinstance(filename, io.BytesIO):
-        kwargs = {'fileobj': filename}
-    else:
-        kwargs = {'name': filename}
-
-    with tarfile.open(mode='w:gz', **kwargs) as trks:
-        # disable auto deletion and close/delete manually
-        # to resolve double-opening issue on Windows.
-        with tempfile.NamedTemporaryFile('w', delete=False) as lineages_file:
-            json.dump(lineages, lineages_file, indent=4)
-            lineages_file.flush()
-            lineages_file.close()
-            trks.add(lineages_file.name, lineage_name)
-            os.remove(lineages_file.name)
-
-        with tempfile.NamedTemporaryFile(delete=False) as raw_file:
-            np.save(raw_file, raw)
-            raw_file.flush()
-            raw_file.close()
-            trks.add(raw_file.name, 'raw.npy')
-            os.remove(raw_file.name)
-
-        with tempfile.NamedTemporaryFile(delete=False) as tracked_file:
-            np.save(tracked_file, tracked)
-            tracked_file.flush()
-            tracked_file.close()
-            trks.add(tracked_file.name, 'tracked.npy')
-            os.remove(tracked_file.name)
 
 
 def trks_stats(filename=None, X=None, y=None, lineages=None):
@@ -641,3 +468,187 @@ def get_image_features(X, y, appearance_dim=32):
         'morphologies': morphologies,
         # 'adj_matrix': adj_matrix,
     }
+
+
+def contig_tracks(label, batch_info, batch_tracked):
+    """Check for contiguous tracks (tracks should only consist of consecutive frames).
+
+    Split one track into two if neccesary
+
+    Args:
+        label (int): label of the cell.
+        batch_info (dict): a track's lineage info
+        batch_tracked (dict): the new image data associated with the lineage.
+
+    Returns:
+        tuple(dict, dict): updated batch_info and batch_tracked.
+    """
+    frame_div_missing = False
+
+    frames = batch_info[label]['frames']
+
+    for i, frame in enumerate(frames):
+        # If the next frame is available and contiguous we should move on to
+        # the next frame. Otherwise, if the next frame is available and
+        # NONcontiguous we should separate this track into two.
+        if i + 1 <= len(frames) - 1 and frame + 1 != frames[i + 1]:
+            frame_div = batch_info[label].get('frame_div')
+            if frame_div is None:
+                frame_div_missing = True  # TODO: is this necessary?
+
+            # Create a new track to hold the information from this
+            # frame forward and add it to the batch.
+            new_label = max(batch_info) + 1
+            batch_info[new_label] = {
+                'old_label': label,
+                'label': new_label,
+                'frames': frames[i + 1:],
+                'daughters': batch_info[label]['daughters'],
+                'frame_div': frame_div,
+                'parent': None
+            }
+
+            for d in batch_info[new_label]['daughters']:
+                batch_info[d]['parent'] = new_label
+
+            for f in frames[i + 1:]:
+                batch_tracked[f][batch_tracked[f] == label] = new_label
+
+            # Adjust the info of the current track to vacate the new track info
+            batch_info[label]['frames'] = frames[0:i + 1]
+            batch_info[label]['daughters'] = []
+            batch_info[label]['frame_div'] = None
+
+            break  # Because we are splitting tracks recursively, we stop here
+
+        # If the current frame is the last frame then were done
+        # Either the last frame is contiguous and we don't alter batch_info
+        # or it's not and it's been made into a new track by the previous
+        # iteration of the loop
+
+        if frame_div_missing:
+            print('Warning: frame_div is missing')
+
+    return batch_info, batch_tracked
+
+
+def match_nodes(gt, res, threshold=1):
+    """Relabel predicted track to match GT track labels.
+
+    Args:
+        gt (np arr): label movie (y) from ground truth .trk file.
+        res (np arr): label movie (y) from predicted results .trk file
+        threshold (optional, float): threshold value for IoU to count as same cell. Default 1.
+            If segmentations are identical, 1 works well.
+            For imperfect segmentations try 0.6-0.8 to get better matching
+
+    Returns:
+        gtcells (np arr): Array of overlapping ids in the gt movie.
+        rescells (np arr): Array of overlapping ids in the res movie.
+
+    Raises:
+        ValueError: If .
+    """
+    num_frames = gt.shape[0]
+    iou = np.zeros((num_frames, np.max(gt) + 1, np.max(res) + 1))
+
+    # TODO: Compute IOUs only when neccesary
+    # If bboxs for true and pred do not overlap with each other, the assignment is immediate
+    # Otherwise use pixel-wise IOU to determine which cell is which
+
+    # Regionprops expects one frame at a time
+    for frame in range(num_frames):
+        gt_frame = gt[frame]
+        res_frame = res[frame]
+
+        gt_props = regionprops(np.squeeze(gt_frame.astype('int')))
+        gt_boxes = [np.array(gt_prop.bbox) for gt_prop in gt_props]
+        gt_boxes = np.array(gt_boxes).astype('double')
+        gt_box_labels = [int(gt_prop.label) for gt_prop in gt_props]
+
+        res_props = regionprops(np.squeeze(res_frame.astype('int')))
+        res_boxes = [np.array(res_prop.bbox) for res_prop in res_props]
+        res_boxes = np.array(res_boxes).astype('double')
+        res_box_labels = [int(res_prop.label) for res_prop in res_props]
+
+        overlaps = compute_overlap(gt_boxes, res_boxes)    # has the form [gt_bbox, res_bbox]
+
+        # Find the bboxes that have overlap at all (ind_ corresponds to box number - starting at 0)
+        ind_gt, ind_res = np.nonzero(overlaps)
+
+        # frame_ious = np.zeros(overlaps.shape)
+        for index in range(ind_gt.shape[0]):
+
+            iou_gt_idx = gt_box_labels[ind_gt[index]]
+            iou_res_idx = res_box_labels[ind_res[index]]
+            intersection = np.logical_and(gt_frame == iou_gt_idx, res_frame == iou_res_idx)
+            union = np.logical_or(gt_frame == iou_gt_idx, res_frame == iou_res_idx)
+            iou[frame, iou_gt_idx, iou_res_idx] = intersection.sum() / union.sum()
+
+    gtcells, rescells = np.where(np.nansum(iou, axis=0) >= threshold)
+
+    return gtcells, rescells
+
+
+def trk_to_graph(lineage, node_key=None):
+    """Converts a lineage dictionary into a graph representation of the lineages
+
+    Args:
+        lineage (dict): Dictionary of lineage data
+        node_key (dict): Map between gt nodes and result nodes
+
+    Returns:
+        networkx.Graph: Graph representation of the lineage data.
+    """
+    edges = []
+
+    all_ids = set()
+    single_nodes = set()
+    attributes = {}
+
+    for i, lin in lineage.items():
+        # Update cell id if node_key is available
+        if node_key and (i in node_key):
+            idx = node_key[i]
+        else:
+            idx = i
+
+        cellids = ['{}_{}'.format(idx, t) for t in lin['frames']]
+
+        if len(cellids) == 1:
+            single_nodes.add(cellids[0])
+
+        all_ids.update(cellids)
+        edges.append(pd.DataFrame({
+            'source': cellids[0:-1],
+            'target': cellids[1:]
+        }))
+
+        # Add connections to any daughters
+        source = '{}_{}'.format(idx, max(lin['frames']))
+        for d in lin['daughters']:
+            # Update cell id if node_key is available
+            if node_key and (i in node_key):
+                d_idx = node_key[d]
+            else:
+                d_idx = d
+
+            # Assume daughter appears in next frame
+            target = '{}_{}'.format(d_idx, max(lin['frames']) + 1)
+            edges.append(pd.DataFrame({
+                'source': [source],
+                'target': [target]
+            }))
+
+            attributes[source] = {'division': True}
+
+    # Create graph
+    edges = pd.concat(edges)
+    G = nx.from_pandas_edgelist(edges, source='source', target='target', create_using=nx.DiGraph)
+    nx.set_node_attributes(G, attributes)
+
+    # Add all isolates to graph
+    for cell_id in single_nodes:
+        G.add_node(cell_id)
+
+    return G
