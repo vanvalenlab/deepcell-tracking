@@ -318,7 +318,7 @@ def calculate_summary_stats(correct_division,
         mbc = 0
 
     try:
-        fraction_miss = (false_negative_division + false_positive_division) / total_divisions
+        fraction_miss = false_negative_division / total_divisions
     except ZeroDivisionError:
         fraction_miss = 0
 
