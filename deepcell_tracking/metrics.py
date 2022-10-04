@@ -172,6 +172,100 @@ def classify_divisions(G_gt, G_res, cells_gt=[], cells_res=[]):
     }
 
 
+def correct_shifted_divisions(
+        missed, false_positive, correct,
+        y_gt, y_res,
+        G_gt, G_res,
+        threshold):
+    """Correct divisions errors that are shifted by a frame and should be counted as correct
+    """
+
+    metrics = {
+        'missed': missed,
+        'false_positive': false_positive,
+        'correct': correct
+    }
+    y = {'gt': y_gt, 'res': y_res}
+    G = {'gt': G_gt, 'res': G_res}
+
+    # Explicitly label nodes according to source
+    missed = ['gt-'+n for n in missed]
+    false_positive = ['res-'+n for n in false_positive]
+
+    # Convert to dictionary for lookup by frame
+    d_missed, d_fp = {}, {}
+    for d, l in [(d_missed, missed), (d_fp, false_positive)]:
+        for n in l:
+            t = int(n.split('_')[-1])
+            v = d.get(t, [])
+            v.append(n)
+            d[t] = v
+
+    frame_pairs = []
+    for t in d_missed:
+        if t+1 in d_fp:
+            frame_pairs.append((t, t+1))
+        if t-1 in d_fp:
+            frame_pairs.append((t-1, t))
+
+    # Convert to set to remove any duplicates
+    frame_pairs = list(set(frame_pairs))
+
+    matches = []
+
+    # Loop over each pair of frames
+    for t1, t2 in frame_pairs:
+        # Get nodes from each frames
+        n1s = d_missed.get(t1, []) + d_fp.get(t1, [])
+        n2s = d_missed.get(t2, []) + d_fp.get(t2, [])
+
+        # Compare each pair and save if they are above the threshold
+        for n1, n2 in itertools.product(n1s, n2s):
+            source1, node1 = n1.split('-')[0], n1.split('-')[1]
+            source2, node2 = n2.split('-')[0], n2.split('-')[1]
+
+            # Check if the nodes are from different sources
+            if source1 == source2:
+                continue
+
+            # Compare sum of daughters in n1 to parent in n2
+            daughters = [int(d.split('_')[0]) for d in list(G[source1].succ[node1])]
+            if len(daughters) == 1:
+                mask1 = y[source1][t2] == daughters[0]
+            else:
+                mask1 = np.logical_or(
+                    y[source1][t2] == daughters[0],
+                    y[source1][t2] == daughters[1])
+                if len(daughters) > 2:
+                    for d in range(2, len(daughters)):
+                        mask1 = np.logical_or(
+                            mask1,
+                            y[source1][t2] == daughters[d]
+                        )
+            mask2 = y[source2][t2] == int(node2.split('_')[0])
+
+            # Compute iou
+            intersection = np.logical_and(mask1, mask2)
+            union = np.logical_or(mask1, mask2)
+            iou = intersection.sum() / union.sum()
+            if iou >= threshold:
+                matches.extend([n1, n2])
+
+    # Remove matches from the list of errors
+    for n in matches:
+        source, node = n.split('-')[0], n.split('-')[1]
+        # Remove error counts
+        if source == 'gt':
+            metrics['missed'].remove(node)
+            # Add node to the correct count
+            metrics['correct'].append(node)
+            print('corrected division {} as a frameshift division not an error'.format(node))
+        elif source == 'res':
+            metrics['false_positive'].remove(node)
+
+    return metrics
+
+
 def calculate_association_accuracy(lineage_gt, lineage_res, cells_gt=[], cells_res=[]):
     """Calculate the association accuracy for each ground truth lineage
 
@@ -373,7 +467,7 @@ class TrackingMetrics:
         self.G_gt = trk_to_graph(lineage_gt)
         self.G_res = trk_to_graph(lineage_res)
 
-
+        self.stats = self.calculate_metrics()
 
     @classmethod
     def from_trk_files(cls, trk_gt, trk_res, threshold=1, allow_division_shift=True):
@@ -392,109 +486,41 @@ class TrackingMetrics:
 
     def calculate_metrics(self):
         # Classify divison errors
-        division_stats = classify_divisions(self.G_gt, self.G_res, cells_gt=self.cells_gt, cells_res=self.cells_res)
+        stats = classify_divisions(
+            self.G_gt, self.G_res, cells_gt=self.cells_gt, cells_res=self.cells_res)
 
         if self.allow_division_shift:
-            self.correct_shifted_divisions()
+            updates = correct_shifted_divisions(
+                missed=stats['false_negative_division'],
+                false_positive=stats['false_positive_division'],
+                correct=stats['correct_division'],
+                y_gt=self.y_gt,
+                y_res=self.y_res,
+                G_gt=self.G_gt,
+                G_res=self.G_res,
+                threshold=self.threshold)
+
+            for k, v in updates.items():
+                stats[k] = v
+
+        # Convert list of nodes to counts
+        for k, v in stats.items():
+            if isinstance(v, list):
+                stats[k] = len(v)
 
         # Calculate aa and te
-        self.aa_tp, self.aa_total = calculate_association_accuracy(
+        aa_tp, aa_total = calculate_association_accuracy(
             self.lineage_gt, self.lineage_res, self.cells_gt, self.cells_res)
 
-        self.te_tp, self.te_total = calculate_target_effectiveness(
+        te_tp, te_total = calculate_target_effectiveness(
             self.lineage_gt, self.lineage_res, self.cells_gt, self.cells_res)
 
-    def correct_shifted_divisions(self):
-        """Correct divisions errors that are shifted by a frame and should be counted as correct
-        """
-
-        # Explicitly label nodes according to source
-        missed = ['gt-'+n for n in self.missed]
-        false_positive = ['res-'+n for n in self.false_positive]
-
-        # Convert to dictionary for lookup by frame
-        d_missed, d_fp = {}, {}
-        for d, l in [(d_missed, missed), (d_fp, false_positive)]:
-            for n in l:
-                t = int(n.split('_')[-1])
-                v = d.get(t, [])
-                v.append(n)
-                d[t] = v
-
-        frame_pairs = []
-        for t in d_missed:
-            if t+1 in d_fp:
-                frame_pairs.append((t, t+1))
-            if t-1 in d_fp:
-                frame_pairs.append((t-1, t))
-
-        # Convert to set to remove any duplicates
-        frame_pairs = list(set(frame_pairs))
-
-        matches = []
-
-        # Loop over each pair of frames
-        for t1, t2 in frame_pairs:
-            # Get nodes from each frames
-            n1s = d_missed.get(t1, []) + d_fp.get(t1, [])
-            n2s = d_missed.get(t2, []) + d_fp.get(t2, [])
-
-            # Compare each pair and save if they are above the threshold
-            for n1, n2 in itertools.product(n1s, n2s):
-                source1, node1 = n1.split('-')[0], n1.split('-')[1]
-                source2, node2 = n2.split('-')[0], n2.split('-')[1]
-
-                # Check if the nodes are from different sources
-                if source1 == source2:
-                    continue
-
-                # Compare sum of daughters in n1 to parent in n2
-                daughters = [int(d.split('_')[0]) for d in list(self.G[source1].succ[node1])]
-                if len(daughters) == 1:
-                    mask1 = self.y[source1][t2] == daughters[0]
-                else:
-                    mask1 = np.logical_or(
-                        self.y[source1][t2] == daughters[0],
-                        self.y[source1][t2] == daughters[1])
-                    if len(daughters) > 2:
-                        for d in range(2, len(daughters)):
-                            mask1 = np.logical_or(
-                                mask1,
-                                self.y[source1][t2] == daughters[d]
-                            )
-                mask2 = self.y[source2][t2] == int(node2.split('_')[0])
-
-                # Compute iou
-                intersection = np.logical_and(mask1, mask2)
-                union = np.logical_or(mask1, mask2)
-                iou = intersection.sum() / union.sum()
-                if iou >= self.threshold:
-                    matches.extend([n1, n2])
-
-        # Remove matches from the list of errors
-        for n in matches:
-            source, node = n.split('-')[0], n.split('-')[1]
-            # Remove error counts
-            if source == 'gt':
-                self.missed.remove(node)
-                # Add node to the correct count
-                self.correct.append(node)
-                print('corrected division {} as a frameshift division not an error'.format(node))
-            elif source == 'res':
-                self.false_positive.remove(node)
-
-    @property
-    def stats(self):
         return {
-            'correct_division': len(self.correct),
-            'mismatch_division': len(self.incorrect),
-            'false_positive_division': len(self.false_positive),
-            'false_negative_division': len(self.missed),
-            'total_divisions': self.total_divisions,
-            'aa_tp': self.aa_tp,
-            'aa_total': self.aa_total,
-            'te_tp': self.te_tp,
-            'te_total': self.te_total
+            **stats,
+            'aa_tp': aa_tp,
+            'aa_total': aa_total,
+            'te_tp': te_tp,
+            'te_total': te_total
         }
 
 
@@ -512,14 +538,10 @@ def benchmark_tracking_performance(trk_gt, trk_res, threshold=1, allow_division_
             If segmentations are identical, 1 works well.
             For imperfect segmentations try 0.6-0.8 to get better matching
     """
-    stats = {}
 
     # Load data
     m = TrackingMetrics.from_trk_files(trk_gt, trk_res,
                                        threshold=threshold,
                                        allow_division_shift=allow_division_shift)
 
-    # Calculate metrics
-    stats.update(m.stats)
-
-    return stats
+    return m.stats
