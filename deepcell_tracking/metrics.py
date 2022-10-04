@@ -268,6 +268,13 @@ class TrackingMetrics:
         if allow_division_shift:
             self.correct_shifted_divisions()
 
+        # Calculate aa and te
+        self.aa_tp, self.aa_total = calculate_association_accuracy(
+            lineage_gt, lineage_res, self.cells_gt, self.cells_res)
+
+        self.te_tp, self.te_total = calculate_target_effectiveness(
+            lineage_gt, lineage_res, self.cells_gt, self.cells_res)
+
     @classmethod
     def from_trk_files(cls, trk_gt, trk_res, threshold=1, allow_division_shift=True):
         # Load data
@@ -300,15 +307,15 @@ class TrackingMetrics:
 
         # Identify nodes with parent attribute
         div_gt = [node for node, d in self.G['gt'].nodes(data=True)
-                if d.get('division', False)]
+                  if d.get('division', False)]
         div_res = [node for node, d in self.G['res'].nodes(data=True)
-                if d.get('division', False)]
+                   if d.get('division', False)]
 
         # Record total number of gt divisions
         self.total_divisions = len(div_gt)
 
         self.correct = []         # Correct division
-        self.incorrect = []       # Wrong division
+        self.incorrect = []       # Wrong/mismatch division
         self.missed = []          # Missed division
 
         for node in div_gt:
@@ -419,7 +426,18 @@ class TrackingMetrics:
 
                 # Compare sum of daughters in n1 to parent in n2
                 daughters = [int(d.split('_')[0]) for d in list(self.G[source1].succ[node1])]
-                mask1 = np.logical_or(self.y[source1][t2] == daughters[0], self.y[source1][t2] == daughters[1])
+                if len(daughters) == 1:
+                    mask1 = self.y[source1][t2] == daughters[0]
+                else:
+                    mask1 = np.logical_or(
+                        self.y[source1][t2] == daughters[0],
+                        self.y[source1][t2] == daughters[1])
+                    if len(daughters) > 2:
+                        for d in range(2, len(daughters)):
+                            mask1 = np.logical_or(
+                                mask1,
+                                self.y[source1][t2] == daughters[d]
+                            )
                 mask2 = self.y[source2][t2] == int(node2.split('_')[0])
 
                 # Compute iou
@@ -432,26 +450,36 @@ class TrackingMetrics:
         # Remove matches from the list of errors
         for n in matches:
             source, node = n.split('-')[0], n.split('-')[1]
+            # Remove error counts
             if source == 'gt':
                 self.missed.remove(node)
+                # Add node to the correct count
+                self.correct.append(node)
+                print('corrected division {} as a frameshift division not an error'.format(node))
             elif source == 'res':
                 self.false_positive.remove(node)
 
     @property
     def stats(self):
         return {
-            'correct_division': self.correct,
-            'mismatch_division': self.incorrect,
-            'false_positive_division': self.false_positive,
-            'false_negative_division': self.missed,
-            'total_divisions': self.total_divisions
+            'correct_division': len(self.correct),
+            'mismatch_division': len(self.incorrect),
+            'false_positive_division': len(self.false_positive),
+            'false_negative_division': len(self.missed),
+            'total_divisions': self.total_divisions,
+            'aa_tp': self.aa_tp,
+            'aa_total': self.aa_total,
+            'te_tp': self.te_tp,
+            'te_total': self.te_total
         }
 
 
-def benchmark_tracking_performance(trk_gt, trk_res, threshold=1):
+def benchmark_tracking_performance(trk_gt, trk_res, threshold=1, allow_division_shift=True):
     """Compare two related .trk files (one being the GT of the other)
 
     Calculate division statistics, target effectiveness and association accuracy
+
+    Currently included for backwards compatibility, but is no longer necessary
 
     Args:
         trk_gt (path): Path to the ground truth .trk file.
@@ -463,26 +491,11 @@ def benchmark_tracking_performance(trk_gt, trk_res, threshold=1):
     stats = {}
 
     # Load data
-    trks = load_trks(trk_gt)
-    lineage_gt, y_gt = trks['lineages'][0], trks['y']
-    trks = load_trks(trk_res)
-    lineage_res, y_res = trks['lineages'][0], trks['y']
-
-    # Match up labels in GT to Results to allow for direct comparisons
-    cells_gt, cells_res = match_nodes(y_gt, y_res, threshold)
-
-    # Generate graphs without remapping nodes to avoid losing lineages
-    G_gt = trk_to_graph(lineage_gt)
-    G_res = trk_to_graph(lineage_res)
+    m = TrackingMetrics.from_trk_files(trk_gt, trk_res,
+                                       threshold=threshold,
+                                       allow_division_shift=allow_division_shift)
 
     # Calculate metrics
-    division_stats = classify_divisions(G_gt, G_res, cells_gt, cells_res)
-    stats.update(division_stats)
-
-    stats['aa_tp'], stats['aa_total'] = calculate_association_accuracy(lineage_gt, lineage_res,
-                                                                       cells_gt, cells_res)
-
-    stats['te_tp'], stats['te_total'] = calculate_target_effectiveness(lineage_gt, lineage_res,
-                                                                       cells_gt, cells_res)
+    stats.update(m.stats)
 
     return stats
