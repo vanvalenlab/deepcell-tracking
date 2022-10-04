@@ -74,10 +74,10 @@ def test_classify_divisions():
 
     stats = metrics.classify_divisions(G, H)
 
-    assert stats['correct_division'] == 1  # the only correct one
-    assert stats['false_positive_division'] == 1  # node 1_3
-    assert stats['false_negative_division'] == 1  # node 4_3
-    assert stats['mismatch_division'] == 1  # node 3_3
+    assert len(stats['correct_division']) == 1  # the only correct one
+    assert len(stats['false_positive_division']) == 1  # node 1_3
+    assert len(stats['false_negative_division']) == 1  # node 4_3
+    assert len(stats['mismatch_division']) == 1  # node 3_3
     assert stats['total_divisions'] == 3
 
     # lists must be the same length
@@ -90,10 +90,10 @@ def test_classify_divisions():
     H_renamed = nx.relabel_nodes(H, node_key)
 
     stats = metrics.classify_divisions(G, H_renamed, cells_gt=cells_gt, cells_res=cells_res)
-    assert stats['correct_division'] == 1  # the only correct one
-    assert stats['false_positive_division'] == 1  # node 1_3
-    assert stats['false_negative_division'] == 1  # node 4_3
-    assert stats['mismatch_division'] == 1  # node 3_3
+    assert len(stats['correct_division']) == 1  # the only correct one
+    assert len(stats['false_positive_division']) == 1  # node 1_3
+    assert len(stats['false_negative_division']) == 1  # node 4_3
+    assert len(stats['mismatch_division']) == 1  # node 3_3
     assert stats['total_divisions'] == 3
 
 

@@ -65,6 +65,113 @@ def map_node(gt_node, G_res, cells_gt, cells_res):
         return gt_node
 
 
+def classify_divisions(G_gt, G_res, cells_gt=[], cells_res=[]):
+    """Compare two graphs and calculate the cell division confusion matrix.
+
+    WARNING: This function will only work if the labels underlying both
+    graphs are the same. E.G. the parents only match if the same label
+    splits in the same frame - but each movie isn't guaranteed to be labeled
+    in the same way (with the same order). Should be used with match_nodes
+
+    Args:
+        G_gt (networkx.Graph): Ground truth cell lineage graph.
+        G_res (networkx.Graph): Predicted cell lineage graph.
+        cells_gt (np.ndarray): List of ground truth cell ids from `match_nodes`
+        cells_res (np.ndarray): List of result cell ids from `match_nodes`
+
+    Returns:
+        dict: Diciontary of all division statistics
+
+    Raises:
+        ValueError: cells_gt and cells_res must be the same length
+    """
+    if len(cells_gt) != len(cells_res):
+        raise ValueError('cells_gt and cells_res must be the same length.')
+
+    def _map_node(gt_node):
+        return map_node(gt_node, G_res, cells_gt, cells_res)
+
+    # Identify nodes with parent attribute
+    div_gt = [node for node, d in G_gt.nodes(data=True)
+              if d.get('division', False)]
+    div_res = [node for node, d in G_res.nodes(data=True)
+               if d.get('division', False)]
+
+    correct = []         # Correct division
+    incorrect = []       # Wrong/mismatch division
+    missed = []          # Missed division
+
+    for node in div_gt:
+        idx = int(node.split('_')[0])
+        frame = int(node.split('_')[1])
+
+        # Check if the index is mapped onto a different results index
+        if idx in cells_gt:
+            for r_idx in cells_res[cells_gt == idx]:
+                # Check if node exists with the right frame
+                r_node = '{}_{}'.format(r_idx, frame)
+                if r_node in G_res.nodes:
+                    break  # Exit for loop since we found the right node
+            else:
+                # Node doesn't exist so count this division as missed
+                print('missed node {} division completely'.format(node))
+                missed.append(node)
+                continue  # move on to next node in div_gt
+        # Check if the node exists with same id in G_res
+        elif node in G_res.nodes:
+            r_node = node
+        # Node doesn't exist
+        else:
+            print('missed node {} division completely'.format(node))
+            missed.append(node)
+            continue  # move on to next node in div_gt
+
+        # If we found the results node, evaluate division result
+        # Get gt predecessors and successors for comparsion
+        # Map gt nodes onto results nodes if possible
+        pred_gt = [_map_node(n) for n in G_gt.pred[node]]
+        succ_gt = [_map_node(n) for n in G_gt.succ[node]]
+
+        # Check if res node was also called a division
+        if r_node in div_res:
+            # Get res predecessors and successor
+            pred_res = list(G_res.pred[r_node])
+            succ_res = list(G_res.succ[r_node])
+
+            # Parents and daughters are the same, perfect!
+            if (Counter(pred_gt) == Counter(pred_res) and
+                    Counter(succ_gt) == Counter(succ_res)):
+                correct.append(node)
+
+            else:  # what went wrong?
+                incorrect.append(node)
+                errors = ['out degree = {}'.format(G_res.out_degree(r_node))]
+                if Counter(succ_gt) != Counter(succ_res):
+                    errors.append('daughters mismatch')
+                if Counter(pred_gt) != Counter(pred_res):
+                    errors.append('parents mismatch')
+                if G_res.out_degree(r_node) == G_gt.out_degree(node):
+                    errors.append('gt and res degree equal')
+                print(node, '{}.'.format(', '.join(errors)))
+
+            div_res.remove(r_node)
+
+        else:  # valid division not in results, it was missed
+            print('missed node {} division completely'.format(node))
+            missed.append(node)
+
+    # Count any remaining res nodes as false positives
+    false_positive = div_res
+
+    return {
+        'correct_division': correct,
+        'mismatch_division': incorrect,
+        'false_positive_division': false_positive,
+        'false_negative_division': missed,
+        'total_divisions': len(div_gt)
+    }
+
+
 def calculate_association_accuracy(lineage_gt, lineage_res, cells_gt=[], cells_res=[]):
     """Calculate the association accuracy for each ground truth lineage
 
@@ -252,28 +359,21 @@ class TrackingMetrics:
                 they are off by a single frame. Default True.
         """
 
-        self.lineage = {'gt': lineage_gt, 'res': lineage_res}
-        self.y = {'gt': y_gt, 'res': y_res}
+        self.lineage_gt = lineage_gt
+        self.lineage_res = lineage_res
+        self.y_gt = y_gt
+        self.y_res = y_res
         self.threshold = threshold
+        self.allow_division_shift = allow_division_shift
 
         # Match up labels in GT to Results to allow for direct comparisons
         self.cells_gt, self.cells_res = match_nodes(y_gt, y_res, self.threshold)
 
         # Generate graphs without remapping nodes to avoid losing lineages
-        self.G = {'gt': trk_to_graph(lineage_gt), 'res': trk_to_graph(lineage_res)}
+        self.G_gt = trk_to_graph(lineage_gt)
+        self.G_res = trk_to_graph(lineage_res)
 
-        # Classify divison errors
-        self.classify_divisions()
 
-        if allow_division_shift:
-            self.correct_shifted_divisions()
-
-        # Calculate aa and te
-        self.aa_tp, self.aa_total = calculate_association_accuracy(
-            lineage_gt, lineage_res, self.cells_gt, self.cells_res)
-
-        self.te_tp, self.te_total = calculate_target_effectiveness(
-            lineage_gt, lineage_res, self.cells_gt, self.cells_res)
 
     @classmethod
     def from_trk_files(cls, trk_gt, trk_res, threshold=1, allow_division_shift=True):
@@ -290,95 +390,19 @@ class TrackingMetrics:
             allow_division_shift=allow_division_shift
         )
 
-    def classify_divisions(self):
-        """Compare two graphs and calculate the cell division confusion matrix.
+    def calculate_metrics(self):
+        # Classify divison errors
+        division_stats = classify_divisions(self.G_gt, self.G_res, cells_gt=self.cells_gt, cells_res=self.cells_res)
 
-        WARNING: This function will only work if the labels underlying both
-        graphs are the same. E.G. the parents only match if the same label
-        splits in the same frame - but each movie isn't guaranteed to be labeled
-        in the same way (with the same order). Should be used with match_nodes
+        if self.allow_division_shift:
+            self.correct_shifted_divisions()
 
-        Returns:
-            dict: Diciontary of all division statistics
-        """
+        # Calculate aa and te
+        self.aa_tp, self.aa_total = calculate_association_accuracy(
+            self.lineage_gt, self.lineage_res, self.cells_gt, self.cells_res)
 
-        def _map_node(gt_node):
-            return map_node(gt_node, self.G['res'], self.cells_gt, self.cells_res)
-
-        # Identify nodes with parent attribute
-        div_gt = [node for node, d in self.G['gt'].nodes(data=True)
-                  if d.get('division', False)]
-        div_res = [node for node, d in self.G['res'].nodes(data=True)
-                   if d.get('division', False)]
-
-        # Record total number of gt divisions
-        self.total_divisions = len(div_gt)
-
-        self.correct = []         # Correct division
-        self.incorrect = []       # Wrong/mismatch division
-        self.missed = []          # Missed division
-
-        for node in div_gt:
-            idx = int(node.split('_')[0])
-            frame = int(node.split('_')[1])
-
-            # Check if the index is mapped onto a different results index
-            if idx in self.cells_gt:
-                for r_idx in self.cells_res[self.cells_gt == idx]:
-                    # Check if node exists with the right frame
-                    r_node = '{}_{}'.format(r_idx, frame)
-                    if r_node in self.G['res'].nodes:
-                        break  # Exit for loop since we found the right node
-                else:
-                    # Node doesn't exist so count this division as missed
-                    print('missed node {} division completely'.format(node))
-                    self.missed.append(node)
-                    continue  # move on to next node in div_gt
-            # Check if the node exists with same id in G_res
-            elif node in self.G['res'].nodes:
-                r_node = node
-            # Node doesn't exist
-            else:
-                print('missed node {} division completely'.format(node))
-                self.missed.append(node)
-                continue  # move on to next node in div_gt
-
-            # If we found the results node, evaluate division result
-            # Get gt predecessors and successors for comparsion
-            # Map gt nodes onto results nodes if possible
-            pred_gt = [_map_node(n) for n in self.G['gt'].pred[node]]
-            succ_gt = [_map_node(n) for n in self.G['gt'].succ[node]]
-
-            # Check if res node was also called a division
-            if r_node in div_res:
-                # Get res predecessors and successor
-                pred_res = list(self.G['res'].pred[r_node])
-                succ_res = list(self.G['res'].succ[r_node])
-
-                # Parents and daughters are the same, perfect!
-                if (Counter(pred_gt) == Counter(pred_res) and
-                        Counter(succ_gt) == Counter(succ_res)):
-                    self.correct.append(node)
-
-                else:  # what went wrong?
-                    self.incorrect.append(node)
-                    errors = ['out degree = {}'.format(self.G['res'].out_degree(r_node))]
-                    if Counter(succ_gt) != Counter(succ_res):
-                        errors.append('daughters mismatch')
-                    if Counter(pred_gt) != Counter(pred_res):
-                        errors.append('parents mismatch')
-                    if self.G['res'].out_degree(r_node) == self.G['gt'].out_degree(node):
-                        errors.append('gt and res degree equal')
-                    print(node, '{}.'.format(', '.join(errors)))
-
-                div_res.remove(r_node)
-
-            else:  # valid division not in results, it was missed
-                print('missed node {} division completely'.format(node))
-                self.missed.append(node)
-
-        # Count any remaining res nodes as false positives
-        self.false_positive = div_res
+        self.te_tp, self.te_total = calculate_target_effectiveness(
+            self.lineage_gt, self.lineage_res, self.cells_gt, self.cells_res)
 
     def correct_shifted_divisions(self):
         """Correct divisions errors that are shifted by a frame and should be counted as correct
