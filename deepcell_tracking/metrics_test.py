@@ -41,7 +41,7 @@ import numpy as np
 import pandas as pd
 
 from deepcell_tracking import metrics
-from deepcell_tracking.test_utils import get_annotated_movie
+from deepcell_tracking.test_utils import generate_division_data, get_annotated_movie
 
 
 def test_classify_divisions():
@@ -95,6 +95,49 @@ def test_classify_divisions():
     assert len(stats['false_negative_division']) == 1  # node 4_3
     assert len(stats['mismatch_division']) == 1  # node 3_3
     assert stats['total_divisions'] == 3
+
+
+def test_correct_shifted_divisions():
+    # Generate test data
+    y_early, y_late, G_early, G_late = generate_division_data()
+
+    # Generate initial division stats with early as GT
+    stats = metrics.classify_divisions(G_early, G_late)
+    assert len(stats['false_positive_division']) == 1
+    assert len(stats['false_negative_division']) == 1
+
+    # Apply correction
+    corrected = metrics.correct_shifted_divisions(
+        stats['false_negative_division'],
+        stats['false_positive_division'],
+        stats['correct_division'],
+        y_early, y_late,
+        G_early, G_late,
+        0.6)
+
+    # Check corrections
+    assert len(corrected['correct']) == 1
+    assert len(stats['false_positive_division']) == 0
+    assert len(stats['false_negative_division']) == 0
+
+    # Generate initial division stats with late as GT
+    stats = metrics.classify_divisions(G_late, G_early)
+    assert len(stats['false_positive_division']) == 1
+    assert len(stats['false_negative_division']) == 1
+
+    # Apply correction
+    corrected = metrics.correct_shifted_divisions(
+        stats['false_negative_division'],
+        stats['false_positive_division'],
+        stats['correct_division'],
+        y_late, y_early,
+        G_late, G_early,
+        0.6)
+
+    # Check corrections
+    assert len(corrected['correct']) == 1
+    assert len(stats['false_positive_division']) == 0
+    assert len(stats['false_negative_division']) == 0
 
 
 def test_calculate_association_accuracy():

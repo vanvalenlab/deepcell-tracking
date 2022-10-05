@@ -28,6 +28,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import networkx as nx
 import numpy as np
 import skimage as sk
 
@@ -111,3 +112,66 @@ def get_annotated_movie(img_size=256, labels_per_frame=3, frames=3,
     y = np.expand_dims(y, axis=channel_axis)
 
     return y.astype('int32')
+
+
+def generate_division_data(img_size=256):
+    parent_id = 10
+
+    # Generate parent frame
+    im = np.zeros((img_size, img_size))
+    parent = np.random.randint(low=img_size*0.25, high=img_size*0.75, size=(2,))
+    im[parent[0], parent[1]] = 1
+    im = sk.filters.gaussian(im, sigma=5)
+    parent_label = sk.measure.label(im > 0.7 * im.mean())
+    # Change the id of the parent so it is distinct from daughters
+    parent_label[parent_label == 1] = parent_id
+
+    # Calculate position of daughters in the first frame
+    width = sk.measure.regionprops(parent_label)[0].axis_minor_length
+    shift = int(width/3)
+    d1 = [parent[0] - shift, parent[1]]
+    d2 = [parent[0] + shift, parent[1]]
+
+    # Make first frame images
+    im = np.zeros((img_size, img_size))
+    im[d1[0], d1[1]] = 1
+    im[d2[0], d2[1]] = 1
+
+    im = sk.filters.gaussian(im, sigma=4)
+    separate = sk.measure.label(im > 20 * im.mean())
+    merged = sk.measure.label(im > 5 * im.mean())
+    # Change merged id to match parent label
+    merged[merged == 1] = parent_id
+
+    # Move daughters again for the last frame
+    d1 = [d1[0] - shift, d1[1]]
+    d2 = [d2[0] + shift, d2[1]]
+
+    im = np.zeros((img_size, img_size))
+    im[d1[0], d1[1]] = 1
+    im[d2[0], d2[1]] = 1
+
+    im = sk.filters.gaussian(im, sigma=5)
+    last = sk.measure.label(im > 0.7 * im.mean())
+
+    early_div = np.stack([parent_label, separate, last])
+    late_div = np.stack([parent_label, merged, last])
+
+    # Generate early division graph
+    Ge = nx.DiGraph()
+    Ge.add_edge('10_0', '1_1')
+    Ge.add_edge('10_0', '2_1')
+    Ge.nodes['10_0']['division'] = True
+
+    Ge.add_edge('1_1', '1_2')
+    Ge.add_edge('2_1', '2_2')
+
+    # Generate late division graph
+    Gl = nx.DiGraph()
+    Gl.add_edge('10_0', '10_1')
+
+    Gl.add_edge('10_1', '1_2')
+    Gl.add_edge('10_1', '2_2')
+    Gl.nodes['10_1']['division'] = True
+
+    return early_div, late_div, Ge, Gl

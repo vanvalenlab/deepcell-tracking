@@ -178,6 +178,19 @@ def correct_shifted_divisions(
         G_gt, G_res,
         threshold):
     """Correct divisions errors that are shifted by a frame and should be counted as correct
+
+    Args:
+        missed (list): List of nodes classifed as a false negative division
+        false_positive (list): List of nodes classified as false positive division
+        correct (list): List of nodes where divisions were correctly assigned
+        y_gt (np.array): Y mask for the ground truth data
+        y_res (np.array): Y mask for the predicted data
+        G_gt (networkx.graph): Graph of the ground truth
+        G_res (networkx.graph): Graph of the results
+        threshold (float): Value between 0 and 1 used to determine matching cells using IoU
+
+    Returns:
+        dict: Dictionary of updated missed, false_positive and correct division lists
     """
 
     metrics = {
