@@ -202,8 +202,8 @@ def correct_shifted_divisions(
     G = {'gt': G_gt, 'res': G_res}
 
     # Explicitly label nodes according to source
-    missed = ['gt-'+n for n in missed]
-    false_positive = ['res-'+n for n in false_positive]
+    missed = ['gt-' + n for n in missed]
+    false_positive = ['res-' + n for n in false_positive]
 
     # Convert to dictionary for lookup by frame
     d_missed, d_fp = {}, {}
@@ -216,10 +216,10 @@ def correct_shifted_divisions(
 
     frame_pairs = []
     for t in d_missed:
-        if t+1 in d_fp:
-            frame_pairs.append((t, t+1))
-        if t-1 in d_fp:
-            frame_pairs.append((t-1, t))
+        if t + 1 in d_fp:
+            frame_pairs.append((t, t + 1))
+        if t - 1 in d_fp:
+            frame_pairs.append((t - 1, t))
 
     # Convert to set to remove any duplicates
     frame_pairs = list(set(frame_pairs))
@@ -453,7 +453,11 @@ def calculate_summary_stats(correct_division,
 
 
 class TrackingMetrics:
-    def __init__(self, lineage_gt, y_gt, lineage_res, y_res, threshold=1, allow_division_shift=True):
+    def __init__(self,
+                 lineage_gt, y_gt,
+                 lineage_res, y_res,
+                 threshold=1,
+                 allow_division_shift=True):
         """Class to coordinate the benchmarking of a pair of trk files
 
         Args:

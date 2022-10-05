@@ -119,7 +119,7 @@ def generate_division_data(img_size=256):
 
     # Generate parent frame
     im = np.zeros((img_size, img_size))
-    parent = np.random.randint(low=img_size*0.25, high=img_size*0.75, size=(2,))
+    parent = np.random.randint(low=img_size * 0.25, high=img_size * 0.75, size=(2,))
     im[parent[0], parent[1]] = 1
     im = sk.filters.gaussian(im, sigma=5)
     parent_label = sk.measure.label(im > 0.7 * im.mean())
@@ -128,7 +128,7 @@ def generate_division_data(img_size=256):
 
     # Calculate position of daughters in the first frame
     width = sk.measure.regionprops(parent_label)[0].axis_minor_length
-    shift = int(width/3)
+    shift = int(width / 3)
     d1 = [parent[0] - shift, parent[1]]
     d2 = [parent[0] + shift, parent[1]]
 
