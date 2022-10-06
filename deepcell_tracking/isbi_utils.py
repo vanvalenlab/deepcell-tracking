@@ -37,7 +37,7 @@ import pandas as pd
 
 # Imports for backwards compatibility
 from deepcell_tracking.utils import match_nodes, contig_tracks
-from deepcell_tracking.metrics import classify_divisions, calculate_summary_stats
+from deepcell_tracking.metrics import calculate_summary_stats
 from deepcell_tracking.metrics import benchmark_tracking_performance
 
 
