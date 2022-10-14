@@ -190,7 +190,8 @@ def correct_shifted_divisions(
         threshold (float): Value between 0 and 1 used to determine matching cells using IoU
 
     Returns:
-        dict: Dictionary of updated false_negative_division, false_positive_division and correct_division lists
+        dict: Dictionary of updated false_negative_division, false_positive_division
+            and correct_division lists
     """
 
     metrics = {
@@ -207,7 +208,8 @@ def correct_shifted_divisions(
 
     # Convert to dictionary for lookup by frame
     d_false_negative_division, d_fp = {}, {}
-    for d, l in [(d_false_negative_division, false_negative_division), (d_fp, false_positive_division)]:
+    for d, l in [(d_false_negative_division, false_negative_division),
+                 (d_fp, false_positive_division)]:
         for n in l:
             t = int(n.split('_')[-1])
             v = d.get(t, [])
