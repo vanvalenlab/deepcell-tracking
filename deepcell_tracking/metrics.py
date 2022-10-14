@@ -173,16 +173,16 @@ def classify_divisions(G_gt, G_res, cells_gt=[], cells_res=[]):
 
 
 def correct_shifted_divisions(
-        missed, false_positive, correct,
+        false_negative_division, false_positive_division, correct_division,
         y_gt, y_res,
         G_gt, G_res,
         threshold):
     """Correct divisions errors that are shifted by a frame and should be counted as correct
 
     Args:
-        missed (list): List of nodes classifed as a false negative division
-        false_positive (list): List of nodes classified as false positive division
-        correct (list): List of nodes where divisions were correctly assigned
+        false_negative_division (list): List of nodes classifed as a false negative division
+        false_positive_division (list): List of nodes classified as false positive division
+        correct_division (list): List of nodes where divisions were correctly assigned
         y_gt (np.array): Y mask for the ground truth data
         y_res (np.array): Y mask for the predicted data
         G_gt (networkx.graph): Graph of the ground truth
@@ -190,24 +190,24 @@ def correct_shifted_divisions(
         threshold (float): Value between 0 and 1 used to determine matching cells using IoU
 
     Returns:
-        dict: Dictionary of updated missed, false_positive and correct division lists
+        dict: Dictionary of updated false_negative_division, false_positive_division and correct_division lists
     """
 
     metrics = {
-        'missed': missed,
-        'false_positive': false_positive,
-        'correct': correct
+        'false_negative_division': false_negative_division,
+        'false_positive_division': false_positive_division,
+        'correct_division': correct_division
     }
     y = {'gt': y_gt, 'res': y_res}
     G = {'gt': G_gt, 'res': G_res}
 
     # Explicitly label nodes according to source
-    missed = ['gt-' + n for n in missed]
-    false_positive = ['res-' + n for n in false_positive]
+    false_negative_division = ['gt-' + n for n in false_negative_division]
+    false_positive_division = ['res-' + n for n in false_positive_division]
 
     # Convert to dictionary for lookup by frame
-    d_missed, d_fp = {}, {}
-    for d, l in [(d_missed, missed), (d_fp, false_positive)]:
+    d_false_negative_division, d_fp = {}, {}
+    for d, l in [(d_false_negative_division, false_negative_division), (d_fp, false_positive_division)]:
         for n in l:
             t = int(n.split('_')[-1])
             v = d.get(t, [])
@@ -215,7 +215,7 @@ def correct_shifted_divisions(
             d[t] = v
 
     frame_pairs = []
-    for t in d_missed:
+    for t in d_false_negative_division:
         if t + 1 in d_fp:
             frame_pairs.append((t, t + 1))
         if t - 1 in d_fp:
@@ -229,8 +229,8 @@ def correct_shifted_divisions(
     # Loop over each pair of frames
     for t1, t2 in frame_pairs:
         # Get nodes from each frames
-        n1s = d_missed.get(t1, []) + d_fp.get(t1, [])
-        n2s = d_missed.get(t2, []) + d_fp.get(t2, [])
+        n1s = d_false_negative_division.get(t1, []) + d_fp.get(t1, [])
+        n2s = d_false_negative_division.get(t2, []) + d_fp.get(t2, [])
 
         # Compare each pair and save if they are above the threshold
         for n1, n2 in itertools.product(n1s, n2s):
@@ -269,12 +269,12 @@ def correct_shifted_divisions(
         source, node = n.split('-')[0], n.split('-')[1]
         # Remove error counts
         if source == 'gt':
-            metrics['missed'].remove(node)
-            # Add node to the correct count
-            metrics['correct'].append(node)
+            metrics['false_negative_division'].remove(node)
+            # Add node to the correct_division count
+            metrics['correct_division'].append(node)
             print('corrected division {} as a frameshift division not an error'.format(node))
         elif source == 'res':
-            metrics['false_positive'].remove(node)
+            metrics['false_positive_division'].remove(node)
 
     return metrics
 
@@ -508,9 +508,9 @@ class TrackingMetrics:
 
         if self.allow_division_shift:
             updates = correct_shifted_divisions(
-                missed=stats['false_negative_division'],
-                false_positive=stats['false_positive_division'],
-                correct=stats['correct_division'],
+                false_negative_division=stats['false_negative_division'],
+                false_positive_division=stats['false_positive_division'],
+                correct_division=stats['correct_division'],
                 y_gt=self.y_gt,
                 y_res=self.y_res,
                 G_gt=self.G_gt,
