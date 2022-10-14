@@ -116,7 +116,7 @@ def test_correct_shifted_divisions():
         0.6)
 
     # Check corrections
-    assert len(corrected['correct']) == 1
+    assert len(corrected['correct_division']) == 1
     assert len(stats['false_positive_division']) == 0
     assert len(stats['false_negative_division']) == 0
 
@@ -135,7 +135,7 @@ def test_correct_shifted_divisions():
         0.6)
 
     # Check corrections
-    assert len(corrected['correct']) == 1
+    assert len(corrected['correct_division']) == 1
     assert len(stats['false_positive_division']) == 0
     assert len(stats['false_negative_division']) == 0
 
