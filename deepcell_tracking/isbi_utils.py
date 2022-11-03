@@ -29,11 +29,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import glob
 import warnings
 
 import networkx as nx
 import numpy as np
 import pandas as pd
+from tifffile import imread
 
 # Imports for backwards compatibility
 from deepcell_tracking.utils import match_nodes, contig_tracks
@@ -179,3 +181,13 @@ def isbi_to_graph(df, node_key=None):
     for cell_id in single_nodes:
         G.add_node(cell_id)
     return G
+
+
+def load_tiffs(data_dir):
+    """Load a directory of individual frames into a stack"""
+    ims = []
+    for f in np.sort(glob.glob(f'{data_dir}/*.tif')):
+        ims.append(imread(f))
+
+    mov = np.stack(ims)
+    return mov
