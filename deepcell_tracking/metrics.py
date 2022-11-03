@@ -35,9 +35,9 @@ import os
 
 import numpy as np
 
-from deepcell_tracking.isbi_utils import load_tiffs, txt_to_graph
 from deepcell_tracking.trk_io import load_trks
 from deepcell_tracking.utils import match_nodes, trk_to_graph
+from deepcell_tracking.isbi_utils import load_tiffs, txt_to_lineage
 
 
 def map_node(gt_node, G_res, cells_gt, cells_res):
@@ -458,15 +458,15 @@ def calculate_summary_stats(correct_division,
 
 class TrackingMetrics:
     def __init__(self,
-                 G_gt, G_res,
-                 y_gt, y_res,
+                 lineage_gt, y_gt,
+                 lineage_res, y_res,
                  threshold=1,
                  allow_division_shift=True):
         """Class to coordinate the benchmarking of a pair of trk files
 
         Args:
-            G_gt (networkx.Graph): Ground truth cell lineage graph.
-            G_res (networkx.Graph): Predicted cell lineage graph.
+            lineage_gt (dict): Ground truth lineages
+            linage_res (dict): Predicted lineages
             y_gt (np.array): Y mask for the ground truth data
             y_res (np.array): Y mask for the predicted data
             threshold (optional, float): threshold value for IoU to count as same cell. Default 1.
@@ -475,8 +475,9 @@ class TrackingMetrics:
             allow_division_shift (optional, bool): Allows divisions to be treated as correct if
                 they are off by a single frame. Default True.
         """
-        self.G_gt = G_gt
-        self.G_res = G_res
+
+        self.lineage_gt = lineage_gt
+        self.lineage_res = lineage_res
         self.y_gt = y_gt
         self.y_res = y_res
         self.threshold = threshold
@@ -485,6 +486,10 @@ class TrackingMetrics:
         # Match up labels in GT to Results to allow for direct comparisons
         self.cells_gt, self.cells_res = match_nodes(y_gt, y_res, self.threshold)
 
+        # Generate graphs without remapping nodes to avoid losing lineages
+        self.G_gt = trk_to_graph(lineage_gt)
+        self.G_res = trk_to_graph(lineage_res)
+
         self.stats = self.calculate_metrics()
 
     @classmethod
@@ -492,15 +497,12 @@ class TrackingMetrics:
         # Load data
         trks = load_trks(trk_gt)
         lineage_gt, y_gt = trks['lineages'][0], trks['y']
-        G_gt = trk_to_graph(lineage_gt)
-
         trks = load_trks(trk_res)
         lineage_res, y_res = trks['lineages'][0], trks['y']
-        G_res = trk_to_graph(lineage_res)
 
         return cls(
-            G_gt=G_gt, G_res=G_res,
-            y_gt=y_gt, y_res=y_res,
+            lineage_gt=lineage_gt, y_gt=y_gt,
+            lineage_res=lineage_res, y_res=y_res,
             threshold=threshold,
             allow_division_shift=allow_division_shift
         )
@@ -514,14 +516,14 @@ class TrackingMetrics:
                        res_txt_file='res_track.txt'):
         # Load data
         y_gt = load_tiffs(dir_gt)
-        G_gt = txt_to_graph(os.path.join(dir_gt, gt_txt_file))
+        lineage_gt = txt_to_lineage(os.path.join(dir_gt, gt_txt_file))
 
         y_res = load_tiffs(dir_res)
-        G_res = txt_to_graph(os.path.join(dir_res, res_txt_file))
+        lineage_res = txt_to_lineage(os.path.join(dir_res, res_txt_file))
 
         return cls(
-            G_gt=G_gt, G_res=G_res,
-            y_gt=y_gt, y_res=y_res,
+            lineage_gt=lineage_gt, y_gt=y_gt,
+            lineage_res=lineage_res, y_res=y_res,
             threshold=threshold,
             allow_division_shift=allow_division_shift
         )
