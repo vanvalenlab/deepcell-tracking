@@ -177,4 +177,5 @@ def load_tiffs(data_dir):
         ims.append(imread(f))
 
     mov = np.stack(ims)
+    mov = np.expand_dims(mov, axis=-1)
     return mov
