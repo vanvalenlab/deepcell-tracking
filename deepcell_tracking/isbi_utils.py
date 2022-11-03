@@ -186,7 +186,7 @@ def isbi_to_lineage(df):
             "capped": False,
             "frame_div": None,
             "parent": None,
-            }
+        }
 
     # Add division information to parents and daughters
     for _, r in df[df['Parent_ID'] != 0].iterrows():
