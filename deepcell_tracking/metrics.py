@@ -31,11 +31,13 @@ from __future__ import print_function
 
 from collections import Counter
 import itertools
+import os
 
 import numpy as np
 
 from deepcell_tracking.trk_io import load_trks
 from deepcell_tracking.utils import match_nodes, trk_to_graph
+from deepcell_tracking.isbi_utils import load_tiffs, txt_to_lineage
 
 
 def map_node(gt_node, G_res, cells_gt, cells_res):
@@ -463,12 +465,14 @@ class TrackingMetrics:
         """Class to coordinate the benchmarking of a pair of trk files
 
         Args:
-            trk_gt (path): Path to the ground truth .trk file.
-            trk_res (path): Path to the predicted results .trk file.
+            lineage_gt (dict): Ground truth lineages
+            linage_res (dict): Predicted lineages
+            y_gt (np.array): Y mask for the ground truth data
+            y_res (np.array): Y mask for the predicted data
             threshold (optional, float): threshold value for IoU to count as same cell. Default 1.
                 If segmentations are identical, 1 works well.
                 For imperfect segmentations try 0.6-0.8 to get better matching
-            allow_temporal_shifts (optional, bool): Allows divisions to be treated as correct if
+            allow_division_shift (optional, bool): Allows divisions to be treated as correct if
                 they are off by a single frame. Default True.
         """
 
@@ -495,6 +499,27 @@ class TrackingMetrics:
         lineage_gt, y_gt = trks['lineages'][0], trks['y']
         trks = load_trks(trk_res)
         lineage_res, y_res = trks['lineages'][0], trks['y']
+
+        return cls(
+            lineage_gt=lineage_gt, y_gt=y_gt,
+            lineage_res=lineage_res, y_res=y_res,
+            threshold=threshold,
+            allow_division_shift=allow_division_shift
+        )
+
+    @classmethod
+    def from_isbi_dirs(cls,
+                       dir_gt, dir_res,
+                       threshold=1,
+                       allow_division_shift=True,
+                       gt_txt_file='man_track.txt',
+                       res_txt_file='res_track.txt'):
+        # Load data
+        y_gt = load_tiffs(dir_gt)
+        lineage_gt = txt_to_lineage(os.path.join(dir_gt, gt_txt_file))
+
+        y_res = load_tiffs(dir_res)
+        lineage_res = txt_to_lineage(os.path.join(dir_res, res_txt_file))
 
         return cls(
             lineage_gt=lineage_gt, y_gt=y_gt,

@@ -29,24 +29,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import glob
 import warnings
 
 import networkx as nx
 import numpy as np
 import pandas as pd
-
-# Imports for backwards compatibility
-from deepcell_tracking.utils import match_nodes, contig_tracks
-from deepcell_tracking.metrics import calculate_summary_stats
-from deepcell_tracking.metrics import benchmark_tracking_performance
-
-
-def benchmark_division_performance(trk_gt, trk_res):
-    warnings.warn('benchmark_division_performance is deprecated. '
-                  'Please use deepcell_tracking.metrics.benchmark_tracking_performance instead',
-                  DeprecationWarning)
-
-    return benchmark_tracking_performance(trk_gt, trk_res)
+from tifffile import imread
 
 
 def trk_to_isbi(track, path=None):
@@ -179,3 +168,55 @@ def isbi_to_graph(df, node_key=None):
     for cell_id in single_nodes:
         G.add_node(cell_id)
     return G
+
+
+def isbi_to_lineage(df):
+    """Converts an ISBI style dataframe to a lineage dictionary"""
+
+    lineage = {}
+    # First write basic lineages without divisions
+    for _, r in df.iterrows():
+        cell = r['Cell_ID']
+        frames = list(np.arange(r['Start'], r['End'] + 1))
+
+        lineage[cell] = {
+            "label": cell,
+            "frames": frames,
+            "daughters": [],
+            "capped": False,
+            "frame_div": None,
+            "parent": None,
+        }
+
+    # Add division information to parents and daughters
+    for _, r in df[df['Parent_ID'] != 0].iterrows():
+        daughter = r['Cell_ID']
+        parent = r['Parent_ID']
+
+        # Set parent of daughter
+        lineage[daughter]['parent'] = parent
+
+        # Set daughter and frame_div of parent
+        lineage[parent]['daughters'].append(daughter)
+        lineage[parent]['frame_div'] = max(lineage[parent]['frames'])
+
+    return lineage
+
+
+def txt_to_lineage(path):
+    names = ['Cell_ID', 'Start', 'End', 'Parent_ID']
+    df = pd.read_csv(path, header=None, sep=' ', names=names)
+    lineage = isbi_to_lineage(df)
+
+    return lineage
+
+
+def load_tiffs(data_dir):
+    """Load a directory of individual frames into a stack"""
+    ims = []
+    for f in np.sort(glob.glob(f'{data_dir}/*.tif')):
+        ims.append(imread(f))
+
+    mov = np.stack(ims)
+    mov = np.expand_dims(mov, axis=-1)
+    return mov

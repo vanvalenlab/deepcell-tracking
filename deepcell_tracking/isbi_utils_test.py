@@ -150,3 +150,29 @@ class TestIsbiUtils(object):
                     assert G.has_edge(parent_id, daughter_id)
                 else:
                     assert not G.in_degree(daughter_id)
+
+    def test_isbi_to_lineage(self):
+        data = [{'Cell_ID': 1, 'Start': 0, 'End': 3, 'Parent_ID': 0},
+                {'Cell_ID': 2, 'Start': 0, 'End': 2, 'Parent_ID': 0},
+                {'Cell_ID': 3, 'Start': 3, 'End': 3, 'Parent_ID': 2},
+                {'Cell_ID': 4, 'Start': 3, 'End': 3, 'Parent_ID': 2},
+                {'Cell_ID': 5, 'Start': 3, 'End': 3, 'Parent_ID': 4}]
+        divisions = [{'parent': 2, 'daughters': [3, 4]}]
+
+        df = pd.DataFrame(data)
+        lineage = isbi_utils.isbi_to_lineage(df)
+
+        # Check frames for each cell
+        for d in data:
+            frames = lineage[d['Cell_ID']]['frames']
+            assert d['Start'] == min(frames)
+            assert d['End'] == max(frames)
+
+        # Check divisions
+        for div in divisions:
+            for d in div['daughters']:
+                # Check that parent has daughters
+                assert d in lineage[div['parent']]['daughters']
+
+                # Check that daughter has parent
+                assert div['parent'] == lineage[d]['parent']
