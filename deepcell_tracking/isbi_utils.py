@@ -37,19 +37,6 @@ import numpy as np
 import pandas as pd
 from tifffile import imread
 
-# Imports for backwards compatibility
-from deepcell_tracking.utils import match_nodes, contig_tracks
-from deepcell_tracking.metrics import calculate_summary_stats
-from deepcell_tracking.metrics import benchmark_tracking_performance
-
-
-def benchmark_division_performance(trk_gt, trk_res):
-    warnings.warn('benchmark_division_performance is deprecated. '
-                  'Please use deepcell_tracking.metrics.benchmark_tracking_performance instead',
-                  DeprecationWarning)
-
-    return benchmark_tracking_performance(trk_gt, trk_res)
-
 
 def trk_to_isbi(track, path=None):
     """Convert a lineage track into an ISBI formatted text file.
