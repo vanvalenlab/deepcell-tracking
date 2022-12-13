@@ -170,12 +170,7 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
             with pytest.raises(ValueError):
                 tracker.dataframe(bad_value=-1)
 
-            # test tracker.postprocess
             tempdir = str(tmpdir)
-            path = os.path.join(tempdir, 'postprocess.xyz')
-            tracker.postprocess(filename=path)
-            post_saved_path = os.path.join(tempdir, 'postprocess.trk')
-            assert os.path.isfile(post_saved_path)
 
             # test tracker.dump
             path = os.path.join(tempdir, 'test.xyz')
@@ -191,7 +186,7 @@ class TestTracking(object):  # pylint: disable=useless-object-inheritance
             assert os.path.isfile(os.path.join(tempdir, 'all.trks'))
 
             # test load_trks
-            data = trk_io.load_trks(post_saved_path)
+            data = trk_io.load_trks(dump_saved_path)
             assert isinstance(data['lineages'], list)
             assert all(isinstance(d, dict) for d in data['lineages'])
             np.testing.assert_equal(data['X'], tracker.X)
