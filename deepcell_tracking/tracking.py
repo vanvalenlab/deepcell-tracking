@@ -77,6 +77,11 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         dtype (str): data type for features, can be 'float32', 'float16', etc.
         data_format (str): determines the order of the channel axis,
             one of 'channels_first' and 'channels_last'.
+        crop_mode (str): Whether to do a fixed crop or to crop and resize
+            to create the appearance features
+        norm (bool): Whether to remove non cell features and normalize the
+            foreground pixels by zero-meaning and dividing by the standard
+            deviation. Applies to fixed crop mode only.
     """
 
     def __init__(self,
@@ -91,6 +96,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                  division=0.9,
                  track_length=5,
                  embedding_axis=0,
+                 crop_mode='resize',
+                 norm=True
                  dtype='float32',
                  data_format='channels_last'):
 
@@ -123,6 +130,8 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
         self.dtype = dtype
         self.track_length = track_length
         self.embedding_axis = embedding_axis
+        self.crop_mode = crop_mode
+        self.norm = norm
 
         self.a_matrix = []
         self.c_matrix = []
@@ -211,7 +220,9 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
 
             frame_features = get_image_features(
                 self.X[frame], self.y[frame],
-                appearance_dim=self.appearance_dim)
+                appearance_dim=self.appearance_dim,
+                crop_mode=self.crop_mode,
+                norm=self.norm)
 
             for cell_idx, cell_id in enumerate(frame_features['labels']):
                 self.id_to_idx[cell_id] = cell_idx
