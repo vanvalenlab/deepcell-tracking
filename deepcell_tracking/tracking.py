@@ -97,7 +97,7 @@ class CellTracker(object):  # pylint: disable=useless-object-inheritance
                  track_length=5,
                  embedding_axis=0,
                  crop_mode='resize',
-                 norm=True
+                 norm=True,
                  dtype='float32',
                  data_format='channels_last'):
 
