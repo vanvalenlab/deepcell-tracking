@@ -64,8 +64,7 @@ setup(name=NAME,
                         'deepcell-toolbox~=0.12.0'
                         ],
       extras_require={
-          'tests': ['pytest<6',
-                    'pytest-pep8',
+          'tests': ['pytest',
                     'pytest-cov',
                     'pytest-mock']},
       long_description=readme,
