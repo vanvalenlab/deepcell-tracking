@@ -50,7 +50,7 @@ def get_annotated_image(img_size=256, num_labels=3, sequential=True, seed=1):
                             ' Increase image size or reduce the number of labels')
         im = np.zeros((img_size, img_size))
         points = img_size * np.random.random((2, num_labels))
-        im[(points[0]).astype(np.int), (points[1]).astype(np.int)] = 1
+        im[(points[0]).astype(int), (points[1]).astype(int)] = 1
         im = sk.filters.gaussian(im, sigma=5)
         blobs = im > 0.7 * im.mean()
         all_labels, num_labels_act = sk.measure.label(blobs, return_num=True)
