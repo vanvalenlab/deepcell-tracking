@@ -64,16 +64,17 @@ setup(name=NAME,
                         'deepcell-toolbox~=0.12.0'
                         ],
       extras_require={
-          'tests': ['pytest<6',
-                    'pytest-pep8',
+          'tests': ['pytest',
                     'pytest-cov',
                     'pytest-mock']},
       long_description=readme,
       long_description_content_type='text/markdown',
       packages=find_packages(),
+      python_requires='>=3.7, <3.11',
       classifiers=[
           'Programming Language :: Python',
           'Programming Language :: Python :: 3',
           'Programming Language :: Python :: 3.7',
           'Programming Language :: Python :: 3.8',
-          'Programming Language :: Python :: 3.9'])
+          'Programming Language :: Python :: 3.9',
+          'Programming Language :: Python :: 3.10'])
