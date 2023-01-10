@@ -210,9 +210,9 @@ def correct_shifted_divisions(
 
     # Convert to dictionary for lookup by frame
     d_false_negative_division, d_fp = {}, {}
-    for d, l in [(d_false_negative_division, false_negative_division),
+    for d, j in [(d_false_negative_division, false_negative_division),
                  (d_fp, false_positive_division)]:
-        for n in l:
+        for n in j:
             t = int(n.split('_')[-1])
             v = d.get(t, [])
             v.append(n)
