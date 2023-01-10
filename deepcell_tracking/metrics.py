@@ -31,6 +31,7 @@ from __future__ import print_function
 
 from collections import Counter
 import itertools
+import functools
 import os
 
 import numpy as np
@@ -406,7 +407,7 @@ def calculate_summary_stats(correct_division,
         n_digits (int, optional): Number of digits to round to. Default 2.
     """
 
-    _round = lambda x: round(x, n_digits)
+    _round = functools.partial(round, ndigits=n_digits)
 
     try:
         recall = correct_division / (correct_division + false_negative_division)
