@@ -30,20 +30,14 @@ from __future__ import division
 from __future__ import print_function
 
 import copy
-import json
 import logging
-import os
 import pathlib
-import tarfile
-import tempfile
 import timeit
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
-from skimage.measure import regionprops
 
-import networkx as nx
 import pandas as pd
 
 from deepcell_tracking.utils import clean_up_annotations

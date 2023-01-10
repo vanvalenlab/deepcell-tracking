@@ -29,8 +29,6 @@ from __future__ import division
 from __future__ import print_function
 
 import copy
-import os
-import io
 
 import numpy as np
 import skimage as sk

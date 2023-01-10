@@ -30,7 +30,6 @@ from __future__ import division
 from __future__ import print_function
 
 import glob
-import warnings
 
 import networkx as nx
 import numpy as np
