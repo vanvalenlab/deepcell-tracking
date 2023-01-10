@@ -1,6 +1,7 @@
 line-length = 99
 
-ignore = []
+# Ignore complaints about bound lambda expressions
+ignore = ["E731"]
 
 [per-file-ignores]
 "__init__.py" = ["F401"]  # Ignore unused imports in __init__.py
