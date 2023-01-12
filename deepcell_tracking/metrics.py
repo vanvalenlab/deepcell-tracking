@@ -31,6 +31,7 @@ from __future__ import print_function
 
 from collections import Counter
 import itertools
+import functools
 import os
 
 import numpy as np
@@ -210,9 +211,9 @@ def correct_shifted_divisions(
 
     # Convert to dictionary for lookup by frame
     d_false_negative_division, d_fp = {}, {}
-    for d, l in [(d_false_negative_division, false_negative_division),
+    for d, j in [(d_false_negative_division, false_negative_division),
                  (d_fp, false_positive_division)]:
-        for n in l:
+        for n in j:
             t = int(n.split('_')[-1])
             v = d.get(t, [])
             v.append(n)
@@ -406,7 +407,7 @@ def calculate_summary_stats(correct_division,
         n_digits (int, optional): Number of digits to round to. Default 2.
     """
 
-    _round = lambda x: round(x, n_digits)
+    _round = functools.partial(round, ndigits=n_digits)
 
     try:
         recall = correct_division / (correct_division + false_negative_division)

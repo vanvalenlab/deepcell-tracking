@@ -38,7 +38,6 @@ import pytest
 
 import networkx as nx
 import numpy as np
-import pandas as pd
 
 from deepcell_tracking import metrics
 from deepcell_tracking.test_utils import generate_division_data, get_annotated_movie

@@ -29,18 +29,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import copy
 import os
-import tarfile
-import tempfile
-import json
 
-import networkx as nx
-import numpy as np
 import pandas as pd
 
 from deepcell_tracking import isbi_utils
-from deepcell_tracking.test_utils import get_annotated_movie
 
 
 class TestIsbiUtils(object):
