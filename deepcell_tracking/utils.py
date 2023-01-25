@@ -426,6 +426,9 @@ def get_image_features(X, y, appearance_dim=32, crop_mode='resize', norm=True):
         dict: A dictionary of feature names to np.arrays of shape
             (n, c) or (n, x, y, c) where n is the number of objects.
     """
+    # X must be float32 for the resize norm option to work correctly
+    X = X.astype('float32')
+    y = y.astype('int32')
 
     if crop_mode not in ['resize', 'fixed']:
         raise ValueError('crop_mode must be either resize or fixed')
