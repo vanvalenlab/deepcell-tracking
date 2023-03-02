@@ -289,7 +289,13 @@ def calculate_association_accuracy(lineage_gt, lineage_res, cells_gt=[], cells_r
 
     Defined as the number of true positive associations between cells divided by
     the total number of ground truth associations. Associations are equivalent to
-    the edges that connect cells in a graph
+    the edges that connect cells in a graph. As described by:
+        - Hayashida, J., Nishimura, K., and Bise, R. (2020). MPM: Joint
+          Representation of Motion and Position Map for Cell Tracking. In 2020 IEEE/CVF
+          Conference on Computer Vision and Pattern Recognition (CVPR) (IEEE).
+        - Nishimura, K., Hayashida, J., Wang, C., Ker, D.F.E., and Bise, R. (2020).
+          Weakly-Supervised Cell Tracking via Backward-and-Forward Propagation. In
+          Computer Vision - ECCV 2020 Lecture Notes in Computer Science.
 
     Args:
         lineage_gt (dict): Ground truth lineages
@@ -340,7 +346,13 @@ def calculate_target_effectiveness(lineage_gt, lineage_res, cells_gt=[], cells_r
 
     The TE measure considers the number of cell instances correctly associated within
     a track with respect to the total number of cells in a track. Only the best possible
-    true positive score is recorded for each ground truth lineage
+    true positive score is recorded for each ground truth lineage As described by:
+        - Hayashida, J., Nishimura, K., and Bise, R. (2020). MPM: Joint
+          Representation of Motion and Position Map for Cell Tracking. In 2020 IEEE/CVF
+          Conference on Computer Vision and Pattern Recognition (CVPR) (IEEE).
+        - Nishimura, K., Hayashida, J., Wang, C., Ker, D.F.E., and Bise, R. (2020).
+          Weakly-Supervised Cell Tracking via Backward-and-Forward Propagation. In
+          Computer Vision - ECCV 2020 Lecture Notes in Computer Science.
 
     Args:
         lineage_gt (dict): Ground truth lineages
