@@ -504,7 +504,7 @@ def get_image_features(X, y, appearance_dim=32, crop_mode='resize', norm=True):
                     masked_app = app[idx]
                     mean = np.mean(masked_app)
                     std = np.std(masked_app)
-                    app[idx] = (masked_app - mean) / std
+                    app[idx] = (masked_app - mean) / (std + 1e-4)
 
             appearances[i] = app
 
