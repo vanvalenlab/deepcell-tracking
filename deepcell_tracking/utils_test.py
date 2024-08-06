@@ -222,7 +222,7 @@ class TestTrackingUtils(object):
 
         # relabel the movie and lineage
         new_movie, new_lineage = utils.relabel_sequential_lineage(movie, lineage)
-        new_parent_label = int(np.unique(new_movie[np.where(movie == parent_label)]))
+        new_parent_label = int(np.unique(new_movie[np.where(movie == parent_label)])[0])
 
         # test parent is relabeled
         assert new_parent_label == 1  # sequential should start at 1
@@ -235,7 +235,7 @@ class TestTrackingUtils(object):
         assert len(new_daughter_labels) == 2
 
         for d in new_daughter_labels:
-            old_label = int(np.unique(movie[np.where(new_movie == d)]))
+            old_label = int(np.unique(movie[np.where(new_movie == d)])[0])
             assert new_lineage[d]['frames'] == lineage[old_label]['frames']
             assert new_lineage[d]['parent'] == new_parent_label
             assert new_lineage[d]['label'] == d
